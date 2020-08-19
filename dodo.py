@@ -7,7 +7,7 @@ targets = [str(Path(s).with_suffix(".rst")) for s in sources]
 
 def task_website():
     return {
-            "file_dep": targets + ["conf.py", "README.rst"],
+            "file_dep": targets + ["conf.py", "index.rst"],
             "actions": ["sphinx-build . website"],
             "verbosity": 2
             }
