@@ -9,7 +9,6 @@ script:
 deploy:
     privder: pages
     skip_cleanup: true
-    github_token: $TRAVIS_GH_PAGES_KEY
     local_dir: "website"
     on:
         branch: master
