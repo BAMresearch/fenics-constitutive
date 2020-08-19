@@ -1,21 +1,26 @@
 language: python
-sudo: false
-services: docker
-dist: trusty
+python:
+    - "3.7"
 
-jobs:
-    include:
-        - stage: website
-          script:
-              - travis_retry timeout 120 docker pull fb77/sphinx
-              - docker run -itd --name sphinx -v $(pwd):/repo fb77/sphinx
-              - docker exec sphinx bash -c "pip install doit"
-              - docker exec sphinx bash -c "cd repo && doit"
+install:
+    - pip install sphinx jupyter doit
 
-          deploy:
-              privder: pages
-              skip_cleanup: true
-              github_token: $TRAVIS_GH_PAGES_KEY
-              local_dir: "website"
-              on:
-                  branch: master
+script:
+    - doit
+
+#jobs:
+#    include:
+#        - stage: website
+#          script:
+#              - travis_retry timeout 120 docker pull fb77/sphinx
+#              - docker run -itd --name sphinx -v $(pwd):/repo fb77/sphinx
+#              - docker exec sphinx bash -c "pip install doit"
+#              - docker exec sphinx bash -c "cd repo && doit"
+#
+#          deploy:
+#              privder: pages
+#              skip_cleanup: true
+#              github_token: $TRAVIS_GH_PAGES_KEY
+#              local_dir: "website"
+#              on:
+#                  branch: master
