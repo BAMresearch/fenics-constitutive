@@ -1,0 +1,6 @@
+# ignore everything ...
+*
+
+# ... but our source files
+!.py
+!.ipynb
