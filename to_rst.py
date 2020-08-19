@@ -9,19 +9,37 @@ Assumption:
     To ensure 2), we use the variable "in_codeblock".
 """
 
+
+
 with open(sys.argv[1], "r") as f:
-    in_codeblock = True
+    
+    in_commentblock = False
+    in_codeblock = False
 
     for line in f:
-        is_comment = line.startswith("#")
-        if is_comment:
-            in_codeblock=False
-            print(line[2:].rstrip(), end="\n")
+        if line.startswith("#") and not in_commentblock:
+            in_codeblock = False
+            print(line[2:].rstrip())
+            continue
+        
+        if line.startswith("\"\"\""):
+            if not in_commentblock:
+                in_commentblock = True
+                in_codeblock = False
+            else:
+                in_commentblock = False
 
-        else:
-            if not in_codeblock:
-                in_codeblock = True
-                print("\n::", end="")
+            print(line[3:].rstrip())
+            continue
 
-            print("  "+line, end="")
+        if in_commentblock:
+            print(line, end="")
+            continue
+
+
+        if not in_codeblock:
+            in_codeblock = True
+            print("\n::\n", end="")
+
+        print("  "+line, end="")
 

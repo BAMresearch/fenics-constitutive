@@ -2,5 +2,5 @@
 *
 
 # ... but our source files
-!.py
-!.ipynb
+!*.py
+!*.ipynb
