@@ -29,7 +29,7 @@ def task_convert():
                 "name" : source,
                 "targets": [target],
                 "file_dep" : [source],
-                "actions": [f"jupyter nbconvert --to rst {source}"]
+                "actions": [f"jupyter-nbconvert --to rst {source}"]
                     }
         else:
             raise RuntimeError(f"Unknown format of {source}. *.py, *.ipynb supported.")
