@@ -1,8 +1,24 @@
 # Helper classes and functions
 # ===========================
 
-from dolfin import *
+"""
+Suppress warnings
+-----------------
+
+The whole quadrature space is half deprecated, half not. We roll with it 
+and just ignore the warnings.
+"""
+
 import numpy as np
+import warnings
+
+from dolfin import *
+from ffc.quadrature.deprecation import QuadratureRepresentationDeprecationWarning
+
+parameters["form_compiler"]["representation"] = "quadrature"
+warnings.simplefilter("ignore", QuadratureRepresentationDeprecationWarning)
+
+
 
 """
 Load-displacement curve

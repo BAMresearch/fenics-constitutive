@@ -29,7 +29,7 @@ with open(sys.argv[1], "r") as f:
             else:
                 in_commentblock = False
 
-            print(line[3:].rstrip())
+            print(line[3:])
             continue
 
         if in_commentblock:
@@ -39,7 +39,7 @@ with open(sys.argv[1], "r") as f:
 
         if not in_codeblock:
             in_codeblock = True
-            print("\n::\n", end="")
+            print("\n::\n")
 
         print("  "+line, end="")
 
