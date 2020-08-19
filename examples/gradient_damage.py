@@ -31,9 +31,10 @@ def my_pretty_function(some_arg):
 #    (a - b)^2 = a^2 - 2ab + b^2
 
 
+
 class LocalProjector:
     def __init__(self):
         pass
 
-    def new_method(self):
+    def new_method(self, a):
         pass
