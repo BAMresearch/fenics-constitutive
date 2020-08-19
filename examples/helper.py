@@ -95,6 +95,14 @@ be prefactorized to speedup subsequent projections.
 
 class LocalProjector:
     def __init__(self, expr, V, dxm):
+        """
+        expr:
+            expression to project
+        V:
+            quadrature function space
+        dxm:
+            dolfin.Measure("dx") that matches V
+        """
         dv = TrialFunction(V)
         v_ = TestFunction(V)
         a_proj = inner(dv, v_) * dxm
@@ -103,6 +111,10 @@ class LocalProjector:
         self.solver.factorize()
 
     def __call__(self, u):
+        """
+        u:
+            function that is filled with the solution of the projection
+        """
         self.solver.solve_local_rhs(u)
 
 """
@@ -117,6 +129,12 @@ Setting values for the quadrature space
 """
 
 def set_q(q, values):
+    """
+    q:
+        quadrature function space
+    values:
+        entries for `q`
+    """
     v = q.vector()
     v.zero()
     v.add_local(values.flatten())
