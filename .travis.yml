@@ -3,6 +3,7 @@ python:
     - "3.7"
 
 script:
+    - sudo apt update && sudo apt install -y pandoc
     - doit
 
 #jobs:

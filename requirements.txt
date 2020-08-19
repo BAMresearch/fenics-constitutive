@@ -1,4 +1,3 @@
 nbconvert
 sphinx
 doit
-pandoc
