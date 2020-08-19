@@ -1,0 +1,20 @@
+language: python
+sudo: false
+services: docker
+dist: trusty
+
+jobs:
+    include:
+        - stage: website
+          script:
+              - travis_retry timeout 120 docker pull fb77/sphinx
+              - docker run -itd --name sphinx -v $(pwd):/repro fb77/sphinx
+              - docker exec sphinx bash -c "pip install doit && doit"
+
+          deploy:
+              privder: pages
+              skip_cleanup: true
+              github_token: $TRAVIS_GH_PAGES_KEY
+              local_dir: "website"
+              on:
+                  branch: master
