@@ -14,7 +14,6 @@
 # import sys
 # sys.path.insert(0, os.path.abspath('.'))
 
-
 # -- Project information -----------------------------------------------------
 
 project = 'FEniCS Constitutive'
@@ -32,8 +31,13 @@ release = '2020'
 # ones.
 extensions = [
     "sphinx.ext.mathjax",
-    "sphinx.ext.githubpages"
+    "sphinx.ext.githubpages",
+    # "recommonmark"
 ]
+source_suffix = {  
+    '.rst': 'restructuredtext',
+}
+
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
