@@ -19,6 +19,14 @@ parameters["form_compiler"]["representation"] = "quadrature"
 warnings.simplefilter("ignore", QuadratureRepresentationDeprecationWarning)
 
 
+try:
+    from fenics_helpers.boundary import *
+    from fenics_helpers.timestepping import TimeStepper
+except Exception as e:
+    print("Install fenics_helpers via (e.g.)")
+    print("   pip3 install git+https://github.com/BAMResearch/fenics_helpers")
+    raise (e)
+
 
 """
 Load-displacement curve
@@ -101,9 +109,9 @@ solving the variational problem
 .. math::
     \int_\Omega uv \ \mathrm dx = \int_\omega \text{expr} \ v \ \mathrm dx
 
-for all test functions :math:`v \in V`.
+for all test functions $v \in V$.
 
-In our case, V is a quadrature function space and can significantly speed
+In our case, $V$ is a quadrature function space and can significantly speed
 up this solution by using the ``dolfin.LocalSolver`` that can additionaly
 be prefactorized to speedup subsequent projections.
 """
