@@ -253,11 +253,13 @@ Degrees of freedom in a mixed function space
 
 Momentum balance + Screened Poisson ...
 ::
+
     Rd = eps(dd) : sigma(eps(d), e) * dx
     Re = de * e * dx + grad(de) . l ** 2 * grad(e) * dx  - de * eeq(eps) * dx
 
 plus their derivatives
 ::
+
     dRd/dd = eps(dd) : (dSigma_deps) * eps(d)) * dx
     dRd/de = de * (dSigma_de * eps(d)) *dx
     dRe/dd = eps(dd) * (-deeq_deps) * e * dx
@@ -381,9 +383,7 @@ class GDM(NonlinearProblem):
       implementation of FEniCS. Note that this algorithm (as probably every NR)
       always evaluates ``F`` before ``J``. So it is sufficient to perform 
       the ``GDM.evaluate_material`` only in ``F``.
-"""
 
-"""
 Examples
 --------
 
@@ -399,6 +399,7 @@ Three regions form:
     * damage in the weakened cross section
     * damage in the unweakened cross section
     * no damage
+
 and the authors provide a solution of the PDE system for each of the regions.
 Finding the remaining integration constants is left to the reader. Here, it
 is solved using ``sympy``. We also subclass from ``dolfin.UserExpression`` to
@@ -536,10 +537,11 @@ def gdm_error(n_elements):
 """
 This error should converge to zero upon mesh refinement and can be used to 
 determine the order of convergence of the model.
+
+.. image:: gdm_convergence.png
 """
 
 def convergence_test():
-    import matplotlib.pyplot as plt
     ns = [50, 100, 200, 400]
     errors = []
     for n in ns:
@@ -549,8 +551,14 @@ def convergence_test():
     for i in range(len(ns) - 1):
         p = np.log(errors[i] - errors[i + 1]) / np.log(1.0 / ns[i] - 1.0 / ns[i + 1])
         ps.append(p)
-
-    plt.loglog(ns, errors)
+    
+    import matplotlib.pyplot as plt
+    plt.figure(figsize=(6, 3))
+    plt.loglog(ns, errors, "-ko")
+    plt.xlabel("# elements")
+    plt.ylabel("error")
+    plt.tight_layout()
+    plt.savefig("gdm_convergence.png")
     plt.show()
     print(ps)
 
@@ -561,7 +569,7 @@ Three-point bending test
 
 Just a more exciting example.
 
-.. image:: bending.gif
+.. image:: gdm_bending.gif
 
 Note that we pass our ``GDM`` class as well as the linear solver as a parameter.
 These can be modified to use an `iterative solver <gradient_damage_iterative.html>`_.
@@ -632,8 +640,8 @@ def three_point_bending(problem=GDM, linear_solver=LUSolver("mumps")):
 
 if __name__ == "__main__":
     assert gdm_error(200) < 1.0e-8
-    three_point_bending()
     convergence_test()
+    three_point_bending()
     list_timings(TimingClear.keep, [TimingType.wall])
 
 """

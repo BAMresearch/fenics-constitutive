@@ -1,6 +1,3 @@
-# ignore everything ...
-*
+*.rst
 
-# ... but our source files
-!*.py
-!*.ipynb
+*_files*

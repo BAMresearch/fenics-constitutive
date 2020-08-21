@@ -1,7 +1,7 @@
-# Helper classes and functions
-# ===========================
-
 """
+Helper classes and functions
+============================
+
 Suppress warnings
 -----------------
 
@@ -101,7 +101,7 @@ class LoadDisplacementCurve:
 
 """
 Local projector
---------------
+---------------
 
 Projecting an expression ``expr(u)`` into a function space ``V`` is done by
 solving the variational problem
