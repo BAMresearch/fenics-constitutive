@@ -207,7 +207,8 @@ Mandel notation
 
 The mandel notation keeps the property that of
 
-::
+.. math ::
+
     \bm \sigma : \bm \sigma \equiv \sigma_\text{mandel} . \sigma_\text{mandel} 
 
 """
