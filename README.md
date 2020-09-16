@@ -16,7 +16,7 @@ These forms are automatically compiled and linked to the rest of the FEniCS
 library. This makes it both easy-to-program and fast-to-run. 
 
 The UFL, however, is limited to expressions that can directly be written as 
-mathematic functions of the solution fields. In certain cases of constituive 
+mathematical functions of the solution fields. In certain cases of constitutive 
 mechanics modeling, this is a limitation, as it cannot be used to 
 
 - implement return mapping
