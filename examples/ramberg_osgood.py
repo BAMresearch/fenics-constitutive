@@ -52,6 +52,15 @@ Inversion of the strain stress relation:
     \bm \sigma = \frac{2 \sigma_{\mathrm{v}}}{3 \varepsilon_{\mathrm{v}}}
     \bm \varepsilon' + \frac{K}{3} (\bm\varepsilon \cdot \bm I) \bm I
 
+Equivalent stress and equivalent strain are related via a power law and for given
+$\varepsilon_{\mathrm{v}}$ we can determine $\sigma_{\mathrm{v}}$ by finding the
+root of:
+
+.. math::
+    f(\sigma_{\mathrm{v}}) = \frac{2}{3} \sigma_{\mathrm{v}} \left(
+    \frac{1}{2G} + \frac{3 \alpha}{2E} \left(\frac{\sigma_{\mathrm{v}}}{\sigma_{\mathrm{y}}}\right)^{n-1}
+    \right) - \varepsilon_{\mathrm{v}}\,.
+
 Consistent tangent:
 
 .. math::
