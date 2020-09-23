@@ -27,7 +27,7 @@ Linearized principle of virtual power:
 
 Constitutive law
 ****************
-For a complete derivation of the equations we refer to XX and only summarize the ones essential for the
+For the sake of brevity we skip a derivation of the equations only summarize the ones essential for the
 presented implementation.
 The strain is given by
 
@@ -73,6 +73,12 @@ Consistent tangent:
     \right)\bm{\varepsilon}' \circ \bm{\varepsilon}'
     \right)
     + \frac{1}{3}\left(K - \frac{2\sigma_{\mathrm{v}}}{3 \varepsilon_{\mathrm{v}}}\right) \bm{I} \circ \bm{I}
+
+Algorithm to compute stress and consistent tangent for a given strain state:
+    1. Compute equivalent strain $\varepsilon_{\mathrm{v}}$,
+    2. Compute equivalent stress $\sigma_{\mathrm{v}}$ via newton method (previous stress state can be used as initial guess),
+    3. Compute stress,
+    4. Compute consistent tangent
 
 """
 from helper import *
