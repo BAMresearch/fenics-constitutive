@@ -185,6 +185,33 @@ def modified_mises_strain_norm(mat, eps):
     deeq[2::3] = 1.0 / (2 * A) * (K2 * dJ2dexy)
     return eeq, deeq
 
+def rankine(s):
+    N = 1
+    if len(s.shape) == 2:
+        N = len(s)
+        s = s.T
+
+    p = -0.5 * (s[0] + s[1])  # 
+    q = s[0] * s[1] - s[2] **2 / 4.  # det(s)
+
+    D = p ** 2 - q
+    assert np.all(D >= -1.0e-15)
+    sqrtD = np.sqrt(D)
+
+    ev1p = np.maximum(-p + sqrtD, 0.)
+    ev2p = np.maximum(-p - sqrtD, 0.)
+
+    return np.sqrt(ev1p**2 + ev2p**2)
+
+def cdf2(f, x, delta):
+    f0 = f(x)
+    f_cdf = np.empty_like(x)
+    for i in range(len(x.T)):
+        d = np.zeros_like(x)
+        d[:,i] = delta
+        f_cdf[:,i] = (f(x + d) - f(x - d)) / (2 * delta)
+    return f_cdf
+
 
 """
 Complete constitutive class
@@ -235,7 +262,8 @@ class GDMPlaneStrain:
         self.sigma, self.dsigma_deps, self.dsigma_de = hooke(
             self, eps, kappa, dkappa_de
         )
-        self.eeq, self.deeq = modified_mises_strain_norm(self, eps_flat)
+        # self.eeq, self.deeq = modified_mises_strain_norm(self, eps_flat)
+        self.eeq, self.deeq = rankine(eps), cdf2(rankine, eps, 1.e-6)
 
     def update(self, e):
         self.kappa = self.kappa_kkt(e)
@@ -494,7 +522,7 @@ class PeerlingsAnalytic(UserExpression):
         value[0] = self.e(x[0])
 
 """
-Using this, we can rebuild the example with our ``GDM`` nonlinear problem and
+Using this, we can rebuild the example with our ``GDM`` nonlinear Problem and
 compare.
 """
 
@@ -575,14 +603,14 @@ Note that we pass our ``GDM`` class as well as the linear solver as a parameter.
 These can be modified to use an `iterative solver <gradient_damage_iterative.html>`_.
 """
 
-def three_point_bending(problem=GDM, linear_solver=LUSolver("mumps")):
+def three_point_bending(Problem=GDM, linear_solver=LUSolver("mumps")):
     LX = 2000
     LY = 300
     LX_load = 100
 
     mesh = RectangleMesh(Point(0, 0), Point(LX, LY), 100, 15)
     mat = GDMPlaneStrain()
-    gdm = problem(mesh, mat)
+    gdm = Problem(mesh, mat)
 
     bcs = []
     left = point_at((0.0, 0.0), eps=0.1)
@@ -638,10 +666,82 @@ def three_point_bending(problem=GDM, linear_solver=LUSolver("mumps")):
     TimeStepper(solve, pp, gdm.u).adaptive(1.0, dt=0.1)
 
 
+def compression(Problem=GDM, linear_solver=LUSolver("mumps")):
+    LX = 150
+    LY = 300
+
+    mesh = RectangleMesh(Point(0, 0), Point(LX, LY), 50, 100)
+    mat = GDMPlaneStrain()
+    mat.l = 5
+    mat.beta = 350
+    disturbance = Expression(
+            "(abs(x[0] - LX*0.6) < F) && (abs(x[1] - LY/2) < F) ? 0.4 : 1", LX=LX, LY=LY, F=5, degree=0)
+    disturbance = Constant(1)
+    gdm = Problem(mesh, mat, f_d=disturbance)
+    
+    
+
+    bcs = []
+    left = point_at((0.0, 0.0), eps=0.1)
+    bottom = plane_at(0., "y")
+    top = plane_at(LY, "y")
+
+    bc_expr = Expression("d*t", degree=0, t=0, d=-3)
+    bcs.append(DirichletBC(gdm.Vd.sub(1), bc_expr, top))
+    bcs.append(DirichletBC(gdm.Vd.sub(1), 0.0, bottom))
+    bcs.append(DirichletBC(gdm.Vd.sub(0), 0.0, left, method="pointwise"))
+    full_clamp = True
+    if full_clamp:
+        bcs.append(DirichletBC(gdm.Vd.sub(0), 0.0, bottom))
+        # bcs.append(DirichletBC(gdm.Vd.sub(0), 0.0, top))
+
+    gdm.set_bcs(bcs)
+    
+    solver = NewtonSolver(MPI.comm_world, linear_solver, PETScFactory.instance())
+    solver.parameters["linear_solver"] = "mumps"
+    solver.parameters["maximum_iterations"] = 10
+    solver.parameters["error_on_nonconvergence"] = False
+
+    def solve(t, dt):
+        bc_expr.t = t
+        return solver.solve(gdm, gdm.u.vector())
+
+    ld = LoadDisplacementCurve(bcs[0])
+    ld.show()
+    if not ld.is_root:
+        set_log_level(LogLevel.ERROR)
+
+    fff = XDMFFile("compression.xdmf")
+    fff.parameters["functions_share_mesh"] = True
+    fff.parameters["flush_output"] = True
+    plot_space = FunctionSpace(mesh, "DG", 0)
+
+    def pp(t):
+        gdm.update()
+
+        # this fixes XDMF time stamps
+        import locale
+        locale.setlocale(locale.LC_NUMERIC, "en_US.UTF-8")  
+        fff.write(gdm.u.split()[0], t)
+        fff.write(gdm.u.split()[1], t)
+
+        # plot the damage
+        q_k = gdm.q_k
+        q_w = Function(q_k.function_space())
+        set_q(q_w, mat.dmg(mat, q_k.vector().get_local())[0])
+        w = project(q_w, plot_space)
+        w.rename("w", "w")
+        fff.write(w, t)
+
+        ld(t, assemble(gdm.R))
+
+    TimeStepper(solve, pp, gdm.u).adaptive(1.0, dt=0.1)
+
 if __name__ == "__main__":
     assert gdm_error(200) < 1.0e-8
-    convergence_test()
-    three_point_bending()
+    # convergence_test()
+    # three_point_bending()
+    compression()
     list_timings(TimingClear.keep, [TimingType.wall])
 
 """
