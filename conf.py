@@ -18,8 +18,8 @@
 # -- Project information -----------------------------------------------------
 
 project = 'FEniCS Constitutive'
-copyright = '2020, Thomas Titscher, Sjard Mathis Rosenbusch, Philipp Dierks'
-author = 'Thomas Titscher, Sjard Mathis Rosenbusch, Philipp Dierks'
+copyright = '2020, Thomas Titscher, Sjard Mathis Rosenbusch, Philipp Diercks'
+author = 'Thomas Titscher, Sjard Mathis Rosenbusch, Philipp Diercks'
 
 # The full version, including alpha/beta/rc tags
 release = '2020'
