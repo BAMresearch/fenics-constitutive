@@ -1,0 +1,287 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Note on iterative solvers &mdash; FEniCS Constitutive 2020 documentation</title>
+  
+
+  
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+
+  
+  
+  
+  
+
+  
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/language_data.js"></script>
+        <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Helper classes and functions" href="helper.html" />
+    <link rel="prev" title="Implicit gradient-enhanced damage model" href="gradient_damage.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html" class="icon icon-home" alt="Documentation Home"> FEniCS Constitutive
+          
+
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="basics.html">Basic principle</a></li>
+<li class="toctree-l1"><a class="reference internal" href="example.html">Material models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="example.html#drucker-prager-yield-condition">Drucker-Prager yield condition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="gradient_damage.html">Implicit gradient-enhanced damage model</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Note on iterative solvers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="helper.html">Helper classes and functions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="plate_with_hole.html">Plate with hole</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ramberg_osgood.html">Ramberg Osgood material law</a></li>
+</ul>
+
+            
+          
+        </div>
+        
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">FEniCS Constitutive</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
+        
+      <li>Note on iterative solvers</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../_sources/examples/gradient_damage_iterative.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="note-on-iterative-solvers">
+<h1>Note on iterative solvers<a class="headerlink" href="#note-on-iterative-solvers" title="Permalink to this headline">¶</a></h1>
+<p>For highly nonlinear problems - like damage - configuring an iterative solver
+(benefits: less memory, better scalability) is difficult. I am in no way
+an expert in this, but I’ve found a setup that works.</p>
+<p>It is based on using the (BiC)onjugate (G)radient (Stab)ilized method with
+an (A)lgebraic (M)ulti(G)rid preconditioner. The latter one highly benefits
+from setting a <em>near null space</em>, in our case the rigid body modes for linear
+elasticity.</p>
+<p>Note that this is just an adaptation of <a class="reference external" href="https://bitbucket.org/fenics-project/dolfin/src/master/python/demo/undocumented/elasticity/demo_elasticity.py">this FEniCS example</a> to
+the asymmetric and mixed gradient damage problem.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">gradient_damage</span> <span class="kn">import</span> <span class="o">*</span>
+
+<span class="k">def</span> <span class="nf">build_nullspace2D</span><span class="p">(</span><span class="n">V</span><span class="p">,</span> <span class="n">u</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Function to build null space for 2D elasticity&quot;&quot;&quot;</span>
+
+    <span class="c1"># Create list of vectors for null space</span>
+    <span class="n">nullspace_basis</span> <span class="o">=</span> <span class="p">[</span><span class="n">u</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">)]</span>
+    <span class="c1"># Build translational null space basis</span>
+    <span class="n">V</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">dofmap</span><span class="p">()</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">nullspace_basis</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mf">1.0</span><span class="p">)</span>
+    <span class="n">V</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">dofmap</span><span class="p">()</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">nullspace_basis</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="mf">1.0</span><span class="p">)</span>
+
+    <span class="c1"># Build rotational null space basis</span>
+    <span class="n">V</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">set_x</span><span class="p">(</span><span class="n">nullspace_basis</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="o">-</span><span class="mf">1.0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">V</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">set_x</span><span class="p">(</span><span class="n">nullspace_basis</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">nullspace_basis</span><span class="p">:</span>
+        <span class="n">x</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="s2">&quot;insert&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Create vector space basis and orthogonalize</span>
+    <span class="n">basis</span> <span class="o">=</span> <span class="n">VectorSpaceBasis</span><span class="p">(</span><span class="n">nullspace_basis</span><span class="p">)</span>
+    <span class="n">basis</span><span class="o">.</span><span class="n">orthonormalize</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="n">basis</span>
+</pre></div>
+</div>
+<p>We then modify the <code class="docutils literal notranslate"><span class="pre">J</span></code> method from the <a class="reference external" href="gradient_damage.html">original GDM</a>
+by subclassing …</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">GDM_I</span><span class="p">(</span><span class="n">GDM</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">null_space</span> <span class="o">=</span> <span class="n">build_nullspace2D</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">Vd</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">u</span><span class="o">.</span><span class="n">vector</span><span class="p">())</span>
+
+    <span class="k">def</span> <span class="nf">J</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">A</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">J</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+        <span class="n">as_backend_type</span><span class="p">(</span><span class="n">A</span><span class="p">)</span><span class="o">.</span><span class="n">set_near_nullspace</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">null_space</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>… and define an iterative solver.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+    <span class="n">pc</span> <span class="o">=</span> <span class="n">PETScPreconditioner</span><span class="p">(</span><span class="s2">&quot;petsc_amg&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Use Chebyshev smoothing for multigrid</span>
+    <span class="n">PETScOptions</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s2">&quot;mg_levels_ksp_type&quot;</span><span class="p">,</span> <span class="s2">&quot;chebyshev&quot;</span><span class="p">)</span>
+    <span class="n">PETScOptions</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s2">&quot;mg_levels_pc_type&quot;</span><span class="p">,</span> <span class="s2">&quot;jacobi&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Improve estimate of eigenvalues for Chebyshev smoothing</span>
+    <span class="n">PETScOptions</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s2">&quot;mg_levels_esteig_ksp_type&quot;</span><span class="p">,</span> <span class="s2">&quot;gmres&quot;</span><span class="p">)</span>
+    <span class="n">PETScOptions</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s2">&quot;mg_levels_ksp_chebyshev_esteig_steps&quot;</span><span class="p">,</span> <span class="mi">50</span><span class="p">)</span>
+
+    <span class="n">lin_solver</span> <span class="o">=</span> <span class="n">PETScKrylovSolver</span><span class="p">(</span><span class="s2">&quot;bicgstab&quot;</span><span class="p">,</span> <span class="n">pc</span><span class="p">)</span>
+
+    <span class="n">lin_solver</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="s2">&quot;nonzero_initial_guess&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">lin_solver</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="s2">&quot;maximum_iterations&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1000</span>
+    <span class="n">lin_solver</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="s2">&quot;relative_tolerance&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.0e-6</span>
+    <span class="n">lin_solver</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="s2">&quot;error_on_nonconvergence&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">three_point_bending</span><span class="p">(</span><span class="n">GDM_I</span><span class="p">,</span> <span class="n">lin_solver</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="helper.html" class="btn btn-neutral float-right" title="Helper classes and functions" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="gradient_damage.html" class="btn btn-neutral float-left" title="Implicit gradient-enhanced damage model" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        
+        &copy; Copyright 2020, Thomas Titscher, Sjard Mathis Rosenbusch, Philipp Diercks
+
+    </p>
+  </div>
+    
+    
+    
+    Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a
+    
+    <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a>
+    
+    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

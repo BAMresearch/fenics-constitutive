@@ -1,0 +1,775 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Ramberg Osgood material law &mdash; FEniCS Constitutive 2020 documentation</title>
+  
+
+  
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+
+  
+  
+  
+  
+
+  
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/language_data.js"></script>
+        <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="prev" title="Plate with hole" href="plate_with_hole.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html" class="icon icon-home" alt="Documentation Home"> FEniCS Constitutive
+          
+
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="basics.html">Basic principle</a></li>
+<li class="toctree-l1"><a class="reference internal" href="example.html">Material models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="example.html#drucker-prager-yield-condition">Drucker-Prager yield condition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="gradient_damage.html">Implicit gradient-enhanced damage model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="gradient_damage_iterative.html">Note on iterative solvers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="helper.html">Helper classes and functions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="plate_with_hole.html">Plate with hole</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Ramberg Osgood material law</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#introduction-and-governing-equations">Introduction and governing equations</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#constitutive-law">Constitutive law</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#solution-of-the-constitutive-law">Solution of the constitutive law</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#voigt-notation">Voigt notation</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#examples">Examples</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#simple-tension-test">Simple Tension Test</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+            
+          
+        </div>
+        
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">FEniCS Constitutive</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
+        
+      <li>Ramberg Osgood material law</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../_sources/examples/ramberg_osgood.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="ramberg-osgood-material-law">
+<h1>Ramberg Osgood material law<a class="headerlink" href="#ramberg-osgood-material-law" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="introduction-and-governing-equations">
+<h2>Introduction and governing equations<a class="headerlink" href="#introduction-and-governing-equations" title="Permalink to this headline">¶</a></h2>
+<p>The ramberg osgood material law can be used to model
+ductile behaviour for monotonic loading and is often used in fracture mechanics
+applications. In contrast to
+incremental plasticity models stress and strain are directly
+related and thus the ramberg osgood model is in fact a nonlinear elastic model.
+While algorithmically the solution of the ramberg osgood constitutive law
+in a FE code is rather simple, it involves the solution of a power law (on integration
+point level) which can be challenging with regard to the implementation in FEniCS (dolfin version 2019.1.0).
+As in the other examples in the following we subclass the <code class="docutils literal notranslate"><span class="pre">dolfin.NonlinearProblem</span></code> to interact with the
+<code class="docutils literal notranslate"><span class="pre">dolfin.NewtonSolver</span></code> and solve the linearized principle of vitual power in each iteration. The consistent
+tangent and stress are functions in a quadrature space and <em>filled</em> manually after solving the
+constitutive equations in a pure numpy code.</p>
+<p>Linearized principle of virtual power:</p>
+<div class="math notranslate nohighlight">
+\[\int_\Omega \boldsymbol \varepsilon \cdot
+\frac{\partial \boldsymbol\sigma}{\partial \boldsymbol\varepsilon} \cdot \boldsymbol \varepsilon \;\mathrm{d}x
+= f_{\mathrm{ext}} - \int_\Omega \boldsymbol \sigma \cdot \boldsymbol \varepsilon \;\mathrm{d}x\]</div>
+<div class="section" id="constitutive-law">
+<h3>Constitutive law<a class="headerlink" href="#constitutive-law" title="Permalink to this headline">¶</a></h3>
+<p>For the sake of brevity we skip a derivation of the equations only summarize the ones essential for the
+presented implementation.
+The strain is given by</p>
+<div class="math notranslate nohighlight">
+\[\boldsymbol{\varepsilon} = \frac{1}{3K} (\boldsymbol{\sigma} \cdot \boldsymbol I) \boldsymbol{I} + \left(
+\frac{1}{2G} + \frac{3\alpha}{2E} {\left( \frac{\sigma_{\mathrm{v}}}{\sigma_{\mathrm{y}}} \right)}^{n-1}
+\right) \boldsymbol{\sigma'},\]</div>
+<p>where the stress deviator is denoted by <span class="math notranslate nohighlight">\(\boldsymbol \sigma'\)</span> and the equivalent stress is</p>
+<div class="math notranslate nohighlight">
+\[\sigma_{\mathrm{v}} = \sqrt{\frac{3}{2} \boldsymbol \sigma' \cdot \boldsymbol \sigma'}.\]</div>
+<p><span class="math notranslate nohighlight">\(E, \nu, \alpha, n\)</span> and <span class="math notranslate nohighlight">\(\sigma_{\mathrm{y}}\)</span> are material parameters (bulk modulus <span class="math notranslate nohighlight">\(K\)</span> and
+shear modulus <span class="math notranslate nohighlight">\(G\)</span> are given in terms of <span class="math notranslate nohighlight">\(E\)</span> and <span class="math notranslate nohighlight">\(\nu\)</span>).</p>
+<p>Inversion of the strain stress relation:</p>
+<div class="math notranslate nohighlight">
+\[\boldsymbol \sigma = \frac{2 \sigma_{\mathrm{v}}}{3 \varepsilon_{\mathrm{v}}}
+\boldsymbol \varepsilon' + \frac{K}{3} (\boldsymbol\varepsilon \cdot \boldsymbol I) \boldsymbol I\]</div>
+<p>Equivalent stress and equivalent strain are related via a power law and for given
+<span class="math notranslate nohighlight">\(\varepsilon_{\mathrm{v}}\)</span> we can determine <span class="math notranslate nohighlight">\(\sigma_{\mathrm{v}}\)</span> by finding the
+root of:</p>
+<div class="math notranslate nohighlight">
+\[f(\sigma_{\mathrm{v}}) = \frac{2}{3} \sigma_{\mathrm{v}} \left(
+\frac{1}{2G} + \frac{3 \alpha}{2E} \left(\frac{\sigma_{\mathrm{v}}}{\sigma_{\mathrm{y}}}\right)^{n-1}
+\right) - \varepsilon_{\mathrm{v}}\,.\]</div>
+<p>Consistent tangent:</p>
+<div class="math notranslate nohighlight">
+\[\frac{\partial \boldsymbol \sigma}{\partial \boldsymbol \varepsilon} =
+\frac{2\sigma_{\mathrm{v}}}{3\varepsilon_{\mathrm{v}}}\left(
+\boldsymbol I - \frac{2}{3\varepsilon_{\mathrm{v}}}\left(
+\frac{1}{\varepsilon_{\mathrm{v}}} - \frac{1}{
+\frac{\sigma_{\mathrm{v}}}{3G} + \alpha n \frac{\sigma_{\mathrm{y}}}{E} {\left(\frac{\sigma_{\mathrm{v}}}{\sigma_{\mathrm{y}}}\right)}^{n}
+}
+\right)\boldsymbol{\varepsilon}' \circ \boldsymbol{\varepsilon}'
+\right)
++ \frac{1}{3}\left(K - \frac{2\sigma_{\mathrm{v}}}{3 \varepsilon_{\mathrm{v}}}\right) \boldsymbol{I} \circ \boldsymbol{I}\]</div>
+<dl class="simple">
+<dt>Algorithm to compute stress and consistent tangent for a given strain state:</dt><dd><ol class="arabic simple">
+<li><p>Compute equivalent strain <span class="math notranslate nohighlight">\(\varepsilon_{\mathrm{v}}\)</span>,</p></li>
+<li><p>Compute equivalent stress <span class="math notranslate nohighlight">\(\sigma_{\mathrm{v}}\)</span> via newton method (previous stress state can be used as initial guess),</p></li>
+<li><p>Compute stress,</p></li>
+<li><p>Compute consistent tangent</p></li>
+</ol>
+</dd>
+</dl>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">helper</span> <span class="kn">import</span> <span class="o">*</span>
+
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+<span class="kn">from</span> <span class="nn">matplotlib.ticker</span> <span class="kn">import</span> <span class="n">FormatStrFormatter</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="section" id="solution-of-the-constitutive-law">
+<h2>Solution of the constitutive law<a class="headerlink" href="#solution-of-the-constitutive-law" title="Permalink to this headline">¶</a></h2>
+<p>The solution of the power law mentioned above makes a vectorization of the
+numpy code difficult. Hence we could use a C++ function/class to solve the constitutive law.
+Another option is the use of <a class="reference external" href="https://numba.pydata.org/">numba</a> to speed up the numpy code.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">numba</span>
+
+<span class="nd">@numba</span><span class="o">.</span><span class="n">njit</span>
+<span class="k">def</span> <span class="nf">solve_ramberg_osgood</span><span class="p">(</span><span class="n">E</span><span class="p">,</span> <span class="n">NU</span><span class="p">,</span> <span class="n">ALPHA</span><span class="p">,</span> <span class="n">NEXP</span><span class="p">,</span> <span class="n">SIGY</span><span class="p">,</span> <span class="n">NGAUSS</span><span class="p">,</span> <span class="n">GDIM</span><span class="p">,</span> <span class="n">STRAIN</span><span class="p">,</span> <span class="n">STRESS</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;solve ramberg osgood constitutive equation for each integration point in</span>
+<span class="sd">    the computational domain</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+
+<span class="sd">    E : float</span>
+<span class="sd">        young&#39;s modulus</span>
+<span class="sd">    NU : float</span>
+<span class="sd">        poisson ratio</span>
+<span class="sd">    ALPHA : float</span>
+<span class="sd">        ramberg osgood parameter 1</span>
+<span class="sd">    NEXP : int</span>
+<span class="sd">        ramberg osgood paramter 2</span>
+<span class="sd">    SIGY : float</span>
+<span class="sd">        yield stress</span>
+<span class="sd">    NGAUSS : int</span>
+<span class="sd">        total number of gauss points</span>
+<span class="sd">    GDIM : int</span>
+<span class="sd">        geometrical dimension</span>
+<span class="sd">    STRAIN : np.ndarray</span>
+<span class="sd">        strain value of each cell in Omega</span>
+<span class="sd">    STRESS : np.ndarray</span>
+<span class="sd">        previous stress state</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    STRESS : np.ndarray</span>
+<span class="sd">        stress for each integration point</span>
+<span class="sd">    DDSDDE : np.ndarray</span>
+<span class="sd">        tangent for each integration point</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">LAMBDA</span> <span class="o">=</span> <span class="n">E</span> <span class="o">*</span> <span class="n">NU</span> <span class="o">/</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">NU</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">NU</span><span class="p">)</span>
+    <span class="n">MU</span> <span class="o">=</span> <span class="n">E</span> <span class="o">/</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">NU</span><span class="p">))</span>
+    <span class="n">K</span> <span class="o">=</span> <span class="n">E</span> <span class="o">/</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">NU</span><span class="p">)</span>  <span class="c1"># bulk modulus</span>
+
+    <span class="n">DDSDDE</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">NGAUSS</span><span class="p">,</span> <span class="n">GDIM</span> <span class="o">*</span> <span class="mi">2</span><span class="p">,</span> <span class="n">GDIM</span> <span class="o">*</span> <span class="mi">2</span><span class="p">))</span>
+
+    <span class="k">if</span> <span class="n">GDIM</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="n">Cel</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+            <span class="p">[</span>
+                <span class="p">[</span><span class="n">LAMBDA</span> <span class="o">+</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">MU</span><span class="p">,</span> <span class="n">LAMBDA</span><span class="p">,</span> <span class="n">LAMBDA</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span>
+                <span class="p">[</span><span class="n">LAMBDA</span><span class="p">,</span> <span class="n">LAMBDA</span> <span class="o">+</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">MU</span><span class="p">,</span> <span class="n">LAMBDA</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span>
+                <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span>
+                <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">MU</span><span class="p">],</span>
+            <span class="p">]</span>
+        <span class="p">)</span>
+    <span class="k">elif</span> <span class="n">GDIM</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+        <span class="n">Cel</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+            <span class="p">[</span>
+                <span class="p">[</span><span class="n">LAMBDA</span> <span class="o">+</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">MU</span><span class="p">,</span> <span class="n">LAMBDA</span><span class="p">,</span> <span class="n">LAMBDA</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span>
+                <span class="p">[</span><span class="n">LAMBDA</span><span class="p">,</span> <span class="n">LAMBDA</span> <span class="o">+</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">MU</span><span class="p">,</span> <span class="n">LAMBDA</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span>
+                <span class="p">[</span><span class="n">LAMBDA</span><span class="p">,</span> <span class="n">LAMBDA</span><span class="p">,</span> <span class="n">LAMBDA</span> <span class="o">+</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">MU</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span>
+                <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">MU</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span>
+                <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">MU</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span>
+                <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">MU</span><span class="p">],</span>
+            <span class="p">]</span>
+        <span class="p">)</span>
+
+    <span class="n">zero_strain_tolerance</span> <span class="o">=</span> <span class="mf">1e-12</span>
+    <span class="n">sv_tol</span> <span class="o">=</span> <span class="mf">1e-12</span>
+    <span class="n">maxiter</span> <span class="o">=</span> <span class="mi">50</span>
+    <span class="c1"># helpers voigt notation</span>
+    <span class="n">I2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">GDIM</span> <span class="o">*</span> <span class="mi">2</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">double</span><span class="p">)</span>  <span class="c1"># Identity of rank 2 tensor</span>
+    <span class="n">I2</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.0</span>
+    <span class="n">I2</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.0</span>
+    <span class="n">I2</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.0</span>
+    <span class="n">I4</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">GDIM</span> <span class="o">*</span> <span class="mi">2</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">double</span><span class="p">)</span>  <span class="c1"># Identity of rank 4 tensor</span>
+
+    <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">NGAUSS</span><span class="p">):</span>
+        <span class="c1"># strain at time t + delta t</span>
+        <span class="n">eps</span> <span class="o">=</span> <span class="n">STRAIN</span><span class="p">[</span><span class="n">n</span><span class="p">]</span>
+        <span class="n">tr_eps</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">eps</span><span class="p">[:</span><span class="mi">3</span><span class="p">])</span>
+        <span class="n">eps_dev</span> <span class="o">=</span> <span class="n">eps</span> <span class="o">-</span> <span class="n">tr_eps</span> <span class="o">*</span> <span class="n">I2</span> <span class="o">/</span> <span class="mi">3</span>
+        <span class="n">ev</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mf">2.0</span> <span class="o">/</span> <span class="mf">3.0</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">eps_dev</span><span class="p">,</span> <span class="n">eps_dev</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="n">ev</span> <span class="o">&lt;</span> <span class="n">zero_strain_tolerance</span><span class="p">:</span>
+            <span class="c1"># return elastic tangent</span>
+            <span class="n">STRESS</span><span class="p">[</span><span class="n">n</span><span class="p">]</span> <span class="o">=</span> <span class="n">Cel</span> <span class="o">@</span> <span class="n">eps</span>
+            <span class="n">DDSDDE</span><span class="p">[</span><span class="n">n</span><span class="p">]</span> <span class="o">=</span> <span class="n">Cel</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># compute correct tangent and stress</span>
+            <span class="c1"># stress at time t</span>
+            <span class="n">sig</span> <span class="o">=</span> <span class="n">STRESS</span><span class="p">[</span><span class="n">n</span><span class="p">]</span>
+            <span class="n">tr_sig</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">sig</span><span class="p">[:</span><span class="mi">3</span><span class="p">])</span>
+            <span class="n">sig_dev</span> <span class="o">=</span> <span class="n">sig</span> <span class="o">-</span> <span class="n">tr_sig</span> <span class="o">*</span> <span class="n">I2</span> <span class="o">/</span> <span class="mi">3</span>
+            <span class="c1"># equivalent stress at time t is used as initial guess</span>
+            <span class="n">sv_initial</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mf">3.0</span> <span class="o">/</span> <span class="mf">2.0</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">sig_dev</span><span class="p">,</span> <span class="n">sig_dev</span><span class="p">))</span>
+
+            <span class="c1"># stress at time t + delta t</span>
+            <span class="k">if</span> <span class="n">sv_initial</span> <span class="o">&lt;=</span> <span class="n">SIGY</span><span class="p">:</span>
+                <span class="n">sv</span> <span class="o">=</span> <span class="n">sv_initial</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># initial_guess is &gt; sigy</span>
+                <span class="n">sv</span> <span class="o">=</span> <span class="p">(</span><span class="n">SIGY</span> <span class="o">**</span> <span class="p">(</span><span class="n">NEXP</span> <span class="o">-</span> <span class="mf">1.0</span><span class="p">)</span> <span class="o">*</span> <span class="n">E</span> <span class="o">*</span> <span class="n">ev</span> <span class="o">/</span> <span class="n">ALPHA</span><span class="p">)</span> <span class="o">**</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">/</span> <span class="n">NEXP</span><span class="p">)</span>
+
+            <span class="k">def</span> <span class="nf">f</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+                <span class="n">stuff</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="p">(</span><span class="mf">2.0</span> <span class="o">*</span> <span class="n">MU</span><span class="p">)</span> <span class="o">+</span> <span class="mf">3.0</span> <span class="o">/</span> <span class="p">(</span><span class="mf">2.0</span> <span class="o">*</span> <span class="n">E</span><span class="p">)</span> <span class="o">*</span> <span class="n">ALPHA</span> <span class="o">*</span> <span class="p">(</span><span class="n">x</span> <span class="o">/</span> <span class="n">SIGY</span><span class="p">)</span> <span class="o">**</span> <span class="p">(</span>
+                    <span class="n">NEXP</span> <span class="o">-</span> <span class="mf">1.0</span>
+                <span class="p">)</span>
+                <span class="k">return</span> <span class="n">stuff</span> <span class="o">*</span> <span class="mf">2.0</span> <span class="o">/</span> <span class="mf">3.0</span> <span class="o">*</span> <span class="n">x</span> <span class="o">-</span> <span class="n">ev</span>
+
+            <span class="k">def</span> <span class="nf">df</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+                <span class="k">return</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="p">(</span><span class="mf">3.0</span> <span class="o">*</span> <span class="n">MU</span><span class="p">)</span> <span class="o">+</span> <span class="n">NEXP</span> <span class="o">*</span> <span class="n">ALPHA</span> <span class="o">/</span> <span class="n">E</span> <span class="o">*</span> <span class="p">(</span><span class="n">x</span> <span class="o">/</span> <span class="n">SIGY</span><span class="p">)</span> <span class="o">**</span> <span class="p">(</span><span class="n">NEXP</span> <span class="o">-</span> <span class="mf">1.0</span><span class="p">)</span>
+
+            <span class="n">s</span> <span class="o">=</span> <span class="n">f</span><span class="p">(</span><span class="n">sv</span><span class="p">)</span>
+            <span class="n">ds</span> <span class="o">=</span> <span class="n">df</span><span class="p">(</span><span class="n">sv</span><span class="p">)</span>
+
+            <span class="n">niter</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">while</span> <span class="nb">abs</span><span class="p">(</span><span class="n">f</span><span class="p">(</span><span class="n">sv</span><span class="p">))</span> <span class="o">&gt;</span> <span class="n">sv_tol</span><span class="p">:</span>
+                <span class="n">sv</span> <span class="o">=</span> <span class="n">sv</span> <span class="o">-</span> <span class="n">s</span> <span class="o">/</span> <span class="n">ds</span>
+                <span class="n">s</span> <span class="o">=</span> <span class="n">f</span><span class="p">(</span><span class="n">sv</span><span class="p">)</span>
+                <span class="n">ds</span> <span class="o">=</span> <span class="n">df</span><span class="p">(</span><span class="n">sv</span><span class="p">)</span>
+                <span class="n">niter</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="k">if</span> <span class="n">niter</span> <span class="o">&gt;</span> <span class="n">maxiter</span><span class="p">:</span>
+                    <span class="k">break</span>
+
+            <span class="n">sig_dev</span> <span class="o">=</span> <span class="mf">2.0</span> <span class="o">*</span> <span class="n">sv</span> <span class="o">/</span> <span class="mf">3.0</span> <span class="o">/</span> <span class="n">ev</span> <span class="o">*</span> <span class="n">eps_dev</span>
+            <span class="n">tr_sig</span> <span class="o">=</span> <span class="n">K</span> <span class="o">*</span> <span class="n">tr_eps</span>
+            <span class="n">sig</span> <span class="o">=</span> <span class="n">tr_sig</span> <span class="o">*</span> <span class="n">I2</span> <span class="o">/</span> <span class="mf">3.0</span> <span class="o">+</span> <span class="n">sig_dev</span>
+            <span class="n">STRESS</span><span class="p">[</span><span class="n">n</span><span class="p">]</span> <span class="o">=</span> <span class="n">sig</span>
+
+            <span class="n">nenner</span> <span class="o">=</span> <span class="n">sv</span> <span class="o">/</span> <span class="p">(</span><span class="mf">3.0</span> <span class="o">*</span> <span class="n">MU</span><span class="p">)</span> <span class="o">+</span> <span class="n">ALPHA</span> <span class="o">*</span> <span class="n">NEXP</span> <span class="o">*</span> <span class="n">SIGY</span> <span class="o">/</span> <span class="n">E</span> <span class="o">*</span> <span class="p">((</span><span class="n">sv</span> <span class="o">/</span> <span class="n">SIGY</span><span class="p">)</span> <span class="o">**</span> <span class="p">(</span><span class="n">NEXP</span><span class="p">))</span>
+            <span class="n">tangent</span> <span class="o">=</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">sv</span> <span class="o">/</span> <span class="mi">3</span> <span class="o">/</span> <span class="n">ev</span> <span class="o">*</span> <span class="p">(</span>
+                <span class="n">I4</span>
+                <span class="o">-</span> <span class="mf">2.0</span>
+                <span class="o">/</span> <span class="mf">3.0</span>
+                <span class="o">/</span> <span class="n">ev</span>
+                <span class="o">*</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">/</span> <span class="n">ev</span> <span class="o">-</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="n">nenner</span><span class="p">)</span>
+                <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">outer</span><span class="p">(</span><span class="n">eps_dev</span><span class="p">,</span> <span class="n">eps_dev</span><span class="p">)</span>
+            <span class="p">)</span> <span class="o">+</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="mf">3.0</span> <span class="o">*</span> <span class="p">(</span><span class="n">K</span> <span class="o">-</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">sv</span> <span class="o">/</span> <span class="p">(</span><span class="mi">3</span> <span class="o">*</span> <span class="n">ev</span><span class="p">))</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">outer</span><span class="p">(</span><span class="n">I2</span><span class="p">,</span> <span class="n">I2</span><span class="p">)</span>
+            <span class="n">DDSDDE</span><span class="p">[</span><span class="n">n</span><span class="p">]</span> <span class="o">=</span> <span class="n">tangent</span>
+    <span class="k">return</span> <span class="n">STRESS</span><span class="p">,</span> <span class="n">DDSDDE</span>
+</pre></div>
+</div>
+<div class="section" id="voigt-notation">
+<h3>Voigt notation<a class="headerlink" href="#voigt-notation" title="Permalink to this headline">¶</a></h3>
+<p>It is common practice in computational mechanics to only store six
+of the nine components of the symmetric (cauchy) stress and strain tensors.
+We choose an orthonormal tensor (voigt) basis which preserves the properties of
+the scalar product, hence the <span class="math notranslate nohighlight">\(\sqrt{2}\)</span> below. For more information see the book <a class="reference external" href="http://www15.ovgu.de/ifme/l-festigkeit/pdf/Bertram-Gluege_Festkoerpermechanik2012.pdf">Solid Mechanics, A. Bertram and
+R. Glüge,</a>
+which is available (in german) online.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">eps</span><span class="p">(</span><span class="n">v</span><span class="p">):</span>
+    <span class="n">gdim</span> <span class="o">=</span> <span class="n">v</span><span class="o">.</span><span class="n">geometric_dimension</span><span class="p">()</span>
+    <span class="n">e</span> <span class="o">=</span> <span class="n">sym</span><span class="p">(</span><span class="n">grad</span><span class="p">(</span><span class="n">v</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">gdim</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">as_vector</span><span class="p">([</span><span class="n">e</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">e</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mi">2</span> <span class="o">**</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">e</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]])</span>
+    <span class="k">elif</span> <span class="n">gdim</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">as_vector</span><span class="p">(</span>
+            <span class="p">[</span>
+                <span class="n">e</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+                <span class="n">e</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span>
+                <span class="n">e</span><span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span>
+                <span class="mi">2</span> <span class="o">**</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">e</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span>
+                <span class="mi">2</span> <span class="o">**</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">e</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span>
+                <span class="mi">2</span> <span class="o">**</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">e</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span>
+            <span class="p">]</span>
+        <span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">assert</span> <span class="kc">False</span>
+</pre></div>
+</div>
+<p>We subclass the <code class="docutils literal notranslate"><span class="pre">dolfin.NonlinearProblem</span></code> as in the other examples.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">RambergOsgoodProblem</span><span class="p">(</span><span class="n">NonlinearProblem</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mesh</span><span class="p">,</span> <span class="n">deg_d</span><span class="p">,</span> <span class="n">deg_q</span><span class="p">,</span> <span class="n">material</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">NonlinearProblem</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">E</span> <span class="o">=</span> <span class="n">material</span><span class="p">[</span><span class="s2">&quot;E&quot;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">NU</span> <span class="o">=</span> <span class="n">material</span><span class="p">[</span><span class="s2">&quot;NU&quot;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ALPHA</span> <span class="o">=</span> <span class="n">material</span><span class="p">[</span><span class="s2">&quot;ALPHA&quot;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">NEXP</span> <span class="o">=</span> <span class="n">material</span><span class="p">[</span><span class="s2">&quot;N&quot;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">SIGY</span> <span class="o">=</span> <span class="n">material</span><span class="p">[</span><span class="s2">&quot;SIGY&quot;</span><span class="p">]</span>
+
+        <span class="n">metadata</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;quadrature_degree&quot;</span><span class="p">:</span> <span class="n">deg_q</span><span class="p">,</span> <span class="s2">&quot;quadrature_scheme&quot;</span><span class="p">:</span> <span class="s2">&quot;default&quot;</span><span class="p">}</span>
+        <span class="n">dxm</span> <span class="o">=</span> <span class="n">dx</span><span class="p">(</span><span class="n">metadata</span><span class="o">=</span><span class="n">metadata</span><span class="p">)</span>
+
+        <span class="n">cell</span> <span class="o">=</span> <span class="n">mesh</span><span class="o">.</span><span class="n">ufl_cell</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gdim</span> <span class="o">=</span> <span class="n">mesh</span><span class="o">.</span><span class="n">geometric_dimension</span><span class="p">()</span>
+
+        <span class="c1"># solution field</span>
+        <span class="n">Ed</span> <span class="o">=</span> <span class="n">VectorElement</span><span class="p">(</span><span class="s2">&quot;CG&quot;</span><span class="p">,</span> <span class="n">cell</span><span class="p">,</span> <span class="n">degree</span><span class="o">=</span><span class="n">deg_d</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">V</span> <span class="o">=</span> <span class="n">FunctionSpace</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">Ed</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">d</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">V</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;displacement&quot;</span><span class="p">)</span>
+
+        <span class="c1"># generic quadrature function spaces</span>
+        <span class="n">q</span> <span class="o">=</span> <span class="s2">&quot;Quadrature&quot;</span>
+        <span class="n">voigt</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">gdim</span> <span class="o">*</span> <span class="mi">2</span>  <span class="c1"># 4 or 6</span>
+        <span class="n">QF</span> <span class="o">=</span> <span class="n">FiniteElement</span><span class="p">(</span><span class="n">q</span><span class="p">,</span> <span class="n">cell</span><span class="p">,</span> <span class="n">deg_q</span><span class="p">,</span> <span class="n">quad_scheme</span><span class="o">=</span><span class="s2">&quot;default&quot;</span><span class="p">)</span>
+        <span class="n">QV</span> <span class="o">=</span> <span class="n">VectorElement</span><span class="p">(</span><span class="n">q</span><span class="p">,</span> <span class="n">cell</span><span class="p">,</span> <span class="n">deg_q</span><span class="p">,</span> <span class="n">quad_scheme</span><span class="o">=</span><span class="s2">&quot;default&quot;</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="n">voigt</span><span class="p">)</span>
+        <span class="n">QT</span> <span class="o">=</span> <span class="n">TensorElement</span><span class="p">(</span><span class="n">q</span><span class="p">,</span> <span class="n">cell</span><span class="p">,</span> <span class="n">deg_q</span><span class="p">,</span> <span class="n">quad_scheme</span><span class="o">=</span><span class="s2">&quot;default&quot;</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="n">voigt</span><span class="p">,</span> <span class="n">voigt</span><span class="p">))</span>
+        <span class="n">VQF</span><span class="p">,</span> <span class="n">VQV</span><span class="p">,</span> <span class="n">VQT</span> <span class="o">=</span> <span class="p">[</span><span class="n">FunctionSpace</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">Q</span><span class="p">)</span> <span class="k">for</span> <span class="n">Q</span> <span class="ow">in</span> <span class="p">[</span><span class="n">QF</span><span class="p">,</span> <span class="n">QV</span><span class="p">,</span> <span class="n">QT</span><span class="p">]]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">NGAUSS</span> <span class="o">=</span> <span class="n">VQF</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span>
+
+        <span class="c1"># quadrature function</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">q_sigma</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">VQV</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;current stresses&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">q_eps</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">VQV</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;current strains&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">q_dsigma_deps</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">VQT</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;stress-strain tangent&quot;</span><span class="p">)</span>
+
+        <span class="n">dd</span> <span class="o">=</span> <span class="n">TrialFunction</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">V</span><span class="p">)</span>
+        <span class="n">d_</span> <span class="o">=</span> <span class="n">TestFunction</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">V</span><span class="p">)</span>
+
+        <span class="c1"># int eps : C : eps dx - f_ext + int eps : sigma dx == 0 is expected?</span>
+        <span class="c1"># dR + R - f_ext == 0</span>
+        <span class="c1"># need to subtract external forces later</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">R</span> <span class="o">=</span> <span class="n">inner</span><span class="p">(</span><span class="n">eps</span><span class="p">(</span><span class="n">d_</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">q_sigma</span><span class="p">)</span> <span class="o">*</span> <span class="n">dxm</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dR</span> <span class="o">=</span> <span class="n">inner</span><span class="p">(</span><span class="n">eps</span><span class="p">(</span><span class="n">dd</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">q_dsigma_deps</span> <span class="o">*</span> <span class="n">eps</span><span class="p">(</span><span class="n">d_</span><span class="p">))</span> <span class="o">*</span> <span class="n">dxm</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">calculate_eps</span> <span class="o">=</span> <span class="n">LocalProjector</span><span class="p">(</span><span class="n">eps</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">d</span><span class="p">),</span> <span class="n">VQV</span><span class="p">,</span> <span class="n">dxm</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">assembler</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span> <span class="nf">evaluate_material</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># project the strain onto their quadrature spaces and ...</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">calculate_eps</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">q_eps</span><span class="p">)</span>
+        <span class="n">strain</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">q_eps</span><span class="o">.</span><span class="n">vector</span><span class="p">()</span><span class="o">.</span><span class="n">get_local</span><span class="p">()</span>
+        <span class="n">stress</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">q_sigma</span><span class="o">.</span><span class="n">vector</span><span class="p">()</span><span class="o">.</span><span class="n">get_local</span><span class="p">()</span>
+
+        <span class="c1"># ... &quot;manually&quot; evaluate_material the material ...</span>
+        <span class="n">sigma</span><span class="p">,</span> <span class="n">ddsdde</span> <span class="o">=</span> <span class="n">solve_ramberg_osgood</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">E</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">NU</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ALPHA</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">NEXP</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">SIGY</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">NGAUSS</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">gdim</span><span class="p">,</span>
+            <span class="n">strain</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">NGAUSS</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">gdim</span> <span class="o">*</span> <span class="mi">2</span><span class="p">),</span>
+            <span class="n">stress</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">NGAUSS</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">gdim</span> <span class="o">*</span> <span class="mi">2</span><span class="p">),</span>
+        <span class="p">)</span>
+
+        <span class="c1"># ... and write the calculated values into their quadrature spaces.</span>
+        <span class="n">set_q</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">q_sigma</span><span class="p">,</span> <span class="n">sigma</span><span class="p">)</span>
+        <span class="n">set_q</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">q_dsigma_deps</span><span class="p">,</span> <span class="n">ddsdde</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># not needed for Ramberg Osgood</span>
+        <span class="k">pass</span>
+
+    <span class="k">def</span> <span class="nf">set_bcs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">bcs</span><span class="p">):</span>
+        <span class="c1"># Only now (with the bcs) can we initialize the assembler</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assembler</span> <span class="o">=</span> <span class="n">SystemAssembler</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dR</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">R</span><span class="p">,</span> <span class="n">bcs</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">F</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">assembler</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;You need to `.set_bcs(bcs)` before the solve!&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">evaluate_material</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assembler</span><span class="o">.</span><span class="n">assemble</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">J</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">A</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assembler</span><span class="o">.</span><span class="n">assemble</span><span class="p">(</span><span class="n">A</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="section" id="examples">
+<h2>Examples<a class="headerlink" href="#examples" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="simple-tension-test">
+<h3>Simple Tension Test<a class="headerlink" href="#simple-tension-test" title="Permalink to this headline">¶</a></h3>
+<p>To test the above implementation we compare our numerical
+results to the analytical solution for a (simple) tension test
+in 2D.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">AnalyticalSolution</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;base class for ramberg osgood material solutions&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">max_load</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">load</span> <span class="o">=</span> <span class="n">max_load</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">E</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;E&quot;</span><span class="p">,</span> <span class="mf">210e3</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">NU</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;NU&quot;</span><span class="p">,</span> <span class="mf">0.3</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ALPHA</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;ALPHA&quot;</span><span class="p">,</span> <span class="mf">0.01</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">N</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;N&quot;</span><span class="p">,</span> <span class="mf">5.0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">K</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">E</span> <span class="o">/</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="mf">2.0</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">NU</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">G</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">E</span> <span class="o">/</span> <span class="mf">2.0</span> <span class="o">/</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">NU</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">SIGY</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;SIGY&quot;</span><span class="p">,</span> <span class="mf">500.0</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">energy</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sigma</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mf">0.0</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">trapz</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sigma</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">eps</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">SimpleTensionSolution2D</span><span class="p">(</span><span class="n">AnalyticalSolution</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;analytical solution for simple tension in 2D&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">max_load</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">max_load</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">solve</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">scipy.optimize</span> <span class="kn">import</span> <span class="n">newton</span>
+        <span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="n">symbols</span><span class="p">,</span> <span class="n">Derivative</span><span class="p">,</span> <span class="n">lambdify</span><span class="p">,</span> <span class="n">sqrt</span>
+
+        <span class="n">E</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">E</span>
+        <span class="n">K</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">K</span>
+        <span class="n">G</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">G</span>
+        <span class="n">ALPHA</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ALPHA</span>
+        <span class="n">SIGY</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">SIGY</span>
+        <span class="n">N</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">N</span>
+
+        <span class="k">def</span> <span class="nf">f</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">s</span><span class="p">):</span>
+            <span class="sd">&quot;&quot;&quot;equation to solve is eps33(x, s) = 0</span>
+<span class="sd">            x:      sigma33</span>
+<span class="sd">            s:      sigma22 (given as tension direction)</span>
+<span class="sd">            &quot;&quot;&quot;</span>
+            <span class="k">return</span> <span class="p">(</span><span class="n">x</span> <span class="o">+</span> <span class="n">s</span><span class="p">)</span> <span class="o">/</span> <span class="mf">3.0</span> <span class="o">/</span> <span class="n">K</span> <span class="o">+</span> <span class="p">(</span>
+                <span class="mf">1.0</span> <span class="o">/</span> <span class="mf">2.0</span> <span class="o">/</span> <span class="n">G</span>
+                <span class="o">+</span> <span class="mf">3.0</span>
+                <span class="o">*</span> <span class="n">ALPHA</span>
+                <span class="o">/</span> <span class="mf">2.0</span>
+                <span class="o">/</span> <span class="n">E</span>
+                <span class="o">*</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">((</span><span class="n">s</span> <span class="o">-</span> <span class="n">x</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span> <span class="o">+</span> <span class="n">x</span> <span class="o">*</span> <span class="n">s</span><span class="p">)</span> <span class="o">/</span> <span class="n">SIGY</span><span class="p">)</span> <span class="o">**</span> <span class="p">(</span><span class="n">N</span> <span class="o">-</span> <span class="mf">1.0</span><span class="p">)</span>
+            <span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="mf">2.0</span> <span class="o">*</span> <span class="n">x</span> <span class="o">-</span> <span class="n">s</span><span class="p">)</span> <span class="o">/</span> <span class="mf">3.0</span>
+
+        <span class="n">x</span><span class="p">,</span> <span class="n">s</span> <span class="o">=</span> <span class="n">symbols</span><span class="p">(</span><span class="s2">&quot;x s&quot;</span><span class="p">)</span>
+        <span class="n">f_sym</span> <span class="o">=</span> <span class="p">(</span><span class="n">x</span> <span class="o">+</span> <span class="n">s</span><span class="p">)</span> <span class="o">/</span> <span class="mf">3.0</span> <span class="o">/</span> <span class="n">K</span> <span class="o">+</span> <span class="p">(</span>
+            <span class="mf">1.0</span> <span class="o">/</span> <span class="mf">2.0</span> <span class="o">/</span> <span class="n">G</span>
+            <span class="o">+</span> <span class="mf">3.0</span> <span class="o">*</span> <span class="n">ALPHA</span> <span class="o">/</span> <span class="mf">2.0</span> <span class="o">/</span> <span class="n">E</span> <span class="o">*</span> <span class="p">(</span><span class="n">sqrt</span><span class="p">((</span><span class="n">s</span> <span class="o">-</span> <span class="n">x</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span> <span class="o">+</span> <span class="n">x</span> <span class="o">*</span> <span class="n">s</span><span class="p">)</span> <span class="o">/</span> <span class="n">SIGY</span><span class="p">)</span> <span class="o">**</span> <span class="p">(</span><span class="n">N</span> <span class="o">-</span> <span class="mf">1.0</span><span class="p">)</span>
+        <span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="mf">2.0</span> <span class="o">*</span> <span class="n">x</span> <span class="o">-</span> <span class="n">s</span><span class="p">)</span> <span class="o">/</span> <span class="mf">3.0</span>
+        <span class="n">Df</span> <span class="o">=</span> <span class="n">Derivative</span><span class="p">(</span><span class="n">f_sym</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+        <span class="n">df</span> <span class="o">=</span> <span class="n">lambdify</span><span class="p">((</span><span class="n">x</span><span class="p">,</span> <span class="n">s</span><span class="p">),</span> <span class="n">Df</span><span class="o">.</span><span class="n">doit</span><span class="p">(),</span> <span class="s2">&quot;numpy&quot;</span><span class="p">)</span>
+
+        <span class="n">s</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">load</span><span class="p">)</span>  <span class="c1"># sigma22</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>  <span class="c1"># initial guess</span>
+        <span class="n">s33</span> <span class="o">=</span> <span class="n">newton</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">fprime</span><span class="o">=</span><span class="n">df</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="p">(</span><span class="n">s</span><span class="p">,),</span> <span class="n">tol</span><span class="o">=</span><span class="mf">1e-12</span><span class="p">)</span>
+
+        <span class="n">e11</span> <span class="o">=</span> <span class="p">(</span><span class="n">s</span> <span class="o">+</span> <span class="n">s33</span><span class="p">)</span> <span class="o">/</span> <span class="mf">3.0</span> <span class="o">/</span> <span class="n">K</span> <span class="o">+</span> <span class="p">(</span>
+            <span class="mf">1.0</span> <span class="o">/</span> <span class="mf">2.0</span> <span class="o">/</span> <span class="n">G</span>
+            <span class="o">+</span> <span class="mf">3.0</span>
+            <span class="o">*</span> <span class="n">ALPHA</span>
+            <span class="o">/</span> <span class="mf">2.0</span>
+            <span class="o">/</span> <span class="n">E</span>
+            <span class="o">*</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">((</span><span class="n">s</span> <span class="o">-</span> <span class="n">s33</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span> <span class="o">+</span> <span class="n">s</span> <span class="o">*</span> <span class="n">s33</span><span class="p">)</span> <span class="o">/</span> <span class="n">SIGY</span><span class="p">)</span> <span class="o">**</span> <span class="p">(</span><span class="n">N</span> <span class="o">-</span> <span class="mf">1.0</span><span class="p">)</span>
+        <span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="o">-</span><span class="p">(</span><span class="n">s33</span> <span class="o">+</span> <span class="n">s</span><span class="p">))</span> <span class="o">/</span> <span class="mf">3.0</span>
+        <span class="n">e22</span> <span class="o">=</span> <span class="p">(</span><span class="n">s</span> <span class="o">+</span> <span class="n">s33</span><span class="p">)</span> <span class="o">/</span> <span class="mf">3.0</span> <span class="o">/</span> <span class="n">K</span> <span class="o">+</span> <span class="p">(</span>
+            <span class="mf">1.0</span> <span class="o">/</span> <span class="mf">2.0</span> <span class="o">/</span> <span class="n">G</span>
+            <span class="o">+</span> <span class="mf">3.0</span>
+            <span class="o">*</span> <span class="n">ALPHA</span>
+            <span class="o">/</span> <span class="mf">2.0</span>
+            <span class="o">/</span> <span class="n">E</span>
+            <span class="o">*</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">((</span><span class="n">s</span> <span class="o">-</span> <span class="n">s33</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span> <span class="o">+</span> <span class="n">s</span> <span class="o">*</span> <span class="n">s33</span><span class="p">)</span> <span class="o">/</span> <span class="n">SIGY</span><span class="p">)</span> <span class="o">**</span> <span class="p">(</span><span class="n">N</span> <span class="o">-</span> <span class="mf">1.0</span><span class="p">)</span>
+        <span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="mf">2.0</span> <span class="o">*</span> <span class="n">s</span> <span class="o">-</span> <span class="n">s33</span><span class="p">)</span> <span class="o">/</span> <span class="mf">3.0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sigma</span> <span class="o">=</span> <span class="n">s</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">eps</span> <span class="o">=</span> <span class="n">e22</span>
+        <span class="k">return</span> <span class="n">e11</span><span class="p">,</span> <span class="n">e22</span><span class="p">,</span> <span class="n">s</span>
+</pre></div>
+</div>
+<p>Next we define little helper functions to define neumann and dirichlet type
+boundary conditions.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">get_neumann</span><span class="p">(</span><span class="n">dim</span><span class="p">,</span> <span class="n">force</span><span class="p">):</span>
+    <span class="n">f</span> <span class="o">=</span> <span class="n">Expression</span><span class="p">((</span><span class="s2">&quot;0.0&quot;</span><span class="p">,</span> <span class="s2">&quot;F * time&quot;</span><span class="p">),</span> <span class="n">degree</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">F</span><span class="o">=</span><span class="n">force</span><span class="p">,</span> <span class="n">time</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;f&quot;</span><span class="p">)</span>
+
+    <span class="k">class</span> <span class="nc">Top</span><span class="p">(</span><span class="n">SubDomain</span><span class="p">):</span>
+        <span class="n">tol</span> <span class="o">=</span> <span class="mf">1e-6</span>
+
+        <span class="k">def</span> <span class="nf">inside</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">on_boundary</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">on_boundary</span> <span class="ow">and</span> <span class="n">near</span><span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="mf">1.0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">tol</span><span class="p">)</span>
+
+    <span class="n">neumann</span> <span class="o">=</span> <span class="n">Top</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">f</span><span class="p">,</span> <span class="n">neumann</span>
+
+
+<span class="k">def</span> <span class="nf">get_dirichlet</span><span class="p">(</span><span class="n">dim</span><span class="p">,</span> <span class="n">V</span><span class="p">):</span>
+    <span class="n">bcs</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">class</span> <span class="nc">Bottom</span><span class="p">(</span><span class="n">SubDomain</span><span class="p">):</span>
+        <span class="n">tol</span> <span class="o">=</span> <span class="mf">1e-6</span>
+
+        <span class="k">def</span> <span class="nf">inside</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">on_boundary</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">on_boundary</span> <span class="ow">and</span> <span class="n">near</span><span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="mf">0.0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">tol</span><span class="p">)</span>
+
+    <span class="n">origin</span> <span class="o">=</span> <span class="n">CompiledSubDomain</span><span class="p">(</span><span class="s2">&quot;near(x[0], 0.0) &amp;&amp; near(x[1], 0.0)&quot;</span><span class="p">)</span>
+    <span class="n">bcs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">DirichletBC</span><span class="p">(</span><span class="n">V</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span> <span class="n">Constant</span><span class="p">(</span><span class="mf">0.0</span><span class="p">),</span> <span class="n">Bottom</span><span class="p">()))</span>
+    <span class="n">bcs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">DirichletBC</span><span class="p">(</span><span class="n">V</span><span class="p">,</span> <span class="n">Constant</span><span class="p">((</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)),</span> <span class="n">origin</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s2">&quot;pointwise&quot;</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">bcs</span>
+</pre></div>
+</div>
+<p>The function to run the simple tension test.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">simple_tension</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">matparam</span><span class="p">,</span> <span class="n">pltshow</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    simple tension test</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">ro</span> <span class="o">=</span> <span class="n">RambergOsgoodProblem</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">deg_d</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">deg_q</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">matparam</span><span class="p">)</span>
+
+    <span class="n">facets</span> <span class="o">=</span> <span class="n">MeshFunction</span><span class="p">(</span><span class="s2">&quot;size_t&quot;</span><span class="p">,</span> <span class="n">mesh</span><span class="p">,</span> <span class="n">mesh</span><span class="o">.</span><span class="n">topology</span><span class="p">()</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">ds</span> <span class="o">=</span> <span class="n">Measure</span><span class="p">(</span><span class="s2">&quot;ds&quot;</span><span class="p">)(</span><span class="n">subdomain_data</span><span class="o">=</span><span class="n">facets</span><span class="p">)</span>
+    <span class="n">facets</span><span class="o">.</span><span class="n">set_all</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+
+    <span class="c1"># external load</span>
+    <span class="n">max_load</span> <span class="o">=</span> <span class="mf">2718.0</span>
+    <span class="n">gdim</span> <span class="o">=</span> <span class="n">mesh</span><span class="o">.</span><span class="n">geometric_dimension</span><span class="p">()</span>
+    <span class="n">traction</span><span class="p">,</span> <span class="n">neumann</span> <span class="o">=</span> <span class="n">get_neumann</span><span class="p">(</span><span class="n">gdim</span><span class="p">,</span> <span class="n">max_load</span><span class="p">)</span>
+    <span class="n">neumann</span><span class="o">.</span><span class="n">mark</span><span class="p">(</span><span class="n">facets</span><span class="p">,</span> <span class="mi">99</span><span class="p">)</span>
+    <span class="n">d_</span> <span class="o">=</span> <span class="n">TestFunction</span><span class="p">(</span><span class="n">ro</span><span class="o">.</span><span class="n">V</span><span class="p">)</span>
+    <span class="n">force</span> <span class="o">=</span> <span class="n">dot</span><span class="p">(</span><span class="n">traction</span><span class="p">,</span> <span class="n">d_</span><span class="p">)</span> <span class="o">*</span> <span class="n">ds</span><span class="p">(</span><span class="mi">99</span><span class="p">)</span>
+    <span class="n">ro</span><span class="o">.</span><span class="n">R</span> <span class="o">-=</span> <span class="n">force</span>
+
+    <span class="c1"># dirichlet bcs</span>
+    <span class="n">bcs</span> <span class="o">=</span> <span class="n">get_dirichlet</span><span class="p">(</span><span class="n">gdim</span><span class="p">,</span> <span class="n">ro</span><span class="o">.</span><span class="n">V</span><span class="p">)</span>
+    <span class="n">ro</span><span class="o">.</span><span class="n">set_bcs</span><span class="p">(</span><span class="n">bcs</span><span class="p">)</span>
+
+    <span class="n">solver</span> <span class="o">=</span> <span class="n">NewtonSolver</span><span class="p">()</span>
+    <span class="n">solver</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="s2">&quot;linear_solver&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;mumps&quot;</span>
+    <span class="n">solver</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="s2">&quot;maximum_iterations&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">10</span>
+    <span class="n">solver</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="s2">&quot;error_on_nonconvergence&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="n">x_at_top</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>
+
+    <span class="n">nTime</span> <span class="o">=</span> <span class="mi">10</span>
+    <span class="n">load_steps</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">num</span><span class="o">=</span><span class="n">nTime</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)[</span><span class="mi">1</span><span class="p">:]</span>
+    <span class="n">iterations</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int</span><span class="p">)</span>
+    <span class="n">displacement</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="p">]</span>
+    <span class="n">load</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="p">]</span>
+
+    <span class="k">for</span> <span class="p">(</span><span class="n">inc</span><span class="p">,</span> <span class="n">time</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">load_steps</span><span class="p">):</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Load Increment:&quot;</span><span class="p">,</span> <span class="n">inc</span><span class="p">)</span>
+        <span class="n">traction</span><span class="o">.</span><span class="n">time</span> <span class="o">=</span> <span class="n">time</span>
+        <span class="n">niter</span><span class="p">,</span> <span class="n">converged</span> <span class="o">=</span> <span class="n">solver</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">ro</span><span class="p">,</span> <span class="n">ro</span><span class="o">.</span><span class="n">d</span><span class="o">.</span><span class="n">vector</span><span class="p">())</span>
+        <span class="k">assert</span> <span class="n">converged</span>
+        <span class="n">iterations</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">iterations</span><span class="p">,</span> <span class="n">niter</span><span class="p">)</span>
+
+        <span class="c1"># load displacement data</span>
+        <span class="n">displacement</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ro</span><span class="o">.</span><span class="n">d</span><span class="p">(</span><span class="n">x_at_top</span><span class="p">)[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="n">load</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">traction</span><span class="p">(</span><span class="n">x_at_top</span><span class="p">)[</span><span class="mi">1</span><span class="p">])</span>
+
+    <span class="c1"># ### analytical solution</span>
+    <span class="n">displacement</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">displacement</span><span class="p">)</span>
+    <span class="n">load</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">load</span><span class="p">)</span>
+    <span class="n">sol</span> <span class="o">=</span> <span class="n">SimpleTensionSolution2D</span><span class="p">(</span><span class="n">max_load</span><span class="p">,</span> <span class="o">**</span><span class="n">matparam</span><span class="p">)</span>
+    <span class="n">e11</span><span class="p">,</span> <span class="n">e22</span><span class="p">,</span> <span class="n">s22</span> <span class="o">=</span> <span class="n">sol</span><span class="o">.</span><span class="n">solve</span><span class="p">()</span>
+    <span class="n">w</span> <span class="o">=</span> <span class="n">sol</span><span class="o">.</span><span class="n">energy</span><span class="p">()</span>
+    <span class="n">I</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">trapz</span><span class="p">(</span><span class="n">load</span><span class="p">,</span> <span class="n">displacement</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">isclose</span><span class="p">((</span><span class="n">w</span> <span class="o">-</span> <span class="n">I</span><span class="p">)</span> <span class="o">/</span> <span class="n">w</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="n">atol</span><span class="o">=</span><span class="mf">1e-2</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">pltshow</span><span class="p">:</span>
+        <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">()</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">e22</span><span class="p">,</span> <span class="n">s22</span><span class="p">,</span> <span class="s2">&quot;r-&quot;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;analytical&quot;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">displacement</span><span class="p">,</span> <span class="n">load</span><span class="p">,</span> <span class="s2">&quot;bo&quot;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;num&quot;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;:math:`\varepsilon_</span><span class="si">{yy}</span><span class="s2">`&quot;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;:math:`\sigma_</span><span class="si">{yy}</span><span class="s2">`&quot;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">xaxis</span><span class="o">.</span><span class="n">set_major_formatter</span><span class="p">(</span><span class="n">FormatStrFormatter</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%.2f</span><span class="s2">&quot;</span><span class="p">))</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+    <span class="n">mesh</span> <span class="o">=</span> <span class="n">UnitSquareMesh</span><span class="p">(</span><span class="mi">32</span><span class="p">,</span> <span class="mi">32</span><span class="p">)</span>
+    <span class="n">material</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">&quot;E&quot;</span><span class="p">:</span> <span class="mf">210e3</span><span class="p">,</span>
+        <span class="s2">&quot;NU&quot;</span><span class="p">:</span> <span class="mf">0.3</span><span class="p">,</span>
+        <span class="s2">&quot;ALPHA&quot;</span><span class="p">:</span> <span class="mf">0.01</span><span class="p">,</span>
+        <span class="s2">&quot;N&quot;</span><span class="p">:</span> <span class="mi">5</span><span class="p">,</span>
+        <span class="s2">&quot;SIGY&quot;</span><span class="p">:</span> <span class="mf">500.0</span>
+    <span class="p">}</span>
+    <span class="n">simple_tension</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">material</span><span class="p">,</span> <span class="n">pltshow</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Setting <code class="docutils literal notranslate"><span class="pre">pltshow=True</span></code> you should see something like this:</p>
+<img alt="../_images/ro.png" src="../_images/ro.png" />
+</div>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+      
+        <a href="plate_with_hole.html" class="btn btn-neutral float-left" title="Plate with hole" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        
+        &copy; Copyright 2020, Thomas Titscher, Sjard Mathis Rosenbusch, Philipp Diercks
+
+    </p>
+  </div>
+    
+    
+    
+    Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a
+    
+    <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a>
+    
+    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

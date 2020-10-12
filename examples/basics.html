@@ -1,0 +1,418 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Basic principle &mdash; FEniCS Constitutive 2020 documentation</title>
+  
+
+  
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+
+  
+  
+  
+  
+
+  
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/language_data.js"></script>
+        <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Material models" href="example.html" />
+    <link rel="prev" title="FEniCS Constitutive" href="../index.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html" class="icon icon-home" alt="Documentation Home"> FEniCS Constitutive
+          
+
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Basic principle</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#constitutive-law">Constitutive law</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#quadrature-spaces">Quadrature spaces</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#solution">Solution</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#test">Test</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#extensions">Extensions</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#strain-calculation">Strain calculation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#embedding-in-a-nonlinear-material">Embedding in a nonlinear material</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#iterations-on-gauss-point-level">Iterations on Gauss point level</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="example.html">Material models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="example.html#drucker-prager-yield-condition">Drucker-Prager yield condition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="gradient_damage.html">Implicit gradient-enhanced damage model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="gradient_damage_iterative.html">Note on iterative solvers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="helper.html">Helper classes and functions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="plate_with_hole.html">Plate with hole</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ramberg_osgood.html">Ramberg Osgood material law</a></li>
+</ul>
+
+            
+          
+        </div>
+        
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">FEniCS Constitutive</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
+        
+      <li>Basic principle</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../_sources/examples/basics.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="basic-principle">
+<h1>Basic principle<a class="headerlink" href="#basic-principle" title="Permalink to this headline">¶</a></h1>
+<p>This example demonstrates the basic principle of performing the “constitutive
+update” manually on the quadrature points, by explicitly providing the stresses
+and their derivative w.r.t. the strains as <code class="docutils literal notranslate"><span class="pre">numpy</span></code> matrices.</p>
+<p>This is done in a displacement-controlled, uniaxial tensile test on a unit square.</p>
+<blockquote>
+<div><p>Note that this is not meant as an introduction on FEM or linear elasticity, but
+focuses on the steps on how to replace the constitutive formulation in UFL
+with a custom one.</p>
+</div></blockquote>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">helper</span> <span class="kn">import</span> <span class="o">*</span>
+</pre></div>
+</div>
+<p>For details on this <code class="docutils literal notranslate"><span class="pre">helper</span></code> functions/classes, see <a class="reference external" href="helper.html">here</a>.</p>
+<p>As with a normal fenics simulation, we first define the mesh, function spaces
+and boundary conditions.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">mesh</span> <span class="o">=</span> <span class="n">UnitSquareMesh</span><span class="p">(</span><span class="mi">20</span><span class="p">,</span> <span class="mi">20</span><span class="p">)</span>
+<span class="n">V</span> <span class="o">=</span> <span class="n">VectorFunctionSpace</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">&quot;P&quot;</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+<span class="n">du</span><span class="p">,</span> <span class="n">u_</span> <span class="o">=</span> <span class="n">TrialFunction</span><span class="p">(</span><span class="n">V</span><span class="p">),</span> <span class="n">TestFunction</span><span class="p">(</span><span class="n">V</span><span class="p">)</span>
+
+
+<span class="n">u_bc</span> <span class="o">=</span> <span class="mf">42.0</span>
+<span class="n">bc_right</span> <span class="o">=</span> <span class="n">DirichletBC</span><span class="p">(</span><span class="n">V</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span> <span class="n">u_bc</span><span class="p">,</span> <span class="n">plane_at</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;x&quot;</span><span class="p">))</span>
+<span class="n">bc_left</span> <span class="o">=</span> <span class="n">DirichletBC</span><span class="p">(</span><span class="n">V</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span> <span class="mf">0.0</span><span class="p">,</span> <span class="n">plane_at</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;x&quot;</span><span class="p">))</span>
+<span class="n">bc_origin</span> <span class="o">=</span> <span class="n">DirichletBC</span><span class="p">(</span><span class="n">V</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span> <span class="mf">0.0</span><span class="p">,</span> <span class="n">plane_at</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;y&quot;</span><span class="p">))</span>
+<span class="n">bcs</span> <span class="o">=</span> <span class="p">[</span><span class="n">bc_right</span><span class="p">,</span> <span class="n">bc_left</span><span class="p">,</span> <span class="n">bc_origin</span><span class="p">]</span>
+</pre></div>
+</div>
+<div class="section" id="constitutive-law">
+<h2>Constitutive law<a class="headerlink" href="#constitutive-law" title="Permalink to this headline">¶</a></h2>
+<p>Instead of providing the constitutive law for linear elasticity via UFL,
+we manually implement. This is done in <a class="reference external" href="https://en.wikipedia.org/wiki/Voigt_notation">Voigt notation</a>, where the
+strains <span class="math notranslate nohighlight">\(\boldsymbol \varepsilon\)</span> are defined as</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">eps</span><span class="p">(</span><span class="n">u</span><span class="p">):</span>
+    <span class="n">e</span> <span class="o">=</span> <span class="n">sym</span><span class="p">(</span><span class="n">grad</span><span class="p">(</span><span class="n">u</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">as_vector</span><span class="p">((</span><span class="n">e</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">e</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">e</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]))</span>
+</pre></div>
+</div>
+<p>and <a class="reference external" href="https://en.wikipedia.org/wiki/Hooke%27s_law">Hooke’s law</a> (for plane
+stress) reads</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\boldsymbol \sigma =  \begin{bmatrix}\sigma_{11} \\ \sigma_{22} \\ \sigma_{12} \end{bmatrix}
+\,=\, \frac{E}{1-\nu^2}
+\begin{bmatrix} 1 &amp; \nu &amp; 0 \\
+\nu &amp; 1 &amp; 0 \\
+0 &amp; 0 &amp; \frac{1-\nu}{2} \end{bmatrix}
+\begin{bmatrix}\varepsilon_{11} \\ \varepsilon_{22} \\ 2\varepsilon_{12} \end{bmatrix}
+   = \boldsymbol C \boldsymbol \varepsilon \\\end{split}\]</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">E</span><span class="p">,</span> <span class="n">nu</span> <span class="o">=</span> <span class="mi">20000</span><span class="p">,</span> <span class="mf">0.2</span>
+<span class="n">C11</span> <span class="o">=</span> <span class="n">E</span> <span class="o">/</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="n">nu</span> <span class="o">*</span> <span class="n">nu</span><span class="p">)</span>
+<span class="n">C12</span> <span class="o">=</span> <span class="n">C11</span> <span class="o">*</span> <span class="n">nu</span>
+<span class="n">C33</span> <span class="o">=</span> <span class="n">C11</span> <span class="o">*</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="n">nu</span><span class="p">)</span>
+<span class="n">C</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="n">C11</span><span class="p">,</span> <span class="n">C12</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="n">C12</span><span class="p">,</span> <span class="n">C11</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="n">C33</span><span class="p">]])</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="quadrature-spaces">
+<h2>Quadrature spaces<a class="headerlink" href="#quadrature-spaces" title="Permalink to this headline">¶</a></h2>
+<p>We now define appropriately sized vector function spaces for <span class="math notranslate nohighlight">\(\boldsymbol \sigma\)</span> and
+a tensor function space for <span class="math notranslate nohighlight">\(\frac{\boldsymbol \sigma}{\boldsymbol \varepsilon}\)</span>.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">q</span> <span class="o">=</span> <span class="s2">&quot;Quadrature&quot;</span>
+<span class="n">cell</span> <span class="o">=</span> <span class="n">mesh</span><span class="o">.</span><span class="n">ufl_cell</span><span class="p">()</span>
+<span class="n">q_dim</span> <span class="o">=</span> <span class="n">C</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+<span class="n">deg_q</span> <span class="o">=</span> <span class="mi">2</span>
+<span class="n">QV</span> <span class="o">=</span> <span class="n">VectorElement</span><span class="p">(</span><span class="n">q</span><span class="p">,</span> <span class="n">cell</span><span class="p">,</span> <span class="n">deg_q</span><span class="p">,</span> <span class="n">quad_scheme</span><span class="o">=</span><span class="s2">&quot;default&quot;</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="n">q_dim</span><span class="p">)</span>
+<span class="n">QT</span> <span class="o">=</span> <span class="n">TensorElement</span><span class="p">(</span><span class="n">q</span><span class="p">,</span> <span class="n">cell</span><span class="p">,</span> <span class="n">deg_q</span><span class="p">,</span> <span class="n">quad_scheme</span><span class="o">=</span><span class="s2">&quot;default&quot;</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="n">q_dim</span><span class="p">,</span> <span class="n">q_dim</span><span class="p">))</span>
+<span class="n">VQV</span><span class="p">,</span> <span class="n">VQT</span> <span class="o">=</span> <span class="p">[</span><span class="n">FunctionSpace</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">Q</span><span class="p">)</span> <span class="k">for</span> <span class="n">Q</span> <span class="ow">in</span> <span class="p">[</span><span class="n">QV</span><span class="p">,</span> <span class="n">QT</span><span class="p">]]</span>
+
+<span class="n">q_sigma</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">VQV</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;stresses&quot;</span><span class="p">)</span>
+<span class="n">q_eps</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">VQV</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;strains&quot;</span><span class="p">)</span>
+<span class="n">q_dsigma_deps</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">VQT</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;stress-strain tangent&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The quadrature degree <code class="docutils literal notranslate"><span class="pre">deg_q</span></code> defines the number of integration/Gauss points
+and a corresponding integration measure has to be defined and used in all forms.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">metadata</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;quadrature_degree&quot;</span><span class="p">:</span> <span class="n">deg_q</span><span class="p">,</span> <span class="s2">&quot;quadrature_scheme&quot;</span><span class="p">:</span> <span class="s2">&quot;default&quot;</span><span class="p">}</span>
+<span class="n">dxm</span> <span class="o">=</span> <span class="n">dx</span><span class="p">(</span><span class="n">metadata</span><span class="o">=</span><span class="n">metadata</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="solution">
+<h2>Solution<a class="headerlink" href="#solution" title="Permalink to this headline">¶</a></h2>
+<p>The form for the residual and its derivative w.r.t. to the displacements is
+defined as</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">R</span> <span class="o">=</span> <span class="o">-</span><span class="n">inner</span><span class="p">(</span><span class="n">eps</span><span class="p">(</span><span class="n">u_</span><span class="p">),</span> <span class="n">q_sigma</span><span class="p">)</span> <span class="o">*</span> <span class="n">dxm</span>
+<span class="n">dR</span> <span class="o">=</span> <span class="n">inner</span><span class="p">(</span><span class="n">eps</span><span class="p">(</span><span class="n">du</span><span class="p">),</span> <span class="n">dot</span><span class="p">(</span><span class="n">q_dsigma_deps</span><span class="p">,</span> <span class="n">eps</span><span class="p">(</span><span class="n">u_</span><span class="p">)))</span> <span class="o">*</span> <span class="n">dxm</span>
+</pre></div>
+</div>
+<p>Right now, <code class="docutils literal notranslate"><span class="pre">q_sigma</span></code>, <code class="docutils literal notranslate"><span class="pre">q_eps</span></code> and <code class="docutils literal notranslate"><span class="pre">q_dsigma_deps</span></code> contain only zeros.
+Our initial state with a zero displacement field <span class="math notranslate nohighlight">\(\boldsymbol u==\boldsymbol 0\)</span> leads to
+zero strains and zero stresses. So we only need to modify the tangent matrix.</p>
+<p>The values of the quadrature function space are arranged in possibly huge 1D
+vector where the first 9 (= 3x3 = <code class="docutils literal notranslate"><span class="pre">q_dim*q_dim</span></code>) entries correspond to the
+first Gauss point, the next 9 entries to the second and so on.</p>
+<p>As our tangent is constant, we simply <code class="docutils literal notranslate"><span class="pre">np.tile</span></code> our the <code class="docutils literal notranslate"><span class="pre">C</span></code> defined above
+for each Gauss point and assign it to the function space. (<a class="reference external" href="helper.html#setting-values-for-the-quadrature-space">Details on set_q</a>)</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">n_gauss</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">q_sigma</span><span class="o">.</span><span class="n">vector</span><span class="p">()</span><span class="o">.</span><span class="n">get_local</span><span class="p">())</span> <span class="o">//</span> <span class="n">q_dim</span>
+<span class="n">C_values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">tile</span><span class="p">(</span><span class="n">C</span><span class="o">.</span><span class="n">flatten</span><span class="p">(),</span> <span class="n">n_gauss</span><span class="p">)</span>
+<span class="n">set_q</span><span class="p">(</span><span class="n">q_dsigma_deps</span><span class="p">,</span> <span class="n">C_values</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Both forms are now assembled and solved.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">A</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="n">assemble_system</span><span class="p">(</span><span class="n">dR</span><span class="p">,</span> <span class="n">R</span><span class="p">,</span> <span class="n">bcs</span><span class="p">)</span>
+
+<span class="n">u</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="n">V</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;displacements&quot;</span><span class="p">)</span>
+<span class="n">solve</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">u</span><span class="o">.</span><span class="n">vector</span><span class="p">(),</span> <span class="n">b</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="test">
+<h2>Test<a class="headerlink" href="#test" title="Permalink to this headline">¶</a></h2>
+<p>The solution field of this uniaxial problem should now look like</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\begin{bmatrix}u_x \\ u_y \end{bmatrix} = \begin{bmatrix} u_{bc} x \\- \nu u_{bc}y \end{bmatrix}\end{split}\]</div>
+<p>A brief check verifies the correctness of our solution.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">test_points</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">test_points</span><span class="p">:</span>
+    <span class="k">for</span> <span class="n">y</span> <span class="ow">in</span> <span class="n">test_points</span><span class="p">:</span>
+        <span class="n">u_fem</span> <span class="o">=</span> <span class="n">u</span><span class="p">((</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">))</span>
+        <span class="n">u_correct</span> <span class="o">=</span> <span class="n">x</span> <span class="o">*</span> <span class="n">u_bc</span><span class="p">,</span> <span class="o">-</span><span class="n">nu</span> <span class="o">*</span> <span class="n">y</span> <span class="o">*</span> <span class="n">u_bc</span>
+        <span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">u_fem</span> <span class="o">-</span> <span class="n">u_correct</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mf">1.0e-10</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="extensions">
+<h2>Extensions<a class="headerlink" href="#extensions" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="strain-calculation">
+<h3>Strain calculation<a class="headerlink" href="#strain-calculation" title="Permalink to this headline">¶</a></h3>
+<p>This simple example with a linear constitutive law technically only requires
+the nonzero tangent <code class="docutils literal notranslate"><span class="pre">q_dsigma_deps</span></code> to be defined and implemented. For
+nonlinear materials, this changes. They usually depend on the strain, which can
+be calculated from the displacement field by projecting <code class="docutils literal notranslate"><span class="pre">eps(u)</span></code> on the
+quadrature function <code class="docutils literal notranslate"><span class="pre">q_eps</span></code>.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">get_strain</span> <span class="o">=</span> <span class="n">LocalProjector</span><span class="p">(</span><span class="n">eps</span><span class="p">(</span><span class="n">u</span><span class="p">),</span> <span class="n">VQV</span><span class="p">,</span> <span class="n">dxm</span><span class="p">)</span>
+<span class="n">get_strain</span><span class="p">(</span><span class="n">q_eps</span><span class="p">)</span>
+<span class="n">strains</span> <span class="o">=</span> <span class="n">q_eps</span><span class="o">.</span><span class="n">vector</span><span class="p">()</span><span class="o">.</span><span class="n">get_local</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>In a nonlinear analysis, the <code class="docutils literal notranslate"><span class="pre">get_strain</span></code> would then be called in every
+Newton Raphson iteration. Here, we can use it for additional checks like</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">for</span> <span class="n">strain</span> <span class="ow">in</span> <span class="n">strains</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">q_dim</span><span class="p">)):</span> <span class="c1"># reshape makes it a (n_gauss,3) matrix</span>
+    <span class="n">eps_x</span><span class="p">,</span> <span class="n">eps_y</span><span class="p">,</span> <span class="n">eps_xy</span> <span class="o">=</span> <span class="n">strain</span>
+    <span class="k">assert</span> <span class="nb">abs</span><span class="p">(</span><span class="n">eps_x</span> <span class="o">-</span> <span class="n">u_bc</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mf">1.e-10</span>
+    <span class="k">assert</span> <span class="nb">abs</span><span class="p">(</span><span class="n">eps_y</span> <span class="o">+</span> <span class="n">nu</span> <span class="o">*</span> <span class="n">u_bc</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mf">1.e-10</span>
+    <span class="k">assert</span> <span class="nb">abs</span><span class="p">(</span><span class="n">eps_xy</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mf">1.e-10</span>
+</pre></div>
+</div>
+<p>or for calculating and plotting the corresponding stresses. <strong>Note that a
+quadrature function space cannot be interpolated!</strong> Thus, we need to define
+a different one and project the solution in there. DG0 with one value for the
+whole element is often used.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">stresses</span> <span class="o">=</span> <span class="n">strains</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">q_dim</span><span class="p">))</span> <span class="o">@</span> <span class="n">C</span>
+<span class="n">set_q</span><span class="p">(</span><span class="n">q_sigma</span><span class="p">,</span> <span class="n">stresses</span><span class="p">)</span>
+
+<span class="n">visu_space</span> <span class="o">=</span> <span class="n">VectorFunctionSpace</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">&quot;DG&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="n">q_dim</span><span class="p">)</span>
+<span class="n">stress_plot</span> <span class="o">=</span> <span class="n">project</span><span class="p">(</span><span class="n">q_sigma</span><span class="p">,</span> <span class="n">visu_space</span><span class="p">)</span>
+<span class="n">stress_plot</span><span class="o">.</span><span class="n">rename</span><span class="p">(</span><span class="s2">&quot;sigma&quot;</span><span class="p">,</span> <span class="s2">&quot;sigma&quot;</span><span class="p">)</span>
+
+
+<span class="n">f</span> <span class="o">=</span> <span class="n">XDMFFile</span><span class="p">(</span><span class="s2">&quot;basics.xdmf&quot;</span><span class="p">)</span>
+<span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">u</span><span class="p">,</span><span class="mf">0.</span><span class="p">)</span>
+<span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">stress_plot</span><span class="p">,</span><span class="mf">0.</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="embedding-in-a-nonlinear-material">
+<h3>Embedding in a nonlinear material<a class="headerlink" href="#embedding-in-a-nonlinear-material" title="Permalink to this headline">¶</a></h3>
+<p>One Newton-Raphson iteration would normally consist of</p>
+<ol class="arabic simple">
+<li><p>calculate <span class="math notranslate nohighlight">\(\boldsymbol \varepsilon\)</span> as a big <code class="docutils literal notranslate"><span class="pre">numpy</span></code> vector</p></li>
+<li><p>calculate <span class="math notranslate nohighlight">\(\boldsymbol \sigma(\boldsymbol \varepsilon), \frac{\partial \boldsymbol \sigma}{\partial \boldsymbol \varepsilon}(\boldsymbol \varepsilon)\)</span></p></li>
+<li><p>assign those values back to their quadrature spaces</p></li>
+<li><p>assemble and solve for a increment in <span class="math notranslate nohighlight">\(\boldsymbol u\)</span></p></li>
+</ol>
+<p>This is (e.g.) demonstrated in the more complex <a class="reference external" href="gradient_damage.html">gradient damage</a> example.</p>
+</div>
+<div class="section" id="iterations-on-gauss-point-level">
+<h3>Iterations on Gauss point level<a class="headerlink" href="#iterations-on-gauss-point-level" title="Permalink to this headline">¶</a></h3>
+<p>The constitutive equation of plasticity models often includes a stress norm.
+This requires an iterative update of some internal variables, e.g. a plastic
+multiplier, until Gauss-point-convergence is reached. This procedure may
+include a manual loop over all Gauss points, where each evaluation itself
+consists of several Newton-Raphson iterations. The <a class="reference external" href="ramberg_osgood.html">Ramberg-Osgood</a>
+example demonstrates this approach and how the <code class="docutils literal notranslate"><span class="pre">numba</span></code> just-in-time compiler
+significantly speeds up these calculations.</p>
+</div>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="example.html" class="btn btn-neutral float-right" title="Material models" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="../index.html" class="btn btn-neutral float-left" title="FEniCS Constitutive" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        
+        &copy; Copyright 2020, Thomas Titscher, Sjard Mathis Rosenbusch, Philipp Diercks
+
+    </p>
+  </div>
+    
+    
+    
+    Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a
+    
+    <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a>
+    
+    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

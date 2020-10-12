@@ -1,0 +1,493 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Material models &mdash; FEniCS Constitutive 2020 documentation</title>
+  
+
+  
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+
+  
+  
+  
+  
+
+  
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/language_data.js"></script>
+        <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Implicit gradient-enhanced damage model" href="gradient_damage.html" />
+    <link rel="prev" title="Basic principle" href="basics.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html" class="icon icon-home" alt="Documentation Home"> FEniCS Constitutive
+          
+
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="basics.html">Basic principle</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Material models</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#uniaxial-damage-model">Uniaxial damage model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#perfect-plastic-model">Perfect Plastic Model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#monotonic-loading">Monotonic loading</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#non-monotonic-loading-damage-model">Non monotonic loading (Damage model)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#non-monotonic-loading-plastic-model">Non monotonic loading (Plastic model)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#non-monotonic-loading-plastic-model-with-hardening">Non monotonic loading (Plastic model with hardening)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#equation-of-state-with-perfect-plasticity">Equation of state with perfect plasticity</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="#drucker-prager-yield-condition">Drucker-Prager yield condition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="gradient_damage.html">Implicit gradient-enhanced damage model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="gradient_damage_iterative.html">Note on iterative solvers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="helper.html">Helper classes and functions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="plate_with_hole.html">Plate with hole</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ramberg_osgood.html">Ramberg Osgood material law</a></li>
+</ul>
+
+            
+          
+        </div>
+        
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">FEniCS Constitutive</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
+        
+      <li>Material models</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../_sources/examples/example.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="o">%</span><span class="k">matplotlib</span> inline
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+<span class="kn">from</span> <span class="nn">IPython.display</span> <span class="kn">import</span> <span class="n">set_matplotlib_formats</span>
+<span class="n">set_matplotlib_formats</span><span class="p">(</span><span class="s1">&#39;svg&#39;</span><span class="p">,</span> <span class="s1">&#39;pdf&#39;</span><span class="p">)</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">numpy.random</span> <span class="kn">import</span> <span class="n">default_rng</span>
+<span class="kn">from</span> <span class="nn">material1D</span> <span class="kn">import</span> <span class="n">ElasticMaterial1D</span><span class="p">,</span> <span class="n">PerfectPlasticMaterial1D</span><span class="p">,</span> <span class="n">DamageMaterial1D</span><span class="p">,</span> <span class="n">PlasticHardeningMaterial1D</span>
+<span class="kn">from</span> <span class="nn">material3D</span> <span class="kn">import</span> <span class="n">EOSMaterial</span><span class="p">,</span><span class="n">PerfectPlasticMaterial</span><span class="p">,</span> <span class="n">YieldFunction</span><span class="p">,</span> <span class="n">DruckerPragerYieldFunction</span>
+</pre></div>
+</div>
+<div class="section" id="material-models">
+<h1>Material models<a class="headerlink" href="#material-models" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="uniaxial-damage-model">
+<h2>Uniaxial damage model<a class="headerlink" href="#uniaxial-damage-model" title="Permalink to this headline">¶</a></h2>
+<p>We assume the material to consist of “fibers” that are perfectly
+brittle, meaning they instantly fail at a critical point. But since not
+all fibers fail at the same time, we have a reduction of affected area.
+For <span class="math notranslate nohighlight">\(t=0\)</span> we have <span class="math notranslate nohighlight">\(A_0=A\)</span> and for a <span class="math notranslate nohighlight">\(t_\mathrm{end}\)</span>
+we have <span class="math notranslate nohighlight">\(A_\mathrm{end}=0\)</span>. We get the effective stress</p>
+<div class="math notranslate nohighlight">
+\[\bar\sigma = \frac {A}{\bar A} \sigma.\]</div>
+<p>We define a damage parameter</p>
+<div class="math notranslate nohighlight">
+\[\omega = 1-\frac{\bar A}{A}\]</div>
+<div class="math notranslate nohighlight">
+\[\bar \sigma =E\varepsilon\]</div>
+<div class="math notranslate nohighlight">
+\[\sigma =(1-\omega)E\varepsilon\]</div>
+<p>The damage parameter depends on the strain
+<span class="math notranslate nohighlight">\(\omega =g(\varepsilon)\)</span></p>
+</div>
+<div class="section" id="perfect-plastic-model">
+<h2>Perfect Plastic Model<a class="headerlink" href="#perfect-plastic-model" title="Permalink to this headline">¶</a></h2>
+<p>Todo: Introduction to plastic models</p>
+</div>
+<div class="section" id="monotonic-loading">
+<h2>Monotonic loading<a class="headerlink" href="#monotonic-loading" title="Permalink to this headline">¶</a></h2>
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">e</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mf">0.11</span><span class="p">,</span><span class="mi">100</span><span class="p">)</span>
+<span class="n">E</span> <span class="o">=</span> <span class="mi">1000</span>
+<span class="n">s_yield</span> <span class="o">=</span> <span class="mi">40</span>
+<span class="c1">#f = lambda s:s-np.log(s+1)*15</span>
+<span class="c1">#df = lambda s:1-1/(s+1)</span>
+<span class="c1">#ddf= lambda s:1/(s+1)**2</span>
+<span class="n">f</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">s</span><span class="p">:</span><span class="n">s</span><span class="o">-</span><span class="n">s_yield</span>
+<span class="n">df</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">s</span><span class="p">:</span><span class="mi">1</span>
+<span class="n">ddf</span><span class="o">=</span> <span class="k">lambda</span> <span class="n">s</span><span class="p">:</span><span class="mi">0</span>
+
+<span class="n">el_damage</span> <span class="o">=</span> <span class="n">DamageMaterial1D</span><span class="p">(</span><span class="n">E</span><span class="p">,</span><span class="mf">0.03</span><span class="p">)</span>
+<span class="n">sigma_damage</span> <span class="o">=</span> <span class="p">[</span><span class="n">el_damage</span><span class="p">(</span><span class="n">ei</span><span class="p">)</span> <span class="k">for</span> <span class="n">ei</span> <span class="ow">in</span> <span class="n">e</span><span class="p">]</span>
+<span class="n">el</span> <span class="o">=</span> <span class="n">ElasticMaterial1D</span><span class="p">(</span><span class="n">E</span><span class="p">)</span>
+<span class="n">sigma_el</span> <span class="o">=</span> <span class="p">[</span><span class="n">el</span><span class="p">(</span><span class="n">ei</span><span class="p">)</span> <span class="k">for</span> <span class="n">ei</span> <span class="ow">in</span> <span class="n">e</span><span class="p">]</span>
+<span class="n">pl</span> <span class="o">=</span> <span class="n">PerfectPlasticMaterial1D</span><span class="p">(</span><span class="n">E</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">df</span> <span class="p">,</span><span class="n">ddf</span><span class="p">)</span>
+<span class="n">sigma_pl</span> <span class="o">=</span> <span class="p">[</span><span class="n">pl</span><span class="p">(</span><span class="n">ei</span><span class="p">)</span> <span class="k">for</span> <span class="n">ei</span> <span class="ow">in</span> <span class="n">e</span><span class="p">]</span>
+<span class="n">pl_hard</span> <span class="o">=</span> <span class="n">PlasticHardeningMaterial1D</span><span class="p">(</span><span class="n">E</span><span class="p">,</span> <span class="mi">250</span><span class="p">,</span> <span class="mi">40</span><span class="p">)</span>
+<span class="n">sigma_pl_hard</span> <span class="o">=</span> <span class="p">[</span><span class="n">pl_hard</span><span class="p">(</span><span class="n">ei</span><span class="p">)</span> <span class="k">for</span> <span class="n">ei</span> <span class="ow">in</span> <span class="n">e</span><span class="p">]</span>
+
+
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">e</span><span class="p">,</span><span class="n">sigma_el</span><span class="p">,</span><span class="n">label</span><span class="o">=</span><span class="s2">&quot;Elastic&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">e</span><span class="p">,</span><span class="n">sigma_pl</span><span class="p">,</span><span class="n">label</span><span class="o">=</span><span class="s2">&quot;Perfect plastic&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">e</span><span class="p">,</span><span class="n">sigma_damage</span><span class="p">,</span><span class="n">label</span><span class="o">=</span><span class="s2">&quot;Isotropic damage&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">e</span><span class="p">,</span><span class="n">sigma_pl_hard</span><span class="p">,</span><span class="n">label</span><span class="o">=</span><span class="s2">&quot;Isotropic hardening&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;$ \varepsilon $&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;$\sigma$&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="non-monotonic-loading-damage-model">
+<h2>Non monotonic loading (Damage model)<a class="headerlink" href="#non-monotonic-loading-damage-model" title="Permalink to this headline">¶</a></h2>
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">e_unloading</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">((</span><span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mf">0.04</span><span class="p">,</span><span class="mi">100</span><span class="p">),</span><span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mf">0.04</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mi">100</span><span class="p">)))</span>
+
+<span class="n">s_el_damage</span> <span class="o">=</span> <span class="n">DamageMaterial1D</span><span class="p">(</span><span class="n">E</span><span class="p">,</span><span class="mf">0.03</span><span class="p">)</span>
+
+<span class="n">sigma_damage</span> <span class="o">=</span> <span class="p">[</span><span class="n">s_el_damage</span><span class="p">(</span><span class="n">ei</span><span class="p">)</span> <span class="k">for</span> <span class="n">ei</span> <span class="ow">in</span> <span class="n">e_unloading</span><span class="p">]</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlim</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span><span class="mf">0.1</span><span class="p">])</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylim</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span><span class="mi">30</span><span class="p">])</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;$ \varepsilon $&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;$\sigma$&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s2">&quot;Loading and unloading&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">e_unloading</span><span class="p">,</span><span class="n">sigma_damage</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+
+<span class="c1">#Load again. The state of the material is still saved</span>
+<span class="n">sigma_damage</span> <span class="o">=</span> <span class="p">[</span><span class="n">s_el_damage</span><span class="p">(</span><span class="n">ei</span><span class="p">)</span> <span class="k">for</span> <span class="n">ei</span> <span class="ow">in</span> <span class="n">e</span><span class="p">]</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlim</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span><span class="mf">0.1</span><span class="p">])</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylim</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span><span class="mi">30</span><span class="p">])</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;$ \varepsilon $&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;$\sigma$&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s2">&quot;Reloading&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">e</span><span class="p">,</span><span class="n">sigma_damage</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="non-monotonic-loading-plastic-model">
+<h2>Non monotonic loading (Plastic model)<a class="headerlink" href="#non-monotonic-loading-plastic-model" title="Permalink to this headline">¶</a></h2>
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">e_unloading</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">((</span><span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mf">0.06</span><span class="p">,</span><span class="mi">100</span><span class="p">),</span><span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mf">0.06</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mi">100</span><span class="p">)))</span>
+
+<span class="n">pl</span> <span class="o">=</span> <span class="n">PerfectPlasticMaterial1D</span><span class="p">(</span><span class="n">E</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">df</span> <span class="p">,</span><span class="n">ddf</span><span class="p">)</span>
+
+<span class="n">sigma_pl</span> <span class="o">=</span> <span class="p">[</span><span class="n">pl</span><span class="p">(</span><span class="n">ei</span><span class="p">)</span> <span class="k">for</span> <span class="n">ei</span> <span class="ow">in</span> <span class="n">e_unloading</span><span class="p">]</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlim</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span><span class="mf">0.1</span><span class="p">])</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylim</span><span class="p">([</span><span class="o">-</span><span class="mi">20</span><span class="p">,</span><span class="mi">50</span><span class="p">])</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;$ \varepsilon $&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;$\sigma$&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s2">&quot;Loading and unloading&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">e_unloading</span><span class="p">,</span><span class="n">sigma_pl</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+
+<span class="c1">#Load again. The state of the material is still saved</span>
+<span class="n">sigma_pl</span> <span class="o">=</span> <span class="p">[</span><span class="n">pl</span><span class="p">(</span><span class="n">ei</span><span class="p">)</span> <span class="k">for</span> <span class="n">ei</span> <span class="ow">in</span> <span class="n">e</span><span class="p">]</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlim</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span><span class="mf">0.1</span><span class="p">])</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylim</span><span class="p">([</span><span class="o">-</span><span class="mi">20</span><span class="p">,</span><span class="mi">50</span><span class="p">])</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;$ \varepsilon $&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;$\sigma$&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s2">&quot;Reloading&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">e</span><span class="p">,</span><span class="n">sigma_pl</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="non-monotonic-loading-plastic-model-with-hardening">
+<h2>Non monotonic loading (Plastic model with hardening)<a class="headerlink" href="#non-monotonic-loading-plastic-model-with-hardening" title="Permalink to this headline">¶</a></h2>
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">e_unloading</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">((</span><span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mf">0.06</span><span class="p">,</span><span class="mi">100</span><span class="p">),</span><span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mf">0.06</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mi">100</span><span class="p">)))</span>
+
+<span class="n">pl</span> <span class="o">=</span> <span class="n">PlasticHardeningMaterial1D</span><span class="p">(</span><span class="n">E</span><span class="p">,</span> <span class="mi">250</span><span class="p">,</span> <span class="mi">40</span><span class="p">)</span>
+
+<span class="n">sigma_pl</span> <span class="o">=</span> <span class="p">[</span><span class="n">pl</span><span class="p">(</span><span class="n">ei</span><span class="p">)</span> <span class="k">for</span> <span class="n">ei</span> <span class="ow">in</span> <span class="n">e_unloading</span><span class="p">]</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlim</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span><span class="mf">0.1</span><span class="p">])</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylim</span><span class="p">([</span><span class="o">-</span><span class="mi">20</span><span class="p">,</span><span class="mi">50</span><span class="p">])</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;$ \varepsilon $&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;$\sigma$&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s2">&quot;Loading and unloading&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">e_unloading</span><span class="p">,</span><span class="n">sigma_pl</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+
+<span class="c1">#Load again. The state of the material is still saved</span>
+<span class="n">sigma_pl</span> <span class="o">=</span> <span class="p">[</span><span class="n">pl</span><span class="p">(</span><span class="n">ei</span><span class="p">)</span> <span class="k">for</span> <span class="n">ei</span> <span class="ow">in</span> <span class="n">e</span><span class="p">]</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlim</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span><span class="mf">0.1</span><span class="p">])</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylim</span><span class="p">([</span><span class="o">-</span><span class="mi">20</span><span class="p">,</span><span class="mi">50</span><span class="p">])</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;$ \varepsilon $&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;$\sigma$&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s2">&quot;Reloading&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">e</span><span class="p">,</span><span class="n">sigma_pl</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="equation-of-state-with-perfect-plasticity">
+<h2>Equation of state with perfect plasticity<a class="headerlink" href="#equation-of-state-with-perfect-plasticity" title="Permalink to this headline">¶</a></h2>
+<p>For this example we consider a 3d space, but only with principal
+stresses and strains. In one dimension the differentiation between
+hydrostatic pressure and other stresses would have been useless.</p>
+<p>We assume an energy-independent EOS with the general form</p>
+<div class="math notranslate nohighlight">
+\[P(\mu) = K1\mu+K2\mu^2+K3\mu^3\]</div>
+<p>In the easiest case, <span class="math notranslate nohighlight">\(P\)</span> is linear and we have <span class="math notranslate nohighlight">\(K1=\lambda\)</span>
+the compression modulus and <span class="math notranslate nohighlight">\(K2=K3=0\)</span>.</p>
+<p>In the following calculations we will ignore shear components of stress
+and strain and assume a uniaxial strain
+(<span class="math notranslate nohighlight">\(\sigma _{22} = \sigma_{33} =0\)</span>)</p>
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">sigma_dev</span><span class="p">(</span><span class="n">sigma</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">sigma</span> <span class="o">-</span> <span class="p">(</span><span class="mi">1</span><span class="o">/</span><span class="mi">3</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">sigma</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">sigma_equiv</span><span class="p">(</span><span class="n">sigma</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">((</span><span class="mi">3</span><span class="o">/</span><span class="mi">2</span><span class="p">)</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">sigma_dev</span><span class="p">(</span><span class="n">sigma</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span>
+
+<span class="n">eps_uni</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">])</span>
+<span class="n">eps_increment</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mf">0.04</span><span class="p">,</span><span class="mi">100</span><span class="p">)</span>
+
+<span class="n">E</span> <span class="o">=</span> <span class="mi">10000</span>
+<span class="n">nu</span> <span class="o">=</span> <span class="mf">0.3</span>
+<span class="n">G</span> <span class="o">=</span> <span class="n">E</span><span class="o">/</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="p">(</span><span class="mi">1</span><span class="o">+</span><span class="n">nu</span><span class="p">))</span>
+<span class="n">K</span> <span class="o">=</span> <span class="n">E</span><span class="o">*</span><span class="n">nu</span><span class="o">/</span><span class="p">((</span><span class="mi">1</span><span class="o">+</span><span class="n">nu</span><span class="p">)</span><span class="o">*</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="mi">2</span><span class="o">*</span><span class="n">nu</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>Linear elastic case: <span class="math notranslate nohighlight">\(P=K\cdot \mu\)</span></p>
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">mat_lin</span> <span class="o">=</span> <span class="n">EOSMaterial</span><span class="p">(</span><span class="n">G</span><span class="p">,</span><span class="n">K</span><span class="p">,</span><span class="n">YieldFunction</span><span class="p">(</span><span class="mi">40</span><span class="p">))</span>
+<span class="n">sigma_lin</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">mat_lin</span><span class="p">(</span><span class="n">eps_uni</span><span class="o">*</span><span class="n">e</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">eps_increment</span><span class="p">])</span>
+</pre></div>
+</div>
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">eps_increment</span><span class="p">,[</span><span class="n">sigma_equiv</span><span class="p">(</span><span class="n">sigma</span><span class="p">)</span> <span class="k">for</span> <span class="n">sigma</span> <span class="ow">in</span> <span class="n">sigma_lin</span><span class="p">])</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s2">&quot;Uniaxial strain &quot;</span><span class="o">+</span><span class="sa">r</span><span class="s2">&quot;$\varepsilon_</span><span class="si">{11}</span><span class="s2">$&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s2">&quot;Equivalent stress &quot;</span><span class="sa">r</span><span class="s2">&quot;$\sigma_\mathrm</span><span class="si">{eq}</span><span class="s2">$&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">eps_increment</span><span class="p">,[</span><span class="n">sigma</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">sigma</span> <span class="ow">in</span> <span class="n">sigma_lin</span><span class="p">])</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s2">&quot;Uniaxial strain &quot;</span><span class="o">+</span><span class="sa">r</span><span class="s2">&quot;$\varepsilon_</span><span class="si">{11}</span><span class="s2">$&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="sa">r</span><span class="s2">&quot;$\sigma_</span><span class="si">{11}</span><span class="s2">$&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>Case with EOS</p>
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">eps_unloading</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">((</span><span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mf">0.04</span><span class="p">,</span><span class="mi">100</span><span class="p">),</span><span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mf">0.04</span><span class="p">,</span><span class="mf">0.00</span><span class="p">,</span><span class="mi">100</span><span class="p">)))</span>
+<span class="n">eps_reloading</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mf">0.04</span><span class="p">,</span><span class="mi">100</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">P</span><span class="p">(</span><span class="n">y</span><span class="p">):</span>
+    <span class="k">return</span> <span class="mf">0.3</span><span class="o">*</span><span class="p">(</span> <span class="n">K</span><span class="o">*</span><span class="n">y</span> <span class="o">+</span> <span class="mi">20</span> <span class="o">*</span> <span class="n">K</span> <span class="o">*</span> <span class="n">y</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="mi">100</span><span class="o">*</span><span class="n">K</span><span class="o">*</span><span class="n">y</span><span class="o">**</span><span class="mi">3</span><span class="p">)</span>
+
+<span class="n">mat_eos</span> <span class="o">=</span> <span class="n">EOSMaterial</span><span class="p">(</span><span class="n">G</span><span class="p">,</span><span class="n">K</span><span class="p">,</span><span class="n">YieldFunction</span><span class="p">(</span><span class="mi">40</span><span class="p">),</span><span class="n">P</span><span class="o">=</span><span class="n">P</span><span class="p">)</span>
+
+<span class="n">sigma_eos</span> <span class="o">=</span> <span class="p">[</span><span class="n">mat_eos</span><span class="p">(</span><span class="n">eps_uni</span><span class="o">*</span><span class="n">e</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">eps_unloading</span><span class="p">]</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlim</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span><span class="mf">0.06</span><span class="p">])</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylim</span><span class="p">([</span><span class="o">-</span><span class="mi">30</span><span class="p">,</span><span class="mi">200</span><span class="p">])</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;$ \varepsilon_</span><span class="si">{11}</span><span class="s2"> $&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;$\sigma_</span><span class="si">{11}</span><span class="s2">$&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s2">&quot;Loading and unloading&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">eps_unloading</span><span class="p">,[</span><span class="n">sigma</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">sigma</span> <span class="ow">in</span> <span class="n">sigma_eos</span><span class="p">])</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+
+
+<span class="n">sigma_eos</span> <span class="o">=</span> <span class="p">[</span><span class="n">mat_eos</span><span class="p">(</span><span class="n">eps_uni</span><span class="o">*</span><span class="n">e</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">eps_reloading</span><span class="p">]</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlim</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span><span class="mf">0.06</span><span class="p">])</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylim</span><span class="p">([</span><span class="o">-</span><span class="mi">30</span><span class="p">,</span><span class="mi">200</span><span class="p">])</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;$ \varepsilon_</span><span class="si">{11}</span><span class="s2"> $&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;$\sigma_</span><span class="si">{11}</span><span class="s2">$&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s2">&quot;Reloading&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mf">0.1</span><span class="p">,</span><span class="mi">100</span><span class="p">),[</span><span class="n">sigma</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">sigma</span> <span class="ow">in</span> <span class="n">sigma_eos</span><span class="p">])</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="section" id="drucker-prager-yield-condition">
+<h1>Drucker-Prager yield condition<a class="headerlink" href="#drucker-prager-yield-condition" title="Permalink to this headline">¶</a></h1>
+<p>First example with linear elasticity, second with EOS.</p>
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">eps_increment</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mf">0.04</span><span class="p">,</span><span class="mi">100</span><span class="p">)</span>
+<span class="n">E</span> <span class="o">=</span> <span class="mi">100000</span>
+<span class="n">nu</span> <span class="o">=</span> <span class="mf">0.3</span>
+<span class="n">G</span> <span class="o">=</span> <span class="n">E</span><span class="o">/</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="p">(</span><span class="mi">1</span><span class="o">+</span><span class="n">nu</span><span class="p">))</span>
+<span class="n">K</span> <span class="o">=</span> <span class="n">E</span><span class="o">*</span><span class="n">nu</span><span class="o">/</span><span class="p">((</span><span class="mi">1</span><span class="o">+</span><span class="n">nu</span><span class="p">)</span><span class="o">*</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="mi">2</span><span class="o">*</span><span class="n">nu</span><span class="p">))</span>
+<span class="n">A</span><span class="p">,</span><span class="n">B</span><span class="o">=</span><span class="mi">500</span><span class="p">,</span><span class="mf">0.05</span>
+<span class="k">def</span> <span class="nf">P</span><span class="p">(</span><span class="n">y</span><span class="p">):</span>
+    <span class="k">return</span> <span class="mf">0.3</span><span class="o">*</span><span class="p">(</span> <span class="n">K</span><span class="o">*</span><span class="n">y</span> <span class="o">+</span> <span class="mi">20</span> <span class="o">*</span> <span class="n">K</span> <span class="o">*</span> <span class="n">y</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="mi">100</span><span class="o">*</span><span class="n">K</span><span class="o">*</span><span class="n">y</span><span class="o">**</span><span class="mi">3</span><span class="p">)</span>
+    <span class="c1">#return np.exp(K*0.016*y)-1</span>
+<span class="n">pl</span> <span class="o">=</span> <span class="n">EOSMaterial</span><span class="p">(</span><span class="n">G</span><span class="p">,</span><span class="n">K</span><span class="p">,</span><span class="n">DruckerPragerYieldFunction</span><span class="p">(</span><span class="n">A</span><span class="p">,</span><span class="n">B</span><span class="p">),</span><span class="n">P</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+
+<span class="c1">#sigma_pl = [pl(ei)[0] for ei in e_unloading]</span>
+<span class="n">sigma_pl</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">pl</span><span class="p">(</span><span class="n">eps_uni</span><span class="o">*</span><span class="n">e</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">eps_increment</span><span class="p">])</span>
+<span class="c1">#plt.xlim([0,0.06])</span>
+<span class="c1">#plt.ylim([-20,50])</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;$ I_1$&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;$J_2$&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s2">&quot;Loading&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">sigma_pl</span><span class="p">,</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">),[</span><span class="n">sigma_equiv</span><span class="p">(</span><span class="n">sigma</span><span class="p">)</span> <span class="k">for</span> <span class="n">sigma</span> <span class="ow">in</span> <span class="n">sigma_pl</span><span class="p">],</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;Loading path&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">4000</span><span class="p">,</span><span class="mi">100</span><span class="p">),</span><span class="n">A</span><span class="o">+</span><span class="n">B</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">4000</span><span class="p">,</span><span class="mi">100</span><span class="p">),</span><span class="n">label</span><span class="o">=</span><span class="s2">&quot;Yield-Surface&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">pl</span> <span class="o">=</span> <span class="n">EOSMaterial</span><span class="p">(</span><span class="n">G</span><span class="p">,</span><span class="n">K</span><span class="p">,</span><span class="n">DruckerPragerYieldFunction</span><span class="p">(</span><span class="n">A</span><span class="p">,</span><span class="n">B</span><span class="p">),</span><span class="n">P</span><span class="o">=</span><span class="n">P</span><span class="p">)</span>
+
+<span class="c1">#sigma_pl = [pl(ei)[0] for ei in e_unloading]</span>
+<span class="n">sigma_pl</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">pl</span><span class="p">(</span><span class="n">eps_uni</span><span class="o">*</span><span class="n">e</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">eps_increment</span><span class="p">])</span>
+<span class="c1">#plt.xlim([0,0.06])</span>
+<span class="c1">#plt.ylim([-20,50])</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;$ I_1$&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;$J_2$&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s2">&quot;Loading&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">sigma_pl</span><span class="p">,</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">),[</span><span class="n">sigma_equiv</span><span class="p">(</span><span class="n">sigma</span><span class="p">)</span> <span class="k">for</span> <span class="n">sigma</span> <span class="ow">in</span> <span class="n">sigma_pl</span><span class="p">],</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;Loading path&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">4000</span><span class="p">,</span><span class="mi">100</span><span class="p">),</span><span class="n">A</span><span class="o">+</span><span class="n">B</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">4000</span><span class="p">,</span><span class="mi">100</span><span class="p">),</span><span class="n">label</span><span class="o">=</span><span class="s2">&quot;Yield-Surface&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="gradient_damage.html" class="btn btn-neutral float-right" title="Implicit gradient-enhanced damage model" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="basics.html" class="btn btn-neutral float-left" title="Basic principle" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        
+        &copy; Copyright 2020, Thomas Titscher, Sjard Mathis Rosenbusch, Philipp Diercks
+
+    </p>
+  </div>
+    
+    
+    
+    Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a
+    
+    <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a>
+    
+    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

@@ -1,0 +1,374 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Helper classes and functions &mdash; FEniCS Constitutive 2020 documentation</title>
+  
+
+  
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+
+  
+  
+  
+  
+
+  
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/language_data.js"></script>
+        <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Plate with hole" href="plate_with_hole.html" />
+    <link rel="prev" title="Note on iterative solvers" href="gradient_damage_iterative.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html" class="icon icon-home" alt="Documentation Home"> FEniCS Constitutive
+          
+
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="basics.html">Basic principle</a></li>
+<li class="toctree-l1"><a class="reference internal" href="example.html">Material models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="example.html#drucker-prager-yield-condition">Drucker-Prager yield condition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="gradient_damage.html">Implicit gradient-enhanced damage model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="gradient_damage_iterative.html">Note on iterative solvers</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Helper classes and functions</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#suppress-warnings">Suppress warnings</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#load-displacement-curve">Load-displacement curve</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#local-projector">Local projector</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#setting-values-for-the-quadrature-space">Setting values for the quadrature space</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="plate_with_hole.html">Plate with hole</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ramberg_osgood.html">Ramberg Osgood material law</a></li>
+</ul>
+
+            
+          
+        </div>
+        
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">FEniCS Constitutive</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
+        
+      <li>Helper classes and functions</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../_sources/examples/helper.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="helper-classes-and-functions">
+<h1>Helper classes and functions<a class="headerlink" href="#helper-classes-and-functions" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="suppress-warnings">
+<h2>Suppress warnings<a class="headerlink" href="#suppress-warnings" title="Permalink to this headline">¶</a></h2>
+<p>The whole quadrature space is half deprecated, half not. We roll with it
+and just ignore the warnings.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
+
+<span class="kn">from</span> <span class="nn">dolfin</span> <span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span> <span class="nn">ffc.quadrature.deprecation</span> <span class="kn">import</span> <span class="n">QuadratureRepresentationDeprecationWarning</span>
+
+<span class="n">parameters</span><span class="p">[</span><span class="s2">&quot;form_compiler&quot;</span><span class="p">][</span><span class="s2">&quot;representation&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;quadrature&quot;</span>
+<span class="n">warnings</span><span class="o">.</span><span class="n">simplefilter</span><span class="p">(</span><span class="s2">&quot;ignore&quot;</span><span class="p">,</span> <span class="n">QuadratureRepresentationDeprecationWarning</span><span class="p">)</span>
+
+
+<span class="k">try</span><span class="p">:</span>
+    <span class="kn">from</span> <span class="nn">fenics_helpers.boundary</span> <span class="kn">import</span> <span class="o">*</span>
+    <span class="kn">from</span> <span class="nn">fenics_helpers.timestepping</span> <span class="kn">import</span> <span class="n">TimeStepper</span>
+<span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Install fenics_helpers via (e.g.)&quot;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;   pip3 install git+https://github.com/BAMResearch/fenics_helpers&quot;</span><span class="p">)</span>
+    <span class="k">raise</span> <span class="p">(</span><span class="n">e</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="load-displacement-curve">
+<h2>Load-displacement curve<a class="headerlink" href="#load-displacement-curve" title="Permalink to this headline">¶</a></h2>
+<p>For a given state (e.g. a time step), load-displacement curve connects the
+displacements of certain DOFs with their reaction forces (<em>load</em>). Especially
+for strain-softening materials, this curve can indicate numerical issues
+like snap-backs.</p>
+<p>From <code class="docutils literal notranslate"><span class="pre">dolfin.DirichletBC.get_boundary_values()</span></code> , we directly extract the
+<code class="docutils literal notranslate"><span class="pre">.values()</span></code> as the current displacements and the <code class="docutils literal notranslate"><span class="pre">.keys()</span></code> as the DOF
+numbers. The latter ones are used to extract the reaction (out-of-balance)
+forces from a given force vector <code class="docutils literal notranslate"><span class="pre">R</span></code>.</p>
+<p>Special care is taken to make this class work in parallel.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">LoadDisplacementCurve</span><span class="p">:</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">bc</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        bc:</span>
+<span class="sd">            dolfin.DirichletBC</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">comm</span> <span class="o">=</span> <span class="n">MPI</span><span class="o">.</span><span class="n">comm_world</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">bc</span> <span class="o">=</span> <span class="n">bc</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">dofs</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">bc</span><span class="o">.</span><span class="n">get_boundary_values</span><span class="p">()</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_dofs</span> <span class="o">=</span> <span class="n">MPI</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">comm</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dofs</span><span class="p">))</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">load</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">disp</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ts</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">plot</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">is_root</span> <span class="o">=</span> <span class="n">MPI</span><span class="o">.</span><span class="n">rank</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">comm</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
+
+    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">R</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        t:</span>
+<span class="sd">            global time</span>
+<span class="sd">        R:</span>
+<span class="sd">            residual, out of balance forces</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># A dof &gt; R.local_size() is (I GUESS?!?!) a ghost node and its</span>
+        <span class="c1"># contribution to R is accounted for on the owning process. So it</span>
+        <span class="c1"># is (I GUESS?!) safe to ignore it.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dofs</span> <span class="o">=</span> <span class="p">[</span><span class="n">d</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dofs</span> <span class="k">if</span> <span class="n">d</span> <span class="o">&lt;</span> <span class="n">R</span><span class="o">.</span><span class="n">local_size</span><span class="p">()]</span>
+
+        <span class="n">load_local</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">R</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">dofs</span><span class="p">])</span>
+        <span class="n">load</span> <span class="o">=</span> <span class="n">MPI</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">comm</span><span class="p">,</span> <span class="n">load_local</span><span class="p">)</span>
+
+        <span class="n">disp_local</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">bc</span><span class="o">.</span><span class="n">get_boundary_values</span><span class="p">()</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
+        <span class="n">disp</span> <span class="o">=</span> <span class="n">MPI</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">comm</span><span class="p">,</span> <span class="n">disp_local</span><span class="p">)</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_dofs</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">load</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">load</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">disp</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">disp</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">plot</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_root</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">disp</span><span class="p">,</span> <span class="n">load</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">show</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fmt</span><span class="o">=</span><span class="s2">&quot;-rx&quot;</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_root</span><span class="p">:</span>
+            <span class="kn">from</span> <span class="nn">fenics_helpers.plotting</span> <span class="kn">import</span> <span class="n">AdaptivePlot</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">plot</span> <span class="o">=</span> <span class="n">AdaptivePlot</span><span class="p">(</span><span class="n">fmt</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">keep</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_root</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">plot</span><span class="o">.</span><span class="n">keep</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="local-projector">
+<h2>Local projector<a class="headerlink" href="#local-projector" title="Permalink to this headline">¶</a></h2>
+<p>Projecting an expression <code class="docutils literal notranslate"><span class="pre">expr(u)</span></code> into a function space <code class="docutils literal notranslate"><span class="pre">V</span></code> is done by
+solving the variational problem</p>
+<div class="math notranslate nohighlight">
+\[\int_\Omega uv \ \mathrm dx = \int_\omega \text{expr} \ v \ \mathrm dx\]</div>
+<p>for all test functions <span class="math notranslate nohighlight">\(v \in V\)</span>.</p>
+<p>In our case, <span class="math notranslate nohighlight">\(V\)</span> is a quadrature function space and can significantly speed
+up this solution by using the <code class="docutils literal notranslate"><span class="pre">dolfin.LocalSolver</span></code> that can additionaly
+be prefactorized to speedup subsequent projections.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">LocalProjector</span><span class="p">:</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">V</span><span class="p">,</span> <span class="n">dxm</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        expr:</span>
+<span class="sd">            expression to project</span>
+<span class="sd">        V:</span>
+<span class="sd">            quadrature function space</span>
+<span class="sd">        dxm:</span>
+<span class="sd">            dolfin.Measure(&quot;dx&quot;) that matches V</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">dv</span> <span class="o">=</span> <span class="n">TrialFunction</span><span class="p">(</span><span class="n">V</span><span class="p">)</span>
+        <span class="n">v_</span> <span class="o">=</span> <span class="n">TestFunction</span><span class="p">(</span><span class="n">V</span><span class="p">)</span>
+        <span class="n">a_proj</span> <span class="o">=</span> <span class="n">inner</span><span class="p">(</span><span class="n">dv</span><span class="p">,</span> <span class="n">v_</span><span class="p">)</span> <span class="o">*</span> <span class="n">dxm</span>
+        <span class="n">b_proj</span> <span class="o">=</span> <span class="n">inner</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">v_</span><span class="p">)</span> <span class="o">*</span> <span class="n">dxm</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">solver</span> <span class="o">=</span> <span class="n">LocalSolver</span><span class="p">(</span><span class="n">a_proj</span><span class="p">,</span> <span class="n">b_proj</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">solver</span><span class="o">.</span><span class="n">factorize</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">u</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        u:</span>
+<span class="sd">            function that is filled with the solution of the projection</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">solver</span><span class="o">.</span><span class="n">solve_local_rhs</span><span class="p">(</span><span class="n">u</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="setting-values-for-the-quadrature-space">
+<h2>Setting values for the quadrature space<a class="headerlink" href="#setting-values-for-the-quadrature-space" title="Permalink to this headline">¶</a></h2>
+<ul class="simple">
+<li><p>The combination of <code class="docutils literal notranslate"><span class="pre">.zero</span></code> and <code class="docutils literal notranslate"><span class="pre">.add_local</span></code> is faster than using
+<code class="docutils literal notranslate"><span class="pre">.set_local</span></code> directly, as <code class="docutils literal notranslate"><span class="pre">.set_local</span></code> copies everything in a <a class="reference external" href="https://bitbucket.org/fenics-project/dolfin/src/946dbd3e268dc20c64778eb5b734941ca5c343e5/python/src/la.cpp#lines-576">C++ vector</a> first.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.apply(&quot;insert&quot;)</span></code> takes care of the ghost value communication in a
+parallel run.</p></li>
+</ul>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">set_q</span><span class="p">(</span><span class="n">q</span><span class="p">,</span> <span class="n">values</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    q:</span>
+<span class="sd">        quadrature function space</span>
+<span class="sd">    values:</span>
+<span class="sd">        entries for `q`</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">v</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">vector</span><span class="p">()</span>
+    <span class="n">v</span><span class="o">.</span><span class="n">zero</span><span class="p">()</span>
+    <span class="n">v</span><span class="o">.</span><span class="n">add_local</span><span class="p">(</span><span class="n">values</span><span class="o">.</span><span class="n">flat</span><span class="p">)</span>
+    <span class="n">v</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="s2">&quot;insert&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="plate_with_hole.html" class="btn btn-neutral float-right" title="Plate with hole" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="gradient_damage_iterative.html" class="btn btn-neutral float-left" title="Note on iterative solvers" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        
+        &copy; Copyright 2020, Thomas Titscher, Sjard Mathis Rosenbusch, Philipp Diercks
+
+    </p>
+  </div>
+    
+    
+    
+    Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a
+    
+    <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a>
+    
+    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>
