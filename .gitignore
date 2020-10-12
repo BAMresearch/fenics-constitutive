@@ -6,4 +6,5 @@ website
 
 *.h5
 *.xdmf
+*.bak
 README.rst 

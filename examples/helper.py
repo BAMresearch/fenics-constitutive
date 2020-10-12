@@ -161,6 +161,6 @@ def set_q(q, values):
     """
     v = q.vector()
     v.zero()
-    v.add_local(values.flatten())
+    v.add_local(values.flat)
     v.apply("insert")
 
