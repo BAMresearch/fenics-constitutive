@@ -17,7 +17,7 @@ PYBIND11_MODULE(cpp, m)
     py::class_<Mandel2, Eigen::Vector3d> mandel2(m, "Mandel2");
     mandel2.def(py::init<Eigen::Vector3d>());
 
-    py::class_<MandelX2, Eigen::Vector4d> mandelX2(m, "MandelX2");
-    mandelX2.def(py::init<Eigen::Vector4d>());
-    mandelX2.def(py::init<Mandel2>());
+    // py::class_<MandelX2, Eigen::Vector4d> mandelX2(m, "MandelX2");
+    // mandelX2.def(py::init<Eigen::Vector4d>());
+    // mandelX2.def(py::init<Mandel2>());
 }

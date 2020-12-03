@@ -8,5 +8,6 @@ Examples
    :glob:
    
    examples/*
+   src/README.rst
 
 

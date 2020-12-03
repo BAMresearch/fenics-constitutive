@@ -64,7 +64,7 @@ struct Transform3D
     }
 };
 
-int main(int argc, char* argv[])
+int main()
 {
     EngineeringStrain2D v({1, 2, 3});
     auto T = Transform3D::From2D();
