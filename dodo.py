@@ -41,6 +41,4 @@ def task_convert():
                     }
         else:
             raise RuntimeError(f"Unknown format of {source}. *.py, *.ipynb supported.")
-            # yield
-            # {}
 
