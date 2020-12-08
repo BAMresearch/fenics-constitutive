@@ -51,6 +51,7 @@ In each global Newton-Raphson step, they
    to calculate the stresses (Nx4) and the tangents (Nx16)
 3) assign the stresses and the tangents to their quadrature spaces
 4) assemble the system and solve.
+5) optional: post-processing
 
 As we want to keep full control (and not fall back to another code
 generation tool), we replace step 2) by
