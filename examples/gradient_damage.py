@@ -326,10 +326,11 @@ class GDM(NonlinearProblem):
         self.R += e_ * (e - self.q_eeq) * dxm
         self.R += dot(grad(e_), mat.l ** 2 * grad(e)) * dxm
 
-        self.dR = f_d * inner(eps(dd), self.q_dsigma_deps * eps(d_)) * dxm
-        self.dR += f_d * de * dot(self.q_dsigma_de, eps(d_)) * dxm
-        self.dR += inner(eps(dd), -self.q_deeq_deps * e_) * dxm
-        self.dR += de * e_ * dxm + dot(grad(de), mat.l ** 2 * grad(e_)) * dxm
+        self.dR = f_d * inner(eps(d_), self.q_dsigma_deps * eps(dd)) * dxm
+        self.dR += f_d * inner(eps(d_),  self.q_dsigma_de * de) * dxm
+        self.dR += e_ * (de - dot(self.q_deeq_deps, eps(dd))) * dxm
+        #∂grad(e)/∂e de = linear terms of grad(e+de) = grad(de)
+        self.dR += dot(grad(e_), mat.l ** 2 * (grad(de))) * dxm
 
         self.calculate_eps = LocalProjector(eps(d), VQV, dxm)
         self.calculate_e = LocalProjector(e, VQF, dxm)
