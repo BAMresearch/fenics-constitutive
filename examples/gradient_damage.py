@@ -313,7 +313,7 @@ class GDM(NonlinearProblem):
         self.q_deeq_deps = Function(VQV, name="equivalent-strain-strain tangent")
 
         dd, de = TrialFunctions(self.Vu)
-        d_, e_ = TestFunctions(self.Vu)
+        u_, e_ = TestFunctions(self.Vu)
         d, e = split(self.u)
 
         try:
@@ -322,12 +322,12 @@ class GDM(NonlinearProblem):
             f_d = Constant(1.0)
 
         eps = self.mat.eps
-        self.R = f_d * inner(eps(d_), self.q_sigma) * dxm
+        self.R = f_d * inner(eps(u_), self.q_sigma) * dxm
         self.R += e_ * (e - self.q_eeq) * dxm
         self.R += dot(grad(e_), mat.l ** 2 * grad(e)) * dxm
 
-        self.dR = f_d * inner(eps(dd), self.q_dsigma_deps * eps(d_)) * dxm
-        self.dR += f_d * de * dot(self.q_dsigma_de, eps(d_)) * dxm
+        self.dR = f_d * inner(eps(dd), self.q_dsigma_deps * eps(u_)) * dxm
+        self.dR += f_d * de * dot(self.q_dsigma_de, eps(u_)) * dxm
         self.dR += inner(eps(dd), -self.q_deeq_deps * e_) * dxm
         self.dR += de * e_ * dxm + dot(grad(de), mat.l ** 2 * grad(e_)) * dxm
 

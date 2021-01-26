@@ -10,22 +10,25 @@ and just ignore the warnings.
 """
 
 import numpy as np
-import warnings
 
-from dolfin import *
-from ffc.quadrature.deprecation import QuadratureRepresentationDeprecationWarning
+import dolfin as df
 
-parameters["form_compiler"]["representation"] = "quadrature"
-warnings.simplefilter("ignore", QuadratureRepresentationDeprecationWarning)
+def setup(module):
+    import warnings
+    from ffc.quadrature.deprecation import QuadratureRepresentationDeprecationWarning
 
+    module.parameters["form_compiler"]["representation"] = "quadrature"
+    warnings.simplefilter("ignore", QuadratureRepresentationDeprecationWarning)
 
-try:
-    from fenics_helpers.boundary import *
-    from fenics_helpers.timestepping import TimeStepper
-except Exception as e:
-    print("Install fenics_helpers via (e.g.)")
-    print("   pip3 install git+https://github.com/BAMResearch/fenics_helpers")
-    raise (e)
+    try:
+        from fenics_helpers import boundary 
+        from fenics_helpers.timestepping import TimeStepper
+    except Exception as e:
+        print("Install fenics_helpers via (e.g.)")
+        print("   pip3 install git+https://github.com/BAMResearch/fenics_helpers")
+        raise (e)
+
+setup(df)
 
 
 """
@@ -52,18 +55,18 @@ class LoadDisplacementCurve:
         bc:
             dolfin.DirichletBC 
         """
-        self.comm = MPI.comm_world
+        self.comm = df.MPI.comm_world
         self.bc = bc
 
         self.dofs = list(self.bc.get_boundary_values().keys())
-        self.n_dofs = MPI.sum(self.comm, len(self.dofs))
+        self.n_dofs = df.MPI.sum(self.comm, len(self.dofs))
 
         self.load = []
         self.disp = []
         self.ts = []
         self.plot = None
 
-        self.is_root = MPI.rank(self.comm) == 0
+        self.is_root = df.MPI.rank(self.comm) == 0
 
     def __call__(self, t, R):
         """
@@ -78,10 +81,10 @@ class LoadDisplacementCurve:
         self.dofs = [d for d in self.dofs if d < R.local_size()]
 
         load_local = np.sum(R[self.dofs])
-        load = MPI.sum(self.comm, load_local)
+        load = df.MPI.sum(self.comm, load_local)
 
         disp_local = np.sum(list(self.bc.get_boundary_values().values()))
-        disp = MPI.sum(self.comm, disp_local) / self.n_dofs
+        disp = df.MPI.sum(self.comm, disp_local) / self.n_dofs
 
         self.load.append(load)
         self.disp.append(disp)
@@ -127,11 +130,11 @@ class LocalProjector:
         dxm:
             dolfin.Measure("dx") that matches V
         """
-        dv = TrialFunction(V)
-        v_ = TestFunction(V)
-        a_proj = inner(dv, v_) * dxm
-        b_proj = inner(expr, v_) * dxm
-        self.solver = LocalSolver(a_proj, b_proj)
+        dv = df.TrialFunction(V)
+        v_ = df.TestFunction(V)
+        a_proj = df.inner(dv, v_) * dxm
+        b_proj = df.inner(expr, v_) * dxm
+        self.solver = df.LocalSolver(a_proj, b_proj)
         self.solver.factorize()
 
     def __call__(self, u):
@@ -163,4 +166,13 @@ def set_q(q, values):
     v.zero()
     v.add_local(values.flat)
     v.apply("insert")
+
+
+def spaces(mesh, deg_q, qdim):
+    cell = mesh.ufl_cell()
+    q = "Quadrature"
+    QF = df.FiniteElement(q, cell, deg_q, quad_scheme="default")
+    QV = df.VectorElement(q, cell, deg_q, quad_scheme="default", dim=qdim)
+    QT = df.TensorElement(q, cell, deg_q, quad_scheme="default", shape=(qdim, qdim))
+    return [df.FunctionSpace(mesh, Q) for Q in [QF, QV, QT]]
 

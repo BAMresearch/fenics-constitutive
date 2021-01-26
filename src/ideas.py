@@ -6,7 +6,7 @@ class Something:
 
 
 class PureMechanicsInterface:
-    def __init__(self, n, dim):
+    def __init__(self, n, configuration="plane_stress"):
         self.n, self.dim = n, dim
 
     def evaluate(self, all_strains):
@@ -16,8 +16,23 @@ class PureMechanicsInterface:
 
         Technically, this can also be overwritten!
         """
+        if self.configuration == "plane_stress":
+            e_method = self.evaluate_2D_plane_stress
+        if self.configuration == "uniaxial_strain":
+            e_method = self.evaluate_1D_plane_strain
+        if self.configuration == "3D":
+            e_method = self.evaluate_3D
+
+
+    
+
         for ip in range(self.n):
-            self.sigma[ip], self.dsigma[ip] = self.evaluate_ip(all_strains[ip], i)
+            self.sigma[ip], self.dsigma[ip] = e_method(all_strains[ip], i)
+    
+    def strain_form(self, u):
+        if self.configuration == "plane_stress":
+            eps =  sym_grad(u)
+            return [eps[0,0], ...]
 
     def evaluate_ip(self, ip_strain, ip):
         """
@@ -28,7 +43,7 @@ class PureMechanicsInterface:
 
 
 class LinearElastic(PureMechanicsInterface):
-    def __init__(self, n, dim, E, nu):
+    def __init__(self, n, dim, e_method, nu):
         self.C = Something()
 
     def evaluate_ip(self, ip_strain, ip):
