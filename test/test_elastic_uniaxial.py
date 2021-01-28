@@ -93,16 +93,9 @@ class MechanicsProblem(df.NonlinearProblem):
 
         self.base.evaluate(self.q_eps.vector().get_local())
 
-        eps = self.q_eps.vector().get_local().reshape(-1, q_dim(self.prm.constraint))
-
-        # ... "manually" evaluate_material the material ...
-        s, C = self.law.evaluate((0, 0, 0))
-        sigma = eps @ C
-        dsigma = np.tile(C.flatten(), len(eps))
-
         # ... and write the calculated values into their quadrature spaces.
         h.set_q(self.q_sigma, self.base.stress)
-        h.set_q(self.q_dsigma_deps, dsigma)
+        h.set_q(self.q_dsigma_deps, self.base.dstress)
 
     def update(self):
         pass
