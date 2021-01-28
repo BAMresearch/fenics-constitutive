@@ -9,11 +9,9 @@ public:
         _C = C(E, nu, TC);
     }
 
-    virtual void evaluate(const Eigen::VectorXd& strain, int i, Eigen::Ref<Eigen::VectorXd> stress,
-                          Eigen::Ref<Eigen::MatrixXd> dstress) override
+    std::pair<Eigen::VectorXd, Eigen::MatrixXd> evaluate(const Eigen::VectorXd& strain, int i = 0) override
     {
-        stress = _C * strain;
-        dstress = _C;
+        return {_C * strain, _C};
     }
 
     virtual int qdim() const override

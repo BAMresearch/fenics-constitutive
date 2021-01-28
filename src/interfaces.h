@@ -69,7 +69,7 @@ M<UNIAXIAL_STRESS> C<UNIAXIAL_STRESS>(double E, double nu)
 }
 
 template <>
-M<PLANE_STRAIN> C<PLANE_STRAIN>(double E, double nu)
+M<PLANE_STRESS> C<PLANE_STRESS>(double E, double nu)
 {
     const double C11 = E / (1 - nu * nu);
     const double C12 = nu * C11;
@@ -80,7 +80,7 @@ M<PLANE_STRAIN> C<PLANE_STRAIN>(double E, double nu)
 }
 
 template <>
-M<PLANE_STRESS> C<PLANE_STRESS>(double E, double nu)
+M<PLANE_STRAIN> C<PLANE_STRAIN>(double E, double nu)
 {
     const double l = E * nu / (1 + nu) / (1 - 2 * nu);
     const double m = E / (2.0 * (1 + nu));
@@ -122,10 +122,9 @@ Eigen::MatrixXd C(double E, double nu, Constraint c)
 class IpBase
 {
 public:
-    virtual void evaluate(const Eigen::VectorXd& strain, int i, Eigen::Ref<Eigen::VectorXd> stress,
-                          Eigen::Ref<Eigen::MatrixXd> dstress) = 0;
+    virtual std::pair<Eigen::VectorXd, Eigen::MatrixXd> evaluate(const Eigen::VectorXd& strain, int i = 0) = 0;
 
-    virtual void update(const Eigen::VectorXd& strain)
+    virtual void update(const Eigen::VectorXd& strain, int i = 0)
     {
     }
 
@@ -157,11 +156,11 @@ public:
             resize(n);
 
         assert(n == _n);
-        Eigen::MatrixXd tmp_dstress(q, q);
         for (int i = 0; i < _n; ++i)
         {
-            _law.evaluate(all_strains.segment(i * q, q), i, _stress.segment(i * q, q), tmp_dstress);
-            _dstress.segment(q * q * i, q * q) = Eigen::Map<Eigen::VectorXd>(tmp_dstress.data(), tmp_dstress.size());
+            auto eval = _law.evaluate(all_strains.segment(i * q, q), i);
+            _stress.segment(i * q, q) = eval.first;
+            _dstress.segment(q * q * i, q * q) = Eigen::Map<Eigen::VectorXd>(eval.second.data(), eval.second.size());
         }
     }
 

@@ -23,9 +23,12 @@ PYBIND11_MODULE(cpp, m)
             .value("FULL", Constraint::FULL)
             .value("3D", Constraint::FULL);
 
+    m.def("g_dim", &Dim::G);
+    m.def("q_dim", &Dim::Q);
+
     pybind11::class_<IpBase> ipBase(m, "IpBase");
-    ipBase.def("evaluate", &IpBase::evaluate);
-    ipBase.def("update", &IpBase::update);
+    ipBase.def("evaluate", &IpBase::evaluate, py::arg("strain"), py::arg("i") = 0);
+    ipBase.def("update", &IpBase::update, py::arg("strain"), py::arg("i") = 0);
 
     pybind11::class_<LinearElastic, IpBase> linearElastic(m, "LinearElastic");
     linearElastic.def(pybind11::init<double, double, Constraint>());
@@ -34,6 +37,6 @@ PYBIND11_MODULE(cpp, m)
     base.def(pybind11::init<IpBase&>());
     base.def("evaluate", &Base::evaluate);
     base.def("update", &Base::update);
-    base.def_readonly("stress", &Base::_stress);
-    base.def_readonly("dstress", &Base::_dstress);
+    base.def_readwrite("stress", &Base::_stress);
+    base.def_readwrite("dstress", &Base::_dstress);
 }

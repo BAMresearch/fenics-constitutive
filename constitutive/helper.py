@@ -13,6 +13,7 @@ import numpy as np
 
 import dolfin as df
 
+
 def setup(module):
     import warnings
     from ffc.quadrature.deprecation import QuadratureRepresentationDeprecationWarning
@@ -21,12 +22,13 @@ def setup(module):
     warnings.simplefilter("ignore", QuadratureRepresentationDeprecationWarning)
 
     try:
-        from fenics_helpers import boundary 
+        from fenics_helpers import boundary
         from fenics_helpers.timestepping import TimeStepper
     except Exception as e:
         print("Install fenics_helpers via (e.g.)")
         print("   pip3 install git+https://github.com/BAMResearch/fenics_helpers")
         raise (e)
+
 
 setup(df)
 
@@ -102,6 +104,7 @@ class LoadDisplacementCurve:
         if self.is_root:
             self.plot.keep()
 
+
 """
 Local projector
 ---------------
@@ -144,6 +147,7 @@ class LocalProjector:
         """
         self.solver.solve_local_rhs(u)
 
+
 """
 Setting values for the quadrature space
 ---------------------------------------
@@ -155,6 +159,7 @@ Setting values for the quadrature space
 
 """
 
+
 def set_q(q, values):
     """
     q:
@@ -163,8 +168,11 @@ def set_q(q, values):
         entries for `q`
     """
     v = q.vector()
-    v.zero()
-    v.add_local(values.flat)
+    try:
+        v.zero()
+        v.add_local(values.flat)
+    except:
+        v.set_local(values)
     v.apply("insert")
 
 
@@ -175,4 +183,3 @@ def spaces(mesh, deg_q, qdim):
     QV = df.VectorElement(q, cell, deg_q, quad_scheme="default", dim=qdim)
     QT = df.TensorElement(q, cell, deg_q, quad_scheme="default", shape=(qdim, qdim))
     return [df.FunctionSpace(mesh, Q) for Q in [QF, QV, QT]]
-
