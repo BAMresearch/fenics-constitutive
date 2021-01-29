@@ -15,12 +15,14 @@ jobs:
         python-version: '3.8'
     - name: Install dependencies
       run: |
-        sudo apt update && sudo apt install -y pandoc
+        sudo apt update && sudo apt install -y pandoc fenics
         python -m pip install --upgrade pip
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        python -m pip install --user -e .
     - name: Run
       run: |
         doit
+        pytest
     - name: deploy
       if: github.ref == 'refs/heads/master'
       uses: JamesIves/github-pages-deploy-action@4.0.0-beta-01
