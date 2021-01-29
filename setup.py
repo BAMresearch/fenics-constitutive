@@ -59,6 +59,7 @@ class CMakeBuild(build_ext):
 setup(
     name='constitutive',
     version='0.0.1',
+    install_requires=["fenics_helpers @ https://github.com/nutofem/fenics_helpers/tarball/use_find_packages"],
     author='Thomas Titscher',
     author_email='thomas.titscher@gmail.com',
     description='fenics-constitutive cpp module',

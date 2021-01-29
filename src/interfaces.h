@@ -128,6 +128,10 @@ public:
     {
     }
 
+    virtual void allocate_history_data(int n)
+    {
+    }
+
     virtual int qdim() const = 0;
 };
 
