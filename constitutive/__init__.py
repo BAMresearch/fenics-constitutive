@@ -1,7 +1,5 @@
-import numpy as np
 import dolfin as df
-from . import helper as h
-from .cpp import *
+from .mechanics_problem import *
 
 import warnings
 from ffc.quadrature.deprecation import QuadratureRepresentationDeprecationWarning
