@@ -3,6 +3,7 @@
 #include <pybind11/stl.h>
 #include <interfaces.h>
 #include <laws.h>
+#include <local_damage.h>
 
 namespace py = pybind11;
 
@@ -39,4 +40,8 @@ PYBIND11_MODULE(cpp, m)
     base.def("update", &Base::update);
     base.def_readwrite("stress", &Base::_stress);
     base.def_readwrite("dstress", &Base::_dstress);
+
+    pybind11::class_<ModMisesEeq> modMises(m, "ModMisesEeq");
+    modMises.def(pybind11::init<double, double, Constraint>());
+    modMises.def("evaluate", &ModMisesEeq::evaluate);
 }

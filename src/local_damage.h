@@ -27,36 +27,70 @@ private:
     const double _a;
 };
 
-
-std::pair<double, Eigen::VectorXd> I1(Eigen::VectorXd v, double nu, Constraint c)
+std::pair<double, V<FULL>> InvariantI1(V<FULL> v)
 {
+    const double I1 = v[0] + v[1] + v[2];
+    V<FULL> dI1 = V<FULL>::Zero();
+    dI1.segment<3>(0) = Eigen::Vector3d::Ones();
+    return {I1, dI1};
+}
+
+std::pair<double, V<FULL>> InvariantJ2(V<FULL> v)
+{
+    const double J2 =
+            ((v[0] - v[1]) * (v[0] - v[1]) + (v[1] - v[2]) * (v[1] - v[2]) + (v[2] - v[0]) * (v[2] - v[0])) / 6. +
+            0.25 * (v[3] * v[3] + v[4] * v[4] + v[5] * v[5]);
+    V<FULL> dJ2;
+    dJ2[0] = (2. * v[0] - v[1] - v[2]) / 3.;
+    dJ2[1] = (2. * v[1] - v[2] - v[0]) / 3.;
+    dJ2[2] = (2. * v[2] - v[0] - v[1]) / 3.;
+    dJ2[3] = 0.5 * v[3];
+    dJ2[4] = 0.5 * v[4];
+    dJ2[5] = 0.5 * v[5];
+    return {J2, dJ2};
+}
+
+Eigen::Matrix<double, 6, Eigen::Dynamic> T3D(double nu, Constraint c)
+{
+    Eigen::Matrix<double, 6, Eigen::Dynamic> T(6, Dim::Q(c));
+    T.setZero();
     switch (c)
     {
     case Constraint::UNIAXIAL_STRAIN:
     {
-        return {v[0], Eigen::Matrix<double, 1, 1>::Constant(1)};
+        T(0, 0) = 1;
+        break;
     }
     case Constraint::UNIAXIAL_STRESS:
     {
-        return {(1. - 2 * nu) * v[0], Eigen::Matrix<double, 1, 1>::Constant(1. - 2 * nu)};
+        T(0, 0) = 1;
+        T(1, 0) = -nu;
+        T(2, 0) = -nu;
+        break;
     }
     case Constraint::PLANE_STRAIN:
     {
-        return {v[0] + v[1], {1, 1, 0}};
+        T(0, 0) = 1;
+        T(1, 1) = 1;
+        T(5, 2) = 1;
+        break;
     }
     case Constraint::PLANE_STRESS:
     {
-        const double f = 1 + nu / (nu - 1);
-        return {f * v[0] + f * v[1], {f, f, 0}};
+        T(0, 0) = 1;
+        T(1, 1) = 1;
+        T(2, 0) = nu / (nu - 1.);
+        T(2, 1) = nu / (nu - 1.);
+        T(5, 2) = 1;
+        break;
     }
     case Constraint::FULL:
     {
-        V<FULL> d;
-        d.segment<3>(0) = Eigen::Vector3d::Constant(1);
-        d.segment<3>(3) = Eigen::Vector3d::Constant(0);
-        return {v[0] + v[1] + v[2], d};
+        T = M<FULL>::Identity();
+        break;
     }
     }
+    return T;
 }
 
 class ModMisesEeq
@@ -65,18 +99,38 @@ public:
     ModMisesEeq(double k, double nu, Constraint c)
         : _K1((k - 1.0) / (2.0 * k * (1.0 - 2.0 * nu)))
         , _K2(3.0 / (k * (1.0 + nu) * (1.0 + nu)))
+        , _nu(nu)
         , _c(c)
+        , _T3D(T3D(_nu, _c))
     {
     }
 
     std::pair<double, Eigen::VectorXd> evaluate(Eigen::VectorXd strain) const
     {
+        // transformation to 3D and invariants
+        const V<FULL> strain3D = _T3D * strain;
+        double I1, J2;
+        V<FULL> dI1, dJ2;
+        std::tie(I1, dI1) = InvariantI1(strain3D);
+        std::tie(J2, dJ2) = InvariantJ2(strain3D);
+
+        // actual modified mises norm
+        const double A = std::sqrt(_K1 * _K1 * I1 * I1 + _K2 * J2) + std::numeric_limits<double>::epsilon();
+        const double eeq = _K1 * I1 + A;
+        const double deeq_dI1 = _K1 + _K1 * _K1 * I1 / A;
+        const double deeq_dJ2 = _K2 / (2 * A);
+        //
+        //// derivative in 3D and transformation back
+        V<FULL> deeq = deeq_dI1 * dI1 + deeq_dJ2 * dJ2;
+        return {eeq, _T3D.transpose() * deeq};
     }
 
 private:
     const double _K1;
     const double _K2;
+    const double _nu;
     const Constraint _c;
+    const Eigen::Matrix<double, 6, Eigen::Dynamic> _T3D;
 };
 
 
@@ -84,7 +138,7 @@ class LocalDamage : public IpBase
 {
 public:
     LocalDamage(double E, double nu, Constraint TC, double ft, double alpha, double beta)
-        : _C(E, nu, TC)
+        : _C(C(E, nu, TC))
         , _omega(ft / E, alpha, beta)
     {
     }
