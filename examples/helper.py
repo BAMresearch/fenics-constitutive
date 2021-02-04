@@ -18,8 +18,9 @@ from ffc.quadrature.deprecation import QuadratureRepresentationDeprecationWarnin
 parameters["form_compiler"]["representation"] = "quadrature"
 warnings.simplefilter("ignore", QuadratureRepresentationDeprecationWarning)
 
-
 try:
+    import fenics_helpers
+    print(fenics_helpers)
     from fenics_helpers.boundary import *
     from fenics_helpers.timestepping import TimeStepper
 except Exception as e:

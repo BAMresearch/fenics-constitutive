@@ -12,18 +12,22 @@ class Parameters:
         # quadrature degree
         self.deg_q = 2
 
-        self.E = 20000
+        self.E = 20000.
         self.nu = 0.2
+        self.ft = 4.
+        self.alpha = 0.99
+        self.gf = 0.1
+        self.k = 10.
 
 
 class MechanicsProblem(df.NonlinearProblem):
-    def __init__(self, mesh, prm):
+    def __init__(self, mesh, prm, law):
         df.NonlinearProblem.__init__(self)
 
         self.mesh = mesh
         self.prm = prm
 
-        self.law = LinearElastic(prm.E, prm.nu, prm.constraint)
+        self.law = law
 
         self.base = Base(self.law)
 
@@ -46,6 +50,9 @@ class MechanicsProblem(df.NonlinearProblem):
         self.q_sigma = df.Function(VQV, name="current stresses")
         self.q_eps = df.Function(VQV, name="current strains")
         self.q_dsigma_deps = df.Function(VQT, name="stress-strain tangent")
+
+        n_gauss_points = len(self.q_eps.vector().get_local()) // q_dim(prm.constraint)
+        self.base.resize(n_gauss_points);
 
         dd, d_ = df.TrialFunction(self.V), df.TestFunction(self.V)
 
@@ -97,7 +104,6 @@ class MechanicsProblem(df.NonlinearProblem):
         # project the strain and the nonlocal equivalent strains onto
         # their quadrature spaces and ...
         self.calculate_eps(self.q_eps)
-
         self.base.evaluate(self.q_eps.vector().get_local())
 
         # ... and write the calculated values into their quadrature spaces.
@@ -105,11 +111,13 @@ class MechanicsProblem(df.NonlinearProblem):
         h.set_q(self.q_dsigma_deps, self.base.dstress)
 
     def update(self):
-        pass
+        self.calculate_eps(self.q_eps)
+        self.base.update(self.q_eps.vector().get_local())
+
 
     def set_bcs(self, bcs):
         # Only now (with the bcs) can we initialize the _assembler
-        self._bcs = bcs
+        # self._bcs = bcs
         self._assembler = df.SystemAssembler(self.dR, self.R, bcs)
 
     def F(self, b, x):

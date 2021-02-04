@@ -128,7 +128,7 @@ public:
     {
     }
 
-    virtual void allocate_history_data(int n)
+    virtual void resize(int n)
     {
     }
 
@@ -149,6 +149,7 @@ public:
         int q = _law.qdim();
         _stress.resize(_n * q);
         _dstress.resize(_n * q * q);
+        _law.resize(n);
     }
 
 

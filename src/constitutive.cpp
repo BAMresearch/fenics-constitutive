@@ -30,6 +30,8 @@ PYBIND11_MODULE(cpp, m)
     pybind11::class_<IpBase> ipBase(m, "IpBase");
     ipBase.def("evaluate", &IpBase::evaluate, py::arg("strain"), py::arg("i") = 0);
     ipBase.def("update", &IpBase::update, py::arg("strain"), py::arg("i") = 0);
+    ipBase.def("resize", &IpBase::resize, py::arg("n"));
+
 
     pybind11::class_<LinearElastic, IpBase> linearElastic(m, "LinearElastic");
     linearElastic.def(pybind11::init<double, double, Constraint>());
@@ -38,10 +40,15 @@ PYBIND11_MODULE(cpp, m)
     base.def(pybind11::init<IpBase&>());
     base.def("evaluate", &Base::evaluate);
     base.def("update", &Base::update);
+    base.def("resize", &Base::resize);
     base.def_readwrite("stress", &Base::_stress);
     base.def_readwrite("dstress", &Base::_dstress);
 
     pybind11::class_<ModMisesEeq> modMises(m, "ModMisesEeq");
     modMises.def(pybind11::init<double, double, Constraint>());
     modMises.def("evaluate", &ModMisesEeq::evaluate);
+
+    pybind11::class_<LocalDamage, IpBase> localDamage(m, "LocalDamage");
+    localDamage.def(pybind11::init<double, double, Constraint, double, double, double, double>());
+    localDamage.def("evaluate_kappa", &LocalDamage::evaluate_kappa);
 }

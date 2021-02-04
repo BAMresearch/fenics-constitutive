@@ -5,16 +5,16 @@
 class DamageLawExponential
 {
 public:
-    DamageLawExponential(double k0, double beta, double alpha)
+    DamageLawExponential(double k0, double alpha, double beta)
         : _k0(k0)
-        , _b(beta)
         , _a(alpha)
+        , _b(beta)
     {
     }
 
     std::pair<double, double> evaluate(double k) const
     {
-        if (k < _k0)
+        if (k <= _k0)
             return {0., 0.};
         const double omega = 1 - _k0 / k * (1 - _a + _a * std::exp(_b * (_k0 - k)));
         const double domega = _k0 / k * ((1 / k + _b) * _a * std::exp(_b * (_k0 - k)) + (1 - _a) / k);
@@ -23,8 +23,8 @@ public:
 
 private:
     const double _k0;
-    const double _b;
     const double _a;
+    const double _b;
 };
 
 std::pair<double, V<FULL>> InvariantI1(V<FULL> v)
@@ -115,7 +115,7 @@ public:
         std::tie(J2, dJ2) = InvariantJ2(strain3D);
 
         // actual modified mises norm
-        const double A = std::sqrt(_K1 * _K1 * I1 * I1 + _K2 * J2) + std::numeric_limits<double>::epsilon();
+        const double A = std::sqrt(_K1 * _K1 * I1 * I1 + _K2 * J2) + 1.e-14;
         const double eeq = _K1 * I1 + A;
         const double deeq_dI1 = _K1 + _K1 * _K1 * I1 / A;
         const double deeq_dJ2 = _K2 / (2 * A);
@@ -137,20 +137,28 @@ private:
 class LocalDamage : public IpBase
 {
 public:
-    LocalDamage(double E, double nu, Constraint TC, double ft, double alpha, double beta)
-        : _C(C(E, nu, TC))
-        , _omega(ft / E, alpha, beta)
+    LocalDamage(double E, double nu, Constraint c, double ft, double alpha, double gf, double k)
+        : _C(C(E, nu, c))
+        , _omega(ft / E, alpha, ft / gf)
+        , _eeq(k, nu, c)
     {
     }
 
-    void allocate_history_data(int n) override
+    void resize(int n) override
     {
         _kappa.resize(n);
     }
 
-    std::pair<Eigen::VectorXd, Eigen::MatrixXd> evaluate(const Eigen::VectorXd& strain, int i = 0) override
+    std::pair<Eigen::VectorXd, Eigen::MatrixXd> evaluate(const Eigen::VectorXd& strain, int i) override
     {
-        return {_C * strain, _C};
+        double kappa, dkappa, omega, domega, eeq;
+        Eigen::VectorXd deeq;
+
+        std::tie(eeq, deeq) = _eeq.evaluate(strain);
+        std::tie(kappa, dkappa) = evaluate_kappa(eeq, _kappa[i]);
+        std::tie(omega, domega) = _omega.evaluate(kappa);
+
+        return {(1. - omega) * _C * strain, (1. - omega) * _C - _C * strain * domega * dkappa * deeq.transpose()};
     }
 
     virtual int qdim() const override
@@ -158,17 +166,26 @@ public:
         return _C.rows();
     }
 
-    std::pair<double, double> kappa(double eeq, double kappa) const
+    std::pair<double, double> evaluate_kappa(double eeq, double kappa) const
     {
-        if (eeq > kappa)
+        if (eeq >= kappa)
             return {eeq, 1.};
         else
             return {kappa, 0};
     }
 
+    virtual void update(const Eigen::VectorXd& strain, int i) override
+    {
+        const double eeq = _eeq.evaluate(strain).first;
+        const double kappa = evaluate_kappa(eeq, _kappa[i]).first;
+        _kappa[i] = kappa;
+    }
+
+
 private:
     Eigen::MatrixXd _C;
     DamageLawExponential _omega;
+    ModMisesEeq _eeq;
     Eigen::VectorXd _kappa;
 };
 

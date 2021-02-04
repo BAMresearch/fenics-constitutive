@@ -35,6 +35,12 @@ class TestMises(unittest.TestCase):
         ]:
             self.random_cdf(c)
 
+    def test_zero(self):
+        norm = ModMisesEeq(10, 0.2, Constraint.PLANE_STRESS)
+        eeq, deeq = norm.evaluate([0,0,0])
+        self.assertLess(eeq, 1.e-10)
+        self.assertFalse(np.any(np.isnan(deeq)))
+
     def test_1D(self):
         norm = ModMisesEeq(10, 0.2, Constraint.UNIAXIAL_STRESS)
         eeq, _ = norm.evaluate([42])
