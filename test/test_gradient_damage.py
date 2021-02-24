@@ -87,7 +87,6 @@ class GDMProblem(c.MechanicsProblem):
     def Ve(self):
         return self.V.split()[1]
 
-    @profile
     def evaluate_material(self):
         # project the strain and the nonlocal equivalent strains onto
         # their quadrature spaces and ...
@@ -96,13 +95,12 @@ class GDMProblem(c.MechanicsProblem):
         self.base.evaluate(self.q_eps.vector().get_local(), self.q_e.vector().get_local())
 
         # ... and write the calculated values into their quadrature spaces.
-        c.helper.set_q(self.q_sigma, self.base.stress)
-        c.helper.set_q(self.q_dsigma_deps, self.base.dstress_deps)
-        c.helper.set_q(self.q_deeq_deps, self.base.deeq)
-        c.helper.set_q(self.q_dsigma_de, self.base.dstress_deeq)
-        c.helper.set_q(self.q_eeq, self.base.eeq)
+        c.helper.set_q(self.q_sigma, self.law.get("sigma"))
+        c.helper.set_q(self.q_dsigma_deps, self.law.get("dsigma_deps"))
+        c.helper.set_q(self.q_deeq_deps, self.law.get("deeq"))
+        c.helper.set_q(self.q_dsigma_de, self.law.get("dsigma_de"))
+        c.helper.set_q(self.q_eeq, self.law.get("eeq"))
 
-    @profile
     def update(self):
         self.calculate_eps(self.q_eps)
         self.calculate_e(self.q_e)

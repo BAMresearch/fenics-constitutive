@@ -191,39 +191,112 @@ private:
     Eigen::VectorXd _kappa;
 };
 
+class ConstitutiveValues
+{
+public:
+    //! @brief stores n x rows x cols values where n is the number of IPs
+    ConstitutiveValues(int rows, int cols = 1)
+        : _rows(rows)
+        , _cols(cols)
+    {
+    }
+
+    void Resize(int n)
+    {
+        data.setZero(n * _rows * _cols);
+    }
+
+    void Set(double value, int i)
+    {
+        assert(_rows == 1);
+        assert(_cols == 1);
+        data[i] = value;
+    }
+
+    void Set(Eigen::MatrixXd value, int i)
+    {
+        assert(value.rows() == _rows);
+        assert(value.cols() == _cols);
+        data.segment(_rows * _cols * i, _rows * _cols) = Eigen::Map<Eigen::VectorXd>(value.data(), value.size());
+    }
+
+    double GetScalar(int i)
+    {
+        assert(_rows == 1);
+        assert(_cols == 1);
+        return data[i];
+    }
+
+    Eigen::MatrixXd Get(int i)
+    {
+        Eigen::VectorXd ip_values = data.segment(_rows * _cols * i, _rows * _cols);
+        return Eigen::Map<Eigen::MatrixXd>(ip_values.data(), _rows, _cols);
+    }
+
+
+    // private:
+    const int _rows;
+    const int _cols;
+    Eigen::VectorXd data;
+};
+
 class GradientDamage
 {
 public:
     GradientDamage(double E, double nu, Constraint c, double ft, double alpha, double beta, double k)
         : _C(C(E, nu, c))
         , _omega(ft / E, alpha, beta)
-        , _eeq(k, nu, c)
+        , _strain_norm(k, nu, c)
+        , _kappa(1)
+        , _eeq(1)
+        , _sigma(_C.rows())
+        , _deeq(_C.rows())
+        , _dsigma_de(_C.rows())
+        , _dsigma_deps(_C.rows(), _C.cols())
     {
     }
 
     void resize(int n)
     {
-        _kappa.resize(n);
+        _kappa.Resize(n);
+        _eeq.Resize(n);
+        _sigma.Resize(n);
+        _deeq.Resize(n);
+        _dsigma_de.Resize(n);
+        _dsigma_deps.Resize(n);
     }
 
-    std::tuple<double, Eigen::VectorXd, Eigen::VectorXd, Eigen::VectorXd, Eigen::MatrixXd>
-    evaluate(const Eigen::VectorXd& strain, const double neeq, int i)
+    Eigen::VectorXd Get(std::string what)
+    {
+        if (what == "kappa")
+            return _kappa.data;
+        if (what == "eeq")
+            return _eeq.data;
+        if (what == "sigma")
+            return _sigma.data;
+        if (what == "dsigma_deps")
+            return _dsigma_deps.data;
+        if (what == "deeq")
+            return _deeq.data;
+        if (what == "dsigma_de")
+            return _dsigma_de.data;
+    }
+
+
+    void evaluate(const Eigen::VectorXd& strain, const double e, int i)
     {
         double kappa, dkappa, omega, domega, eeq;
         Eigen::VectorXd deeq;
 
-        std::tie(kappa, dkappa) = evaluate_kappa(neeq, _kappa[i]);
+        std::tie(kappa, dkappa) = evaluate_kappa(e, _kappa.GetScalar(i));
         std::tie(omega, domega) = _omega.evaluate(kappa);
-        std::tie(eeq, deeq) = _eeq.evaluate(strain);
+        std::tie(eeq, deeq) = _strain_norm.evaluate(strain);
 
-        // kappa = 0.;
-        // omega = 0.;
-        // dkappa = 0.;
-        // domega = 0.;
-        // eeq = 0.;
-        // deeq.setZero(strain.rows());
-        //
-        return {eeq, (1. - omega) * _C * strain, deeq, -_C * strain * domega * dkappa, (1. - omega) * _C};
+        _eeq.Set(eeq, i);
+        _sigma.Set((1. - omega) * _C * strain, i);
+        _deeq.Set(deeq, i);
+        _dsigma_de.Set(-_C * strain * domega * dkappa, i);
+        _dsigma_deps.Set((1. - omega) * _C, i);
     }
 
     virtual int qdim() const
@@ -241,15 +314,28 @@ public:
 
     virtual void update(const Eigen::VectorXd& strain, const double neeq, int i)
     {
-        _kappa[i] = evaluate_kappa(neeq, _kappa[i]).first;
+        _kappa.Set(evaluate_kappa(neeq, _kappa.GetScalar(i)).first, i);
     }
 
 
 private:
     Eigen::MatrixXd _C;
     DamageLawExponential _omega;
-    ModMisesEeq _eeq;
-    Eigen::VectorXd _kappa;
+    ModMisesEeq _strain_norm;
+
+    // history values
+    ConstitutiveValues _kappa;
+
+    // scalar outputs
+    ConstitutiveValues _eeq;
+
+    // vector outputs
+    ConstitutiveValues _sigma;
+    ConstitutiveValues _deeq;
+    ConstitutiveValues _dsigma_de;
+
+    // tensor outputs
+    ConstitutiveValues _dsigma_deps;
 };
 
 class BaseGDM
@@ -262,43 +348,17 @@ public:
     virtual void resize(int n)
     {
         _n = n;
-        int q = _law.qdim();
         _law.resize(n);
-        // scalar variables
-        _eeq.resize(n);
-        // vector variables
-        _stress.resize(_n * q);
-        _deeq.resize(_n * q);
-        _dstress_deeq.resize(_n * q);
-        // tensor variables
-        _dstress_deps.resize(_n * q * q);
     }
-
 
     virtual void evaluate(const Eigen::VectorXd& all_strains, const Eigen::VectorXd& all_neeq)
     {
         int q = _law.qdim();
-        const int n = all_strains.rows() / q;
-        if (_stress.rows() == 0)
-            resize(n);
-
-        assert(n == _n);
         for (int i = 0; i < _n; ++i)
         {
             Eigen::VectorXd strain = all_strains.segment(i * q, q);
             const double neeq = all_neeq[i];
-            auto eval = _law.evaluate(strain, neeq, i);
-            // scalar variables
-            _eeq[i] = std::get<0>(eval);
-
-            // vector variables
-            _stress.segment(i * q, q) = std::get<1>(eval);
-            _deeq.segment(i * q, q) = std::get<2>(eval);
-            _dstress_deeq.segment(i * q, q) = std::get<3>(eval);
-
-            // tensor variables
-            auto t = std::get<4>(eval);
-            _dstress_deps.segment(q * q * i, q * q) = Eigen::Map<Eigen::VectorXd>(t.data(), t.size());
+            _law.evaluate(strain, neeq, i);
         }
     }
 
@@ -315,10 +375,5 @@ public:
 
     GradientDamage& _law;
     int _n = 0;
-    Eigen::VectorXd _stress;
-    Eigen::VectorXd _dstress_deps;
-    Eigen::VectorXd _dstress_deeq;
-    Eigen::VectorXd _eeq;
-    Eigen::VectorXd _deeq;
 };
 
