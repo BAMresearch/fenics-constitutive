@@ -316,6 +316,9 @@ class GDM(NonlinearProblem):
         u_, e_ = TestFunctions(self.Vu)
         d, e = split(self.u)
 
+        print(self.Vu)
+        print(u_)
+
         try:
             f_d = kwargs["f_d"]
         except:
@@ -336,6 +339,7 @@ class GDM(NonlinearProblem):
 
         self.assembler = None
 
+    @profile
     def evaluate_material(self):
         # project the strain and the nonlocal equivalent strains onto
         # their quadrature spaces and ...
@@ -355,6 +359,7 @@ class GDM(NonlinearProblem):
         set_q(self.q_dsigma_deps, self.mat.dsigma_deps)
         set_q(self.q_dsigma_de, self.mat.dsigma_de)
 
+    @profile
     def update(self):
         self.calculate_e(self.q_e)
         self.mat.update(self.q_e.vector().get_local())
@@ -639,10 +644,10 @@ def three_point_bending(problem=GDM, linear_solver=LUSolver("mumps")):
 
 
 if __name__ == "__main__":
-    assert gdm_error(200) < 1.0e-8
-    convergence_test()
+    # assert gdm_error(200) < 1.0e-8
+    # convergence_test()
     three_point_bending()
-    list_timings(TimingClear.keep, [TimingType.wall])
+    # list_timings(TimingClear.keep, [TimingType.wall])
 
 """
 Extensions

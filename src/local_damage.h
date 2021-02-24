@@ -1,6 +1,8 @@
 #pragma once
 #include "interfaces.h"
 #include <cmath>
+#include <tuple>
+#include <iostream>
 
 class DamageLawExponential
 {
@@ -187,5 +189,136 @@ private:
     DamageLawExponential _omega;
     ModMisesEeq _eeq;
     Eigen::VectorXd _kappa;
+};
+
+class GradientDamage
+{
+public:
+    GradientDamage(double E, double nu, Constraint c, double ft, double alpha, double beta, double k)
+        : _C(C(E, nu, c))
+        , _omega(ft / E, alpha, beta)
+        , _eeq(k, nu, c)
+    {
+    }
+
+    void resize(int n)
+    {
+        _kappa.resize(n);
+    }
+
+    std::tuple<double, Eigen::VectorXd, Eigen::VectorXd, Eigen::VectorXd, Eigen::MatrixXd>
+    evaluate(const Eigen::VectorXd& strain, const double neeq, int i)
+    {
+        double kappa, dkappa, omega, domega, eeq;
+        Eigen::VectorXd deeq;
+
+        std::tie(kappa, dkappa) = evaluate_kappa(neeq, _kappa[i]);
+        std::tie(omega, domega) = _omega.evaluate(kappa);
+        std::tie(eeq, deeq) = _eeq.evaluate(strain);
+
+        // kappa = 0.;
+        // omega = 0.;
+        // dkappa = 0.;
+        // domega = 0.;
+        // eeq = 0.;
+        // deeq.setZero(strain.rows());
+        //
+        return {eeq, (1. - omega) * _C * strain, deeq, -_C * strain * domega * dkappa, (1. - omega) * _C};
+    }
+
+    virtual int qdim() const
+    {
+        return _C.rows();
+    }
+
+    std::pair<double, double> evaluate_kappa(double eeq, double kappa) const
+    {
+        if (eeq >= kappa)
+            return {eeq, 1.};
+        else
+            return {kappa, 0};
+    }
+
+    virtual void update(const Eigen::VectorXd& strain, const double neeq, int i)
+    {
+        _kappa[i] = evaluate_kappa(neeq, _kappa[i]).first;
+    }
+
+
+private:
+    Eigen::MatrixXd _C;
+    DamageLawExponential _omega;
+    ModMisesEeq _eeq;
+    Eigen::VectorXd _kappa;
+};
+
+class BaseGDM
+{
+public:
+    BaseGDM(GradientDamage& law)
+        : _law(law)
+    {
+    }
+    virtual void resize(int n)
+    {
+        _n = n;
+        int q = _law.qdim();
+        _law.resize(n);
+        // scalar variables
+        _eeq.resize(n);
+        // vector variables
+        _stress.resize(_n * q);
+        _deeq.resize(_n * q);
+        _dstress_deeq.resize(_n * q);
+        // tensor variables
+        _dstress_deps.resize(_n * q * q);
+    }
+
+
+    virtual void evaluate(const Eigen::VectorXd& all_strains, const Eigen::VectorXd& all_neeq)
+    {
+        int q = _law.qdim();
+        const int n = all_strains.rows() / q;
+        if (_stress.rows() == 0)
+            resize(n);
+
+        assert(n == _n);
+        for (int i = 0; i < _n; ++i)
+        {
+            Eigen::VectorXd strain = all_strains.segment(i * q, q);
+            const double neeq = all_neeq[i];
+            auto eval = _law.evaluate(strain, neeq, i);
+            // scalar variables
+            _eeq[i] = std::get<0>(eval);
+
+            // vector variables
+            _stress.segment(i * q, q) = std::get<1>(eval);
+            _deeq.segment(i * q, q) = std::get<2>(eval);
+            _dstress_deeq.segment(i * q, q) = std::get<3>(eval);
+
+            // tensor variables
+            auto t = std::get<4>(eval);
+            _dstress_deps.segment(q * q * i, q * q) = Eigen::Map<Eigen::VectorXd>(t.data(), t.size());
+        }
+    }
+
+    virtual void update(const Eigen::VectorXd& all_strains, const Eigen::VectorXd& all_neeq)
+    {
+        int q = _law.qdim();
+        for (int i = 0; i < _n; ++i)
+        {
+            Eigen::VectorXd strain = all_strains.segment(i * q, q);
+            const double neeq = all_neeq[i];
+            _law.update(strain, neeq, i);
+        }
+    }
+
+    GradientDamage& _law;
+    int _n = 0;
+    Eigen::VectorXd _stress;
+    Eigen::VectorXd _dstress_deps;
+    Eigen::VectorXd _dstress_deeq;
+    Eigen::VectorXd _eeq;
+    Eigen::VectorXd _deeq;
 };
 

@@ -51,4 +51,21 @@ PYBIND11_MODULE(cpp, m)
     pybind11::class_<LocalDamage, IpBase> localDamage(m, "LocalDamage");
     localDamage.def(pybind11::init<double, double, Constraint, double, double, double, double>());
     localDamage.def("evaluate_kappa", &LocalDamage::evaluate_kappa);
+
+    pybind11::class_<GradientDamage> gdm(m, "GradientDamage");
+    gdm.def(pybind11::init<double, double, Constraint, double, double, double, double>());
+    gdm.def("evaluate", &GradientDamage::evaluate);
+    gdm.def("update", &GradientDamage::update);
+    gdm.def("resize", &GradientDamage::resize);
+
+    pybind11::class_<BaseGDM> baseGDM(m, "BaseGDM");
+    baseGDM.def(pybind11::init<GradientDamage&>());
+    baseGDM.def("evaluate", &BaseGDM::evaluate);
+    baseGDM.def("update", &BaseGDM::update);
+    baseGDM.def("resize", &BaseGDM::resize);
+    baseGDM.def_readwrite("stress", &BaseGDM::_stress);
+    baseGDM.def_readwrite("dstress_deps", &BaseGDM::_dstress_deps);
+    baseGDM.def_readwrite("dstress_deeq", &BaseGDM::_dstress_deeq);
+    baseGDM.def_readwrite("deeq", &BaseGDM::_deeq);
+    baseGDM.def_readwrite("eeq", &BaseGDM::_eeq);
 }

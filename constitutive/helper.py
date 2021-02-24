@@ -168,11 +168,8 @@ def set_q(q, values):
         entries for `q`
     """
     v = q.vector()
-    try:
-        v.zero()
-        v.add_local(values.flat)
-    except:
-        v.set_local(values)
+    v.zero()
+    v.add_local(values.flatten())
     v.apply("insert")
 
 

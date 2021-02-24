@@ -37,7 +37,7 @@ class MechanicsProblem(df.NonlinearProblem):
             )
 
         metadata = {"quadrature_degree": prm.deg_q, "quadrature_scheme": "default"}
-        dxm = df.dx(metadata=metadata)
+        self.dxm = df.dx(metadata=metadata)
 
         # solution field
         self.V = df.VectorFunctionSpace(mesh, "CG", degree=prm.deg_d)
@@ -57,10 +57,10 @@ class MechanicsProblem(df.NonlinearProblem):
         dd, d_ = df.TrialFunction(self.V), df.TestFunction(self.V)
 
         eps = self.eps
-        self.R = df.inner(eps(d_), self.q_sigma) * dxm
-        self.dR = df.inner(eps(dd), self.q_dsigma_deps * eps(d_)) * dxm
+        self.R = df.inner(eps(d_), self.q_sigma) * self.dxm
+        self.dR = df.inner(eps(dd), self.q_dsigma_deps * eps(d_)) * self.dxm
 
-        self.calculate_eps = h.LocalProjector(eps(self.d), VQV, dxm)
+        self.calculate_eps = h.LocalProjector(eps(self.d), VQV, self.dxm)
 
         self._assembler = None
         self._bcs = None
