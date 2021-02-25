@@ -13,7 +13,7 @@ class GDMProblem(c.MechanicsProblem):
 
         self.law = law
 
-        self.base = c.BaseGDM(self.law)
+        self.loop = c.IpLoop(self.law)
 
         if mesh.geometric_dimension() != c.g_dim(prm.constraint):
             raise RuntimeError(
@@ -46,7 +46,7 @@ class GDMProblem(c.MechanicsProblem):
         self.q_deeq_deps = df.Function(VQV, name="equivalent-strain-strain tangent")
         
         n_gauss_points = len(self.q_eps.vector().get_local()) // c.q_dim(prm.constraint)
-        self.base.resize(n_gauss_points);
+        self.loop.resize(n_gauss_points);
 
         dd, de = df.TrialFunctions(self.V)
         d_, e_ = df.TestFunctions(self.V)
@@ -55,7 +55,7 @@ class GDMProblem(c.MechanicsProblem):
 
 
         n_gauss_points = len(self.q_eps.vector().get_local()) // c.q_dim(prm.constraint)
-        self.base.resize(n_gauss_points);
+        self.loop.resize(n_gauss_points);
 
         eps = self.eps
         f_d = 1.
@@ -87,24 +87,25 @@ class GDMProblem(c.MechanicsProblem):
     def Ve(self):
         return self.V.split()[1]
 
+    # @profile
     def evaluate_material(self):
         # project the strain and the nonlocal equivalent strains onto
         # their quadrature spaces and ...
         self.calculate_eps(self.q_eps)
         self.calculate_e(self.q_e)
-        self.base.evaluate(self.q_eps.vector().get_local(), self.q_e.vector().get_local())
+        self.loop.evaluate(self.q_eps.vector().get_local(), self.q_e.vector().get_local())
 
         # ... and write the calculated values into their quadrature spaces.
-        c.helper.set_q(self.q_sigma, self.law.get("sigma"))
-        c.helper.set_q(self.q_dsigma_deps, self.law.get("dsigma_deps"))
-        c.helper.set_q(self.q_deeq_deps, self.law.get("deeq"))
-        c.helper.set_q(self.q_dsigma_de, self.law.get("dsigma_de"))
-        c.helper.set_q(self.q_eeq, self.law.get("eeq"))
+        c.helper.set_q(self.q_sigma, self.loop.get(c.Q.SIGMA))
+        c.helper.set_q(self.q_dsigma_deps, self.loop.get(c.Q.DSIGMA_DEPS))
+        c.helper.set_q(self.q_deeq_deps, self.loop.get(c.Q.DEEQ))
+        c.helper.set_q(self.q_dsigma_de, self.loop.get(c.Q.DSIGMA_DE))
+        c.helper.set_q(self.q_eeq, self.loop.get(c.Q.EEQ))
 
     def update(self):
         self.calculate_eps(self.q_eps)
         self.calculate_e(self.q_e)
-        self.base.update(self.q_eps.vector().get_local(), self.q_e.vector().get_local())
+        self.loop.update(self.q_eps.vector().get_local(), self.q_e.vector().get_local())
 
 
 if __name__ == "__main__":

@@ -56,12 +56,18 @@ PYBIND11_MODULE(cpp, m)
     gdm.def(pybind11::init<double, double, Constraint, double, double, double, double>());
     gdm.def("evaluate", &GradientDamage::evaluate);
     gdm.def("update", &GradientDamage::update);
-    gdm.def("resize", &GradientDamage::resize);
-    gdm.def("get", &GradientDamage::Get);
 
-    pybind11::class_<BaseGDM> baseGDM(m, "BaseGDM");
-    baseGDM.def(pybind11::init<GradientDamage&>());
-    baseGDM.def("evaluate", &BaseGDM::evaluate);
-    baseGDM.def("update", &BaseGDM::update);
-    baseGDM.def("resize", &BaseGDM::resize);
+    pybind11::enum_<Q>(m, "Q")
+            .value("SIGMA", Q::SIGMA)
+            .value("DSIGMA_DEPS", Q::DSIGMA_DEPS)
+            .value("EEQ", Q::EEQ)
+            .value("DEEQ", Q::DEEQ)
+            .value("DSIGMA_DE", Q::DSIGMA_DE);
+
+    pybind11::class_<IpLoop> ipLoop(m, "IpLoop");
+    ipLoop.def(pybind11::init<GradientDamage&>());
+    ipLoop.def("evaluate", &IpLoop::evaluate);
+    ipLoop.def("update", &IpLoop::update);
+    ipLoop.def("resize", &IpLoop::resize);
+    ipLoop.def("get", &IpLoop::Get);
 }

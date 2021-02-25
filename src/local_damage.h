@@ -3,6 +3,7 @@
 #include <cmath>
 #include <tuple>
 #include <iostream>
+#include <vector>
 
 class DamageLawExponential
 {
@@ -191,11 +192,13 @@ private:
     Eigen::VectorXd _kappa;
 };
 
-class ConstitutiveValues
+class QValues
 {
 public:
+    QValues() = default;
+
     //! @brief stores n x rows x cols values where n is the number of IPs
-    ConstitutiveValues(int rows, int cols = 1)
+    QValues(int rows, int cols = 1)
         : _rows(rows)
         , _cols(cols)
     {
@@ -235,9 +238,19 @@ public:
 
 
     // private:
-    const int _rows;
-    const int _cols;
+    int _rows;
+    int _cols;
     Eigen::VectorXd data;
+};
+
+enum Q
+{
+    SIGMA = 1,
+    DSIGMA_DEPS,
+    EEQ,
+    DEEQ,
+    DSIGMA_DE,
+    LAST
 };
 
 class GradientDamage
@@ -248,42 +261,25 @@ public:
         , _omega(ft / E, alpha, beta)
         , _strain_norm(k, nu, c)
         , _kappa(1)
-        , _eeq(1)
-        , _sigma(_C.rows())
-        , _deeq(_C.rows())
-        , _dsigma_de(_C.rows())
-        , _dsigma_deps(_C.rows(), _C.cols())
     {
+    }
+
+    void AllocateOutputs(std::vector<QValues>& out) const
+    {
+        const int q = _C.rows();
+        out[EEQ] = QValues(1);
+        out[DEEQ] = QValues(q);
+        out[SIGMA] = QValues(q);
+        out[DSIGMA_DE] = QValues(q);
+        out[DSIGMA_DEPS] = QValues(q, q);
     }
 
     void resize(int n)
     {
         _kappa.Resize(n);
-        _eeq.Resize(n);
-        _sigma.Resize(n);
-        _deeq.Resize(n);
-        _dsigma_de.Resize(n);
-        _dsigma_deps.Resize(n);
     }
 
-    Eigen::VectorXd Get(std::string what)
-    {
-        if (what == "kappa")
-            return _kappa.data;
-        if (what == "eeq")
-            return _eeq.data;
-        if (what == "sigma")
-            return _sigma.data;
-        if (what == "dsigma_deps")
-            return _dsigma_deps.data;
-        if (what == "deeq")
-            return _deeq.data;
-        if (what == "dsigma_de")
-            return _dsigma_de.data;
-    }
-
-
-    void evaluate(const Eigen::VectorXd& strain, const double e, int i)
+    void evaluate(const Eigen::VectorXd& strain, const double e, std::vector<QValues>& out, int i)
     {
         double kappa, dkappa, omega, domega, eeq;
         Eigen::VectorXd deeq;
@@ -292,11 +288,11 @@ public:
         std::tie(omega, domega) = _omega.evaluate(kappa);
         std::tie(eeq, deeq) = _strain_norm.evaluate(strain);
 
-        _eeq.Set(eeq, i);
-        _sigma.Set((1. - omega) * _C * strain, i);
-        _deeq.Set(deeq, i);
-        _dsigma_de.Set(-_C * strain * domega * dkappa, i);
-        _dsigma_deps.Set((1. - omega) * _C, i);
+        out[EEQ].Set(eeq, i);
+        out[SIGMA].Set((1. - omega) * _C * strain, i);
+        out[DEEQ].Set(deeq, i);
+        out[DSIGMA_DE].Set(-_C * strain * domega * dkappa, i);
+        out[DSIGMA_DEPS].Set((1. - omega) * _C, i);
     }
 
     virtual int qdim() const
@@ -324,31 +320,31 @@ private:
     ModMisesEeq _strain_norm;
 
     // history values
-    ConstitutiveValues _kappa;
-
-    // scalar outputs
-    ConstitutiveValues _eeq;
-
-    // vector outputs
-    ConstitutiveValues _sigma;
-    ConstitutiveValues _deeq;
-    ConstitutiveValues _dsigma_de;
-
-    // tensor outputs
-    ConstitutiveValues _dsigma_deps;
+    QValues _kappa;
 };
 
-class BaseGDM
+
+class IpLoop
 {
 public:
-    BaseGDM(GradientDamage& law)
+    IpLoop(GradientDamage& law)
         : _law(law)
     {
+        _outputs.resize(Q::LAST);
+        _law.AllocateOutputs(_outputs);
     }
+
     virtual void resize(int n)
     {
         _n = n;
+        for (auto& qvalues : _outputs)
+            qvalues.Resize(n);
         _law.resize(n);
+    }
+
+    Eigen::VectorXd Get(Q what)
+    {
+        return _outputs.at(what).data;
     }
 
     virtual void evaluate(const Eigen::VectorXd& all_strains, const Eigen::VectorXd& all_neeq)
@@ -358,7 +354,7 @@ public:
         {
             Eigen::VectorXd strain = all_strains.segment(i * q, q);
             const double neeq = all_neeq[i];
-            _law.evaluate(strain, neeq, i);
+            _law.evaluate(strain, neeq, _outputs, i);
         }
     }
 
@@ -374,6 +370,7 @@ public:
     }
 
     GradientDamage& _law;
+    std::vector<QValues> _outputs;
     int _n = 0;
 };
 
