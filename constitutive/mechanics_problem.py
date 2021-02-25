@@ -21,7 +21,7 @@ class Parameters:
 
 
 class MechanicsProblem(df.NonlinearProblem):
-    def __init__(self, mesh, prm, law):
+    def __init__(self, mesh, prm, law, base=None):
         df.NonlinearProblem.__init__(self)
 
         self.mesh = mesh
@@ -29,7 +29,7 @@ class MechanicsProblem(df.NonlinearProblem):
 
         self.law = law
 
-        self.base = Base(self.law)
+        self.base = base or Base(self.law)
 
         if mesh.geometric_dimension() != g_dim(prm.constraint):
             raise RuntimeError(
