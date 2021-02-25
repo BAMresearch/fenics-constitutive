@@ -15,7 +15,7 @@ public:
     {
     }
 
-    std::pair<double, double> evaluate(double k) const
+    std::pair<double, double> Evaluate(double k) const
     {
         if (k <= _k0)
             return {0., 0.};
@@ -108,7 +108,7 @@ public:
     {
     }
 
-    std::pair<double, Eigen::VectorXd> evaluate(Eigen::VectorXd strain) const
+    std::pair<double, Eigen::VectorXd> Evaluate(Eigen::VectorXd strain) const
     {
         // transformation to 3D and invariants
         const V<FULL> strain3D = _T3D * strain;
@@ -157,9 +157,9 @@ public:
         double kappa, dkappa, omega, domega, eeq;
         Eigen::VectorXd deeq;
 
-        std::tie(eeq, deeq) = _eeq.evaluate(strain);
-        std::tie(kappa, dkappa) = evaluate_kappa(eeq, _kappa[i]);
-        std::tie(omega, domega) = _omega.evaluate(kappa);
+        std::tie(eeq, deeq) = _eeq.Evaluate(strain);
+        std::tie(kappa, dkappa) = EvaluateKappa(eeq, _kappa[i]);
+        std::tie(omega, domega) = _omega.Evaluate(kappa);
 
         return {(1. - omega) * _C * strain, (1. - omega) * _C - _C * strain * domega * dkappa * deeq.transpose()};
     }
@@ -169,7 +169,7 @@ public:
         return _C.rows();
     }
 
-    std::pair<double, double> evaluate_kappa(double eeq, double kappa) const
+    std::pair<double, double> EvaluateKappa(double eeq, double kappa) const
     {
         if (eeq >= kappa)
             return {eeq, 1.};
@@ -179,8 +179,8 @@ public:
 
     virtual void update(const Eigen::VectorXd& strain, int i) override
     {
-        const double eeq = _eeq.evaluate(strain).first;
-        const double kappa = evaluate_kappa(eeq, _kappa[i]).first;
+        const double eeq = _eeq.Evaluate(strain).first;
+        const double kappa = EvaluateKappa(eeq, _kappa[i]).first;
         _kappa[i] = kappa;
     }
 
@@ -223,33 +223,40 @@ public:
         data.segment(_rows * _cols * i, _rows * _cols) = Eigen::Map<Eigen::VectorXd>(value.data(), value.size());
     }
 
-    double GetScalar(int i)
+    double GetScalar(int i) const
     {
         assert(_rows == 1);
         assert(_cols == 1);
         return data[i];
     }
 
-    Eigen::MatrixXd Get(int i)
+    Eigen::MatrixXd Get(int i) const
     {
         Eigen::VectorXd ip_values = data.segment(_rows * _cols * i, _rows * _cols);
         return Eigen::Map<Eigen::MatrixXd>(ip_values.data(), _rows, _cols);
     }
 
+    bool IsUsed() const
+    {
+        return _rows != 0;
+    }
+
 
     // private:
-    int _rows;
-    int _cols;
+    int _rows = 0;
+    int _cols = 0;
     Eigen::VectorXd data;
 };
 
 enum Q
 {
-    SIGMA = 1,
+    SIGMA,
     DSIGMA_DEPS,
     EEQ,
     DEEQ,
     DSIGMA_DE,
+    EPS,
+    E,
     LAST
 };
 
@@ -264,7 +271,7 @@ public:
     {
     }
 
-    void AllocateOutputs(std::vector<QValues>& out) const
+    void DefineOutputs(std::vector<QValues>& out) const
     {
         const int q = _C.rows();
         out[EEQ] = QValues(1);
@@ -274,19 +281,27 @@ public:
         out[DSIGMA_DEPS] = QValues(q, q);
     }
 
-    void resize(int n)
+    void DefineInputs(std::vector<QValues>& input) const
+    {
+        const int q = _C.rows();
+        input[E] = QValues(1);
+        input[EPS] = QValues(q);
+    }
+
+    void Resize(int n)
     {
         _kappa.Resize(n);
     }
 
-    void evaluate(const Eigen::VectorXd& strain, const double e, std::vector<QValues>& out, int i)
+    void Evaluate(const std::vector<QValues>& input, std::vector<QValues>& out, int i)
     {
         double kappa, dkappa, omega, domega, eeq;
         Eigen::VectorXd deeq;
+        auto strain = input[EPS].Get(i);
 
-        std::tie(kappa, dkappa) = evaluate_kappa(e, _kappa.GetScalar(i));
-        std::tie(omega, domega) = _omega.evaluate(kappa);
-        std::tie(eeq, deeq) = _strain_norm.evaluate(strain);
+        std::tie(kappa, dkappa) = EvaluateKappa(input[E].GetScalar(i), _kappa.GetScalar(i));
+        std::tie(omega, domega) = _omega.Evaluate(kappa);
+        std::tie(eeq, deeq) = _strain_norm.Evaluate(strain);
 
         out[EEQ].Set(eeq, i);
         out[SIGMA].Set((1. - omega) * _C * strain, i);
@@ -295,12 +310,7 @@ public:
         out[DSIGMA_DEPS].Set((1. - omega) * _C, i);
     }
 
-    virtual int qdim() const
-    {
-        return _C.rows();
-    }
-
-    std::pair<double, double> evaluate_kappa(double eeq, double kappa) const
+    std::pair<double, double> EvaluateKappa(double eeq, double kappa) const
     {
         if (eeq >= kappa)
             return {eeq, 1.};
@@ -308,9 +318,9 @@ public:
             return {kappa, 0};
     }
 
-    virtual void update(const Eigen::VectorXd& strain, const double neeq, int i)
+    void Update(const std::vector<QValues>& input, int i)
     {
-        _kappa.Set(evaluate_kappa(neeq, _kappa.GetScalar(i)).first, i);
+        _kappa.Set(EvaluateKappa(input[E].GetScalar(i), _kappa.GetScalar(i)).first, i);
     }
 
 
@@ -331,15 +341,17 @@ public:
         : _law(law)
     {
         _outputs.resize(Q::LAST);
-        _law.AllocateOutputs(_outputs);
+        _inputs.resize(Q::LAST);
+        _law.DefineOutputs(_outputs);
+        _law.DefineInputs(_inputs);
     }
 
-    virtual void resize(int n)
+    virtual void Resize(int n)
     {
         _n = n;
         for (auto& qvalues : _outputs)
             qvalues.Resize(n);
-        _law.resize(n);
+        _law.Resize(n);
     }
 
     Eigen::VectorXd Get(Q what)
@@ -347,30 +359,37 @@ public:
         return _outputs.at(what).data;
     }
 
-    virtual void evaluate(const Eigen::VectorXd& all_strains, const Eigen::VectorXd& all_neeq)
+    std::vector<Q> RequiredInputs() const
     {
-        int q = _law.qdim();
-        for (int i = 0; i < _n; ++i)
+        std::vector<Q> required;
+        for (int iQ = 0; iQ < _inputs.size(); ++iQ)
         {
-            Eigen::VectorXd strain = all_strains.segment(i * q, q);
-            const double neeq = all_neeq[i];
-            _law.evaluate(strain, neeq, _outputs, i);
+            Q q = static_cast<Q>(iQ);
+            if (_inputs[q].IsUsed())
+                required.push_back(q);
         }
+        return required;
     }
 
-    virtual void update(const Eigen::VectorXd& all_strains, const Eigen::VectorXd& all_neeq)
+    virtual void Evaluate(const Eigen::VectorXd& all_strains, const Eigen::VectorXd& all_neeq)
     {
-        int q = _law.qdim();
+        _inputs[E].data = all_neeq;
+        _inputs[EPS].data = all_strains;
         for (int i = 0; i < _n; ++i)
-        {
-            Eigen::VectorXd strain = all_strains.segment(i * q, q);
-            const double neeq = all_neeq[i];
-            _law.update(strain, neeq, i);
-        }
+            _law.Evaluate(_inputs, _outputs, i);
+    }
+
+    virtual void Update(const Eigen::VectorXd& all_strains, const Eigen::VectorXd& all_neeq)
+    {
+        _inputs[E].data = all_neeq;
+        _inputs[EPS].data = all_strains;
+        for (int i = 0; i < _n; ++i)
+            _law.Update(_inputs, i);
     }
 
     GradientDamage& _law;
     std::vector<QValues> _outputs;
+    std::vector<QValues> _inputs;
     int _n = 0;
 };
 

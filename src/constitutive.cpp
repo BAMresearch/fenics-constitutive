@@ -46,16 +46,16 @@ PYBIND11_MODULE(cpp, m)
 
     pybind11::class_<ModMisesEeq> modMises(m, "ModMisesEeq");
     modMises.def(pybind11::init<double, double, Constraint>());
-    modMises.def("evaluate", &ModMisesEeq::evaluate);
+    modMises.def("evaluate", &ModMisesEeq::Evaluate);
 
     pybind11::class_<LocalDamage, IpBase> localDamage(m, "LocalDamage");
     localDamage.def(pybind11::init<double, double, Constraint, double, double, double, double>());
-    localDamage.def("evaluate_kappa", &LocalDamage::evaluate_kappa);
+    localDamage.def("evaluate_kappa", &LocalDamage::EvaluateKappa);
 
     pybind11::class_<GradientDamage> gdm(m, "GradientDamage");
     gdm.def(pybind11::init<double, double, Constraint, double, double, double, double>());
-    gdm.def("evaluate", &GradientDamage::evaluate);
-    gdm.def("update", &GradientDamage::update);
+    gdm.def("evaluate", &GradientDamage::Evaluate);
+    gdm.def("update", &GradientDamage::Update);
 
     pybind11::enum_<Q>(m, "Q")
             .value("SIGMA", Q::SIGMA)
@@ -66,8 +66,9 @@ PYBIND11_MODULE(cpp, m)
 
     pybind11::class_<IpLoop> ipLoop(m, "IpLoop");
     ipLoop.def(pybind11::init<GradientDamage&>());
-    ipLoop.def("evaluate", &IpLoop::evaluate);
-    ipLoop.def("update", &IpLoop::update);
-    ipLoop.def("resize", &IpLoop::resize);
+    ipLoop.def("evaluate", &IpLoop::Evaluate);
+    ipLoop.def("update", &IpLoop::Update);
+    ipLoop.def("resize", &IpLoop::Resize);
     ipLoop.def("get", &IpLoop::Get);
+    ipLoop.def("required_inputs", &IpLoop::RequiredInputs);
 }
