@@ -241,7 +241,7 @@ class PlasticConsitutivePerfect(ElasticConstitutive):
             return sig_tr, self.D, k0, 0.0        
         
 class PlasticConsitutiveRateIndependentHistory(PlasticConsitutivePerfect):
-    def __init__(self, E, nu, constraint, yf, ri, stress_free=True):
+    def __init__(self, E, nu, constraint, yf, ri):
         """
         ri: an instance of RateIndependentHistory representing evolution of history variables
         , which is based on:
