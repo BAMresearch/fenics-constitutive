@@ -209,7 +209,78 @@ class PlasticConsitutivePerfect(ElasticConstitutive):
             return sig_c, Ct, k0, d_eps_p
         else: # still elastic zone
             return sig_tr, self.D, k0, 0.0        
+    
+class PlasticConsitutiveRateIndependentHistory(PlasticConsitutivePerfect):
+    def __init__(self, E, nu, constraint, yf, ri):
+        """
+        ri: an instance of RateIndependentHistory representing evolution of history variables
+        , which is based on:
+            kappa_dot = lamda_dot * p(sigma, kappa), where "p" is a plastic modulus function
+        """
+        super().__init__(E, nu, constraint, yf)
+        assert(isinstance(ri, RateIndependentHistory))
+        self.ri = ri # ri: rate-independent
+    
+    def correct_stress(self, sig_tr, k0=0.0, _Ct=True, tol=1e-9, max_iters=20):
+        """
+        overwritten to the superclass'
+        one additional equation to be satisfied is the rate-independent equation:
+            kappa_dot = lamda_dot * self.ri.p
+        , for the evolution of the history variable(s) k
+        """
         
+        ### Solve residuals (of the return mapping algorithm) equal to ZERO, in a coupled sense (using Jacobian matrix based on backward Euler)
+        f, m, dm, fk, _ = self.yf(sig_tr, k0)
+        if f > 0: # do return mapping
+            Ct = None
+            _d = len(sig_tr)
+            # initial values of unknowns (we add 0.0 to something to have a copy regardless of type (float or np.array))
+            sig_c = sig_tr + 0.0
+            k = k0 + 0.0
+            dl = 0.0
+            # compute residuals of return-mapping (backward Euler)
+            d_eps_p = dl * m # change in plastic strain
+            es = sig_c - sig_tr + self.D @ d_eps_p
+            p, dp_dsig, dp_dk = self.ri(sig_c, k)
+            if max(dp_dsig.shape) != _d:
+                dp_dsig = dp_dsig * np.ones((1, _d))
+            ek = k - k0 - dl * p
+            ef = f
+            e_norm = np.linalg.norm(np.append(np.append(es, ek), ef))
+            _it = 0
+            while e_norm > tol and _it<=max_iters:
+                A1 = np.append( np.append(np.eye(_d) + dl * self.D @ dm, np.zeros((_d,1)), axis=1) \
+                               , (self.D @ m).reshape((-1,1)), axis=1 )
+                A2 = np.append(np.append(- dl * dp_dsig, 1 - dl * dp_dk, axis=1), -p, axis=1)
+                A3 = np.append(np.append(m, fk), 0).reshape((1,-1))
+                Jac = np.append(np.append(A1, A2, axis=0), A3, axis=0)
+                dx = np.linalg.solve(Jac, np.append(np.append(es, ek), ef))
+                sig_c -= dx[0:_d]     
+                k -= dx[_d:_d+1]
+                dl -= dx[_d+1:]
+                f, m, dm, fk, _ = self.yf(sig_c, k)
+                d_eps_p = dl * m # change in plastic strain
+                es = sig_c - sig_tr + self.D @ d_eps_p
+                p, dp_dsig, dp_dk = self.ri(sig_c, k)
+                if max(dp_dsig.shape) != _d:
+                    dp_dsig = np.zeros((1, _d))
+                ek = k - k0 - dl * p
+                ef = f
+                e_norm = np.linalg.norm(np.append(np.append(es, ek), ef))
+                _it += 1
+            # after converging return-mapping:
+            if _Ct:
+                A1 = np.append( np.append(np.eye(_d) + dl * self.D @ dm, np.zeros((_d,1)), axis=1) \
+                               , (self.D @ m).reshape((-1,1)), axis=1 )
+                A2 = np.append(np.append(- dl * dp_dsig, 1 - dl * dp_dk, axis=1), -p, axis=1)
+                A3 = np.append(np.append(m, fk), 0).reshape((1,-1))
+                Jac = np.append(np.append(A1, A2, axis=0), A3, axis=0)
+                inv_Jac = np.linalg.inv(Jac)
+                Ct = inv_Jac[np.ix_(range(_d), range(_d))] @ self.D
+            return sig_c, Ct, k, d_eps_p
+        else: # still elastic zone
+            return sig_tr, self.D, k0, 0.0
+
 class Yield_VM:
     def __init__(self, y0, constraint, H=0):
         self.y0 = y0 # yield stress
@@ -267,7 +338,7 @@ class Plasticity:
         self.deps_p = np.zeros((self.n, q))
 
     def update(self, all_strains):
-        self.kappa = self.kappa1
+        self.kappa[:] = self.kappa1[:]
         self.eps_p += self.deps_p
 
     def evaluate(self, all_strains):
@@ -301,13 +372,13 @@ class TestPlasticity(unittest.TestCase):
 
         prm = c.Parameters(c.Constraint.PLANE_STRESS)
         prm.E = 1000.0
-        prm.Et = prm.E / 1000.0
+        prm.Et = prm.E / 100.0
         prm.sig0 = 12.0
-        # prm.H = 15.0 * prm.E * prm.Et / (prm.E - prm.Et)
+        prm.H = 15.0 * prm.E * prm.Et / (prm.E - prm.Et)
         prm.nu = 0.3
         prm.deg_d = 3
         prm.deg_q = 4
-        law = c.LinearElastic(prm.E, prm.nu, prm.constraint)
+        law = None # for now, plays no role.
 
         mesh = df.RectangleMesh(
             df.Point(0, 0),
@@ -316,12 +387,13 @@ class TestPlasticity(unittest.TestCase):
             int(LY * mesh_resolution),
         )
 
-        yf = Yield_VM(prm.sig0, prm.constraint)
-        mat = PlasticConsitutivePerfect(prm.E, prm.nu, prm.constraint, yf=yf)
+        yf = Yield_VM(prm.sig0, prm.constraint, H=prm.H)
+        ri = RateIndependentHistory()
+        # mat = PlasticConsitutivePerfect(prm.E, prm.nu, prm.constraint, yf=yf)
+        mat = PlasticConsitutiveRateIndependentHistory(prm.E, prm.nu, prm.constraint, yf=yf, ri=ri)
         plasticity = Plasticity(mat)
 
-
-        problem = c.MechanicsProblem(mesh, prm, law, base=plasticity)
+        problem = c.MechanicsProblem(mesh, prm, law=law, base=plasticity)
 
         left = boundary.plane_at(0.0)
         right_top = boundary.point_at((LX, LY))
