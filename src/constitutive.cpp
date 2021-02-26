@@ -52,10 +52,18 @@ PYBIND11_MODULE(cpp, m)
     localDamage.def(pybind11::init<double, double, Constraint, double, double, double, double>());
     localDamage.def("evaluate_kappa", &LocalDamage::EvaluateKappa);
 
-    pybind11::class_<GradientDamage> gdm(m, "GradientDamage");
+    pybind11::class_<LawInterface> law(m, "LawInterface");
+
+    pybind11::class_<GradientDamage, LawInterface> gdm(m, "GradientDamage");
     gdm.def(pybind11::init<double, double, Constraint, double, double, double, double>());
-    gdm.def("evaluate", &GradientDamage::Evaluate);
-    gdm.def("update", &GradientDamage::Update);
+    gdm.def("kappa", &GradientDamage::Kappa);
+
+    pybind11::class_<LocalDamageNew, LawInterface> local(m, "LocalDamageNew");
+    local.def(pybind11::init<double, double, Constraint, double, double, double, double>());
+    local.def("kappa", &LocalDamageNew::Kappa);
+
+    pybind11::class_<LinearElasticNew, LawInterface> linearElasticNew(m, "LinearElasticNew");
+    linearElasticNew.def(pybind11::init<double, double, Constraint>());
 
     pybind11::enum_<Q>(m, "Q")
             .value("SIGMA", Q::SIGMA)
@@ -65,7 +73,8 @@ PYBIND11_MODULE(cpp, m)
             .value("DSIGMA_DE", Q::DSIGMA_DE);
 
     pybind11::class_<IpLoop> ipLoop(m, "IpLoop");
-    ipLoop.def(pybind11::init<GradientDamage&>());
+    ipLoop.def(pybind11::init<>());
+    ipLoop.def("add_law", &IpLoop::AddLaw);
     ipLoop.def("evaluate", &IpLoop::Evaluate);
     ipLoop.def("update", &IpLoop::Update);
     ipLoop.def("resize", &IpLoop::Resize);
