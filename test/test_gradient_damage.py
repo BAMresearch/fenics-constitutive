@@ -259,7 +259,6 @@ def tensile_meso():
             assembler.assemble(b, x)
 
         def J(self, A, x):
-            print(A)
             assembler.assemble(A)
 
     linear_solver = df.LUSolver("mumps")
@@ -283,7 +282,7 @@ def tensile_meso():
     ld = c.helper.LoadDisplacementCurve(bcs[0])
     ld.show()
     if not ld.is_root:
-        set_log_level(LogLevel.ERROR)
+        df.set_log_level(df.LogLevel.ERROR)
 
     fff = df.XDMFFile("output.xdmf")
     fff.parameters["functions_share_mesh"] = True
