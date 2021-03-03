@@ -389,7 +389,12 @@ class TestPlasticity(unittest.TestCase):
             return solver.solve(problem, problem.u.vector())
 
         ld = c.helper.LoadDisplacementCurve(bcs[0])
-        ld.show()
+        try:
+            import matplotlib.pyplot
+            ld.show()
+        except ImportError:
+            pass
+
         if not ld.is_root:
             set_log_level(LogLevel.ERROR)
 
