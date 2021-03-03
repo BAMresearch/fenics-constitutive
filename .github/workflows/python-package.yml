@@ -9,22 +9,30 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
     - uses: actions/checkout@v2
+    #- uses: actions/setup-python@v2
     - name: Install dependencies
       run: |
-        sudo apt update && sudo apt install -y pandoc pybind11-dev
-        sudo apt-get install -y --no-install-recommends software-properties-common
-        sudo add-apt-repository ppa:fenics-packages/fenics
-        sudo apt-get update
-        sudo apt-get install -y --no-install-recommends fenics
+        #sudo apt update && sudo apt install -y pandoc pybind11-dev
+        #sudo apt-get install -y --no-install-recommends software-properties-common
+        #sudo add-apt-repository ppa:fenics-packages/fenics
+        #sudo apt-get update
+        #sudo apt-get install -y --no-install-recommends fenics
 
-        python3 -m pip install --upgrade pip
-        python3 -m pip install pytest
-        python3 -m pip install -r requirements.txt
-        python3 -m pip install --user -e .
+        sudo apt-get update && sudo apt-get install -y python3-numpy python3-pip
+        pip3 install --upgrade pip
+        pip3 install --user doit
+        #pip install pytest
+        #pip install -r requirements.txt
+        #pip install --user -e .
     - name: Run
       run: |
+        export PATH=/home/runner/.local/bin/:$PATH
+        python3 -c "import numpy"
+        echo $PATH
+        ls -l /home/runner/.local/bin/
         doit
-        pytest
+        #doit
+        #pytest
     - name: deploy
       if: github.ref == 'refs/heads/master'
       uses: JamesIves/github-pages-deploy-action@4.0.0-beta-01
