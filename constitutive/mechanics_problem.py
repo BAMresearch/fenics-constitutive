@@ -21,15 +21,15 @@ class Parameters:
 
 
 class MechanicsProblem(df.NonlinearProblem):
-    def __init__(self, mesh, prm, law, base=None):
+    def __init__(self, mesh, prm, law, iploop=None):
         df.NonlinearProblem.__init__(self)
 
         self.mesh = mesh
         self.prm = prm
 
         self.law = law
-
-        self.base = base or Base(self.law)
+        self.iploop = iploop or IpLoop()
+        self.iploop.add_law(self.law)
 
         if mesh.geometric_dimension() != g_dim(prm.constraint):
             raise RuntimeError(
@@ -52,7 +52,7 @@ class MechanicsProblem(df.NonlinearProblem):
         self.q_dsigma_deps = df.Function(VQT, name="stress-strain tangent")
 
         n_gauss_points = len(self.q_eps.vector().get_local()) // q_dim(prm.constraint)
-        self.base.resize(n_gauss_points);
+        self.iploop.resize(n_gauss_points);
 
         dd, d_ = df.TrialFunction(self.V), df.TestFunction(self.V)
 
@@ -104,20 +104,20 @@ class MechanicsProblem(df.NonlinearProblem):
         # project the strain and the nonlocal equivalent strains onto
         # their quadrature spaces and ...
         self.calculate_eps(self.q_eps)
-        self.base.evaluate(self.q_eps.vector().get_local())
+        self.iploop.evaluate(self.q_eps.vector().get_local())
 
         # ... and write the calculated values into their quadrature spaces.
-        h.set_q(self.q_sigma, self.base.stress)
-        h.set_q(self.q_dsigma_deps, self.base.dstress)
+        h.set_q(self.q_sigma, self.iploop.get(Q.SIGMA))
+        h.set_q(self.q_dsigma_deps, self.iploop.get(Q.DSIGMA_DEPS))
 
     def update(self):
         self.calculate_eps(self.q_eps)
-        self.base.update(self.q_eps.vector().get_local())
+        self.iploop.update(self.q_eps.vector().get_local())
 
 
     def set_bcs(self, bcs):
         # Only now (with the bcs) can we initialize the _assembler
-        # self._bcs = bcs
+        self._bcs = bcs
         self._assembler = df.SystemAssembler(self.dR, self.R, bcs)
 
     def F(self, b, x):

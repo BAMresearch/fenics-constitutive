@@ -1,3 +1,4 @@
+from collections import OrderedDict
 import dolfin as df
 import numpy as np
 from fenics_helpers import boundary
@@ -5,55 +6,13 @@ from fenics_helpers.timestepping import TimeStepper
 import constitutive as c
 
 
-class GDMSpaces:
-    def __init__(self, constraint):
-        self.deg_d = 2
-        self.deg_e = 2
-        self.deg_q = 2
-        self.constraint = constraint
-
-    def create(self, mesh, mesh_function=None):
+class MechanicsSpaces:
+    def __init__(self, mesh, constraint, mesh_function=None):
         self.mesh = mesh
+        self.constraint = constraint
         self.mesh_function = mesh_function
-
-        self.metadata = {
-            "quadrature_degree": self.deg_q,
-            "quadrature_scheme": "default",
-        }
-        self.dxm = df.dx(metadata=self.metadata, subdomain_data=mesh_function)
-
-        # solution field
-        Ed = df.VectorElement("CG", mesh.ufl_cell(), degree=self.deg_d)
-        Ee = df.FiniteElement("CG", mesh.ufl_cell(), degree=self.deg_d)
-
-        self.V = df.FunctionSpace(mesh, Ed * Ee)
-        self.Vd, self.Ve = self.V.split()
-
-        self.dd, self.de = df.TrialFunctions(self.V)
-        self.d_, self.e_ = df.TestFunctions(self.V)
-
-        self.u = df.Function(self.V, name="d-e mixed space")
-        self.d, self.e = df.split(self.u)
-
-        # generic quadrature function spaces
-        VQF, VQV, VQT = c.helper.spaces(mesh, self.deg_q, c.q_dim(self.constraint))
-
-        # quadrature function
-        self.q_sigma = df.Function(VQV, name="current stresses")
-        self.q_eps = df.Function(VQV, name="current strains")
-        self.q_e = df.Function(VQF, name="current nonlocal equivalent strains")
-        self.q_k = df.Function(VQF, name="current history variable kappa")
-        self.q_eeq = df.Function(VQF, name="current (local) equivalent strain (norm)")
-
-        self.q_dsigma_deps = df.Function(VQT, name="stress-strain tangent")
-        self.q_dsigma_de = df.Function(VQV, name="stress-nonlocal-strain tangent")
-        self.q_deeq_deps = df.Function(VQV, name="equivalent-strain-strain tangent")
-
-        self.n = len(self.q_eps.vector().get_local()) // c.q_dim(self.constraint)
-        self.nq = self.n // mesh.num_cells()
-
-        self.ip_flags = np.repeat(mesh_function.array(), self.nq)
-        
+        self.deg_d = 2
+        self.deg_q = 2
 
     def eps(self, u):
         e = df.sym(df.grad(u))
@@ -70,11 +29,84 @@ class GDMSpaces:
             )
 
 
-# def gdm_form
+class GDMSpaces(MechanicsSpaces):
+    def __init__(self, mesh, constraint, mesh_function=None):
+        super().__init__(mesh, constraint, mesh_function)
+        self.deg_e = self.deg_d
+
+    def create(self):
+        self.metadata = {
+            "quadrature_degree": self.deg_q,
+            "quadrature_scheme": "default",
+        }
+        self.dxm = df.dx(metadata=self.metadata, subdomain_data=self.mesh_function)
+
+        # solution field
+        Ed = df.VectorElement("CG", self.mesh.ufl_cell(), degree=self.deg_d)
+        Ee = df.FiniteElement("CG", self.mesh.ufl_cell(), degree=self.deg_d)
+
+        self.V = df.FunctionSpace(self.mesh, Ed * Ee)
+        self.Vd, self.Ve = self.V.split()
+
+        self.dd, self.de = df.TrialFunctions(self.V)
+        self.d_, self.e_ = df.TestFunctions(self.V)
+
+        self.u = df.Function(self.V, name="d-e mixed space")
+        self.d, self.e = df.split(self.u)
+
+        # generic quadrature function spaces
+        VQF, VQV, VQT = c.helper.spaces(self.mesh, self.deg_q, c.q_dim(self.constraint))
+
+        # quadrature functions
+        Q = c.Q
+        # inputs to the model
+        self.q_in = OrderedDict()
+        self.q_in[Q.EPS] = df.Function(VQV, name="current strains")
+        self.q_in[Q.E] = df.Function(VQF, name="current nonlocal equivalent strains")
+    
+        self.q_in_calc = {}
+        self.q_in_calc[Q.EPS] = c.helper.LocalProjector(self.eps(self.d), VQV, self.dxm)
+        self.q_in_calc[Q.E] = c.helper.LocalProjector(self.e, VQF, self.dxm)
+
+        # outputs of the model
+        self.q = {}
+        self.q[Q.SIGMA] = df.Function(VQV, name="current stresses")
+        self.q[Q.DSIGMA_DEPS] = df.Function(VQT, name="stress-strain tangent")
+        self.q[Q.DSIGMA_DE] = df.Function(VQV, name="stress-nonlocal-strain tangent")
+        self.q[Q.EEQ] = df.Function(VQF, name="current (local) equivalent strain")
+        self.q[Q.DEEQ] = df.Function(VQV, name="equivalent-strain-strain tangent")
+
+        self.q_history = {
+            Q.KAPPA: df.Function(VQF, name="current history variable kappa")
+        }
+
+        self.n = len(self.q[Q.SIGMA].vector().get_local()) // c.q_dim(self.constraint)
+        self.nq = self.n // self.mesh.num_cells()
+        self.ip_flags = None
+        if self.mesh_function is not None:
+            self.ip_flags = np.repeat(self.mesh_function.array(), self.nq)
+
+
+class Problem(df.NonlinearProblem):
+    def __init__(self, spaces):
+        super().__init__()
+        self.spaces = spaces
+        self.spaces.create()
+        self.loop = c.IpLoop()
+        self.loop.resize(self.spaces.n)
+
+    def evaluate(self):
+        for name, q_space in self.spaces.q_in.items():
+            self.spaces.q_in_calc[name](q_space)
+        eval_input = [q.vector().get_local() for q in self.spaces.q_in.values()]
+        self.loop.evaluate(*eval_input)
+
+        for name, q_space in self.spaces.q.items():
+            c.helper.set_q(q_space, self.loop.get(name))
 
 
 class GDMProblem(c.MechanicsProblem):
-    def __init__(self, mesh, prm, loop):
+    def __init__(self, mesh, prm, law, loop=None):
         df.NonlinearProblem.__init__(self)
 
         self.mesh = mesh
@@ -99,19 +131,30 @@ class GDMProblem(c.MechanicsProblem):
         VQF, VQV, VQT = c.helper.spaces(mesh, prm.deg_q, c.q_dim(prm.constraint))
 
         # quadrature function
-        self.q_sigma = df.Function(VQV, name="current stresses")
-        self.q_eps = df.Function(VQV, name="current strains")
-        self.q_e = df.Function(VQF, name="current nonlocal equivalent strains")
-        self.q_k = df.Function(VQF, name="current history variable kappa")
-        self.q_eeq = df.Function(VQF, name="current (local) equivalent strain (norm)")
+        Q = c.Q
+        # inputs to the model
+        self.q_in = {}
+        self.q_in[Q.EPS] = df.Function(VQV, name="current strains")
+        self.q_in[Q.E] = df.Function(VQF, name="current nonlocal equivalent strains")
 
-        self.q_dsigma_deps = df.Function(VQT, name="stress-strain tangent")
-        self.q_dsigma_de = df.Function(VQV, name="stress-nonlocal-strain tangent")
-        self.q_deeq_deps = df.Function(VQV, name="equivalent-strain-strain tangent")
+        # outputs of the model
+        self.q = {}
+        self.q[Q.SIGMA] = df.Function(VQV, name="current stresses")
+        self.q[Q.DSIGMA_DEPS] = df.Function(VQT, name="stress-strain tangent")
+        self.q[Q.DSIGMA_DE] = df.Function(VQV, name="stress-nonlocal-strain tangent")
+        self.q[Q.EEQ] = df.Function(VQF, name="current (local) equivalent strain")
+        self.q[Q.DEEQ] = df.Function(VQV, name="equivalent-strain-strain tangent")
 
-        n_gauss_points = len(self.q_eps.vector().get_local()) // c.q_dim(prm.constraint)
+        self.q_history = {
+            Q.KAPPA: df.Function(VQF, name="current history variable kappa")
+        }
 
-        self.loop = loop
+        n_gauss_points = len(self.q[Q.SIGMA].vector().get_local()) // c.q_dim(
+            prm.constraint
+        )
+
+        self.loop = loop or c.IpLoop()
+        self.loop.add_law(law)
         self.loop.resize(n_gauss_points)
 
         dd, de = df.TrialFunctions(self.V)
@@ -121,13 +164,13 @@ class GDMProblem(c.MechanicsProblem):
 
         eps = self.eps
         f_d = 1.0
-        self.R = f_d * df.inner(eps(d_), self.q_sigma) * self.dxm
-        self.R += e_ * (e - self.q_eeq) * self.dxm
+        self.R = f_d * df.inner(eps(d_), self.q[Q.SIGMA]) * self.dxm
+        self.R += e_ * (e - self.q[Q.EEQ]) * self.dxm
         self.R += df.dot(df.grad(e_), prm.l ** 2 * df.grad(e)) * self.dxm
 
-        self.dR = f_d * df.inner(eps(dd), self.q_dsigma_deps * eps(d_)) * self.dxm
-        self.dR += f_d * de * df.dot(self.q_dsigma_de, eps(d_)) * self.dxm
-        self.dR += df.inner(eps(dd), -self.q_deeq_deps * e_) * self.dxm
+        self.dR = f_d * df.inner(eps(dd), self.q[Q.DSIGMA_DEPS] * eps(d_)) * self.dxm
+        self.dR += f_d * de * df.dot(self.q[Q.DSIGMA_DE], eps(d_)) * self.dxm
+        self.dR += df.inner(eps(dd), -self.q[Q.DEEQ] * e_) * self.dxm
         self.dR += (
             de * e_ * self.dxm
             + df.dot(df.grad(de), prm.l ** 2 * df.grad(e_)) * self.dxm
@@ -151,27 +194,27 @@ class GDMProblem(c.MechanicsProblem):
     def Ve(self):
         return self.V.split()[1]
 
-    # @profile
     def evaluate_material(self):
         # project the strain and the nonlocal equivalent strains onto
         # their quadrature spaces and ...
-        self.calculate_eps(self.q_eps)
-        self.calculate_e(self.q_e)
+        self.calculate_eps(self.q_in[c.Q.EPS])
+        self.calculate_e(self.q_in[c.Q.E])
         self.loop.evaluate(
-            self.q_eps.vector().get_local(), self.q_e.vector().get_local()
+            self.q_in[c.Q.EPS].vector().get_local(),
+            self.q_in[c.Q.E].vector().get_local(),
         )
 
         # ... and write the calculated values into their quadrature spaces.
-        c.helper.set_q(self.q_sigma, self.loop.get(c.Q.SIGMA))
-        c.helper.set_q(self.q_dsigma_deps, self.loop.get(c.Q.DSIGMA_DEPS))
-        c.helper.set_q(self.q_deeq_deps, self.loop.get(c.Q.DEEQ))
-        c.helper.set_q(self.q_dsigma_de, self.loop.get(c.Q.DSIGMA_DE))
-        c.helper.set_q(self.q_eeq, self.loop.get(c.Q.EEQ))
+        for name, q_space in self.q.items():
+            c.helper.set_q(q_space, self.loop.get(name))
 
     def update(self):
-        self.calculate_eps(self.q_eps)
-        self.calculate_e(self.q_e)
-        self.loop.update(self.q_eps.vector().get_local(), self.q_e.vector().get_local())
+        self.calculate_eps(self.q_in[c.Q.EPS])
+        self.calculate_e(self.q_in[c.Q.E])
+        self.loop.update(
+            self.q_in[c.Q.EPS].vector().get_local(),
+            self.q_in[c.Q.E].vector().get_local(),
+        )
 
 
 def tensile_meso():
@@ -212,33 +255,35 @@ def tensile_meso():
     R += df.inner(s.eps(s.d_), s.q_sigma) * s.dxm(3)
     dR += df.inner(s.eps(s.dd), s.q_dsigma_deps * s.eps(s.d_)) * s.dxm(3)
     dR += s.de * s.e_ * s.dxm(3)
-        
+
     VQF, VQV, VQT = c.helper.spaces(s.mesh, s.deg_q, c.q_dim(s.constraint))
     calculate_eps = c.helper.LocalProjector(s.eps(s.d), VQV, s.dxm)
     calculate_e = c.helper.LocalProjector(s.e, VQF, s.dxm(1))
 
-
-    F = 0.5 # interface reduction
-    t = 0.5 # interface thickness
-    lawAggreg = c.LinearElasticNew(2*26738, 0.18, s.constraint)
-    lawInterf= c.LocalDamageNew(F*26738, 0.18, s.constraint, F * 3.4, 0.99, F/t*0.12, 10.)
-    lawMatrix= c.GradientDamage(26738, 0.18, s.constraint, 3.4, 0.99, 0.0216, 10.)
+    F = 0.75  # interface reduction
+    t = 0.5  # interface thickness
+    lawAggreg = c.LinearElastic(2 * 26738, 0.18, s.constraint)
+    lawInterf = c.LocalDamage(
+        26738, 0.18, s.constraint, F * 3.4, 0.99, F / t * 0.12, 10.0
+    )
+    lawMatrix = c.GradientDamage(26738, 0.18, s.constraint, 3.4, 0.99, 0.0216, 10.0)
 
     loop = c.IpLoop()
     loop.add_law(lawMatrix, np.where(s.ip_flags == 1)[0])
     loop.add_law(lawAggreg, np.where(s.ip_flags == 2)[0])
     loop.add_law(lawInterf, np.where(s.ip_flags == 3)[0])
     loop.resize(s.n)
-   
+
     bot = boundary.plane_at(0, "y")
     top = boundary.plane_at(LY, "y")
     bc_expr = df.Expression("u", degree=0, u=0)
     bcs = []
     bcs.append(df.DirichletBC(s.Vd.sub(1), bc_expr, top))
     bcs.append(df.DirichletBC(s.Vd.sub(1), 0.0, bot))
-    bcs.append(df.DirichletBC(s.Vd.sub(0), 0.0, boundary.point_at((0,0)), method="pointwise"))
+    bcs.append(
+        df.DirichletBC(s.Vd.sub(0), 0.0, boundary.point_at((0, 0)), method="pointwise")
+    )
 
-    
     # return
 
     assembler = df.SystemAssembler(dR, R, bcs)
@@ -269,7 +314,7 @@ def tensile_meso():
     solver.parameters["maximum_iterations"] = 10
     solver.parameters["error_on_nonconvergence"] = False
 
-    problem=SolveMe()
+    problem = SolveMe()
 
     def solve(t, dt):
         print(t, dt)
@@ -305,7 +350,7 @@ def tensile_meso():
         e.rename("e", "e")
 
         all_kappa = lawInterf.kappa() + lawMatrix.kappa()
-        k.vector().set_local(all_kappa[::s.nq])
+        k.vector().set_local(all_kappa[:: s.nq])
 
         fff.write(d, t)
         fff.write(e, t)
@@ -313,16 +358,31 @@ def tensile_meso():
 
         ld(t, df.assemble(R))
 
-    TimeStepper(solve, pp, s.u).adaptive(1.0, dt=0.1)
+    TimeStepper(solve, pp, s.u).adaptive(1.0, dt=0.02)
 
     pass
 
 
 def bending():
-    # return
     LX = 2000
     LY = 300
     LX_load = 100
+    mesh = df.RectangleMesh(df.Point(0, 0), df.Point(LX, LY), 100, 15)
+
+    spaces = GDMSpaces(mesh, c.Constraint.PLANE_STRAIN)
+
+    law = c.GradientDamage(
+        20000,
+        0.2,
+        spaces.constraint,
+        c.DamageLawExponential(k0=2 / 20000.0, alpha=0.99, beta=100.0),
+        c.ModMisesEeq(k=10, nu=0.2, constraint=spaces.constraint),
+    )
+    problem = Problem(spaces)
+    problem.loop.add_law(law)
+    problem.evaluate()
+
+    return
 
     prm = c.Parameters(c.Constraint.PLANE_STRAIN)
     prm.E = 20000.0
@@ -335,10 +395,13 @@ def bending():
 
     prm.deg_d = 2
     law = c.GradientDamage(
-        prm.E, prm.nu, prm.constraint, prm.ft, prm.alpha, prm.beta, prm.k
+        prm.E,
+        prm.nu,
+        prm.constraint,
+        c.DamageLawExponential(prm.ft / prm.E, prm.alpha, prm.beta),
+        c.ModMisesEeq(prm.k, prm.nu, prm.constraint),
     )
 
-    mesh = df.RectangleMesh(df.Point(0, 0), df.Point(LX, LY), 100, 15)
     problem = GDMProblem(mesh, prm, law)
 
     left = boundary.point_at((0.0, 0.0), eps=0.1)
@@ -398,5 +461,5 @@ def bending():
 
 
 if __name__ == "__main__":
-    # bending()
-    tensile_meso()
+    bending()
+    # tensile_meso()

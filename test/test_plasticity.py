@@ -327,7 +327,10 @@ class Plasticity:
         self.mat = mat
         self.q = mat.ss_dim
 
-    def resize(self, n):  # just to match the interface
+    def add_law(self, _):
+        pass # just to match the c++ interface
+
+    def resize(self, n):  
         self.n = n
         q = 3
         self.stress = np.zeros((self.n, q))
@@ -336,6 +339,12 @@ class Plasticity:
         self.kappa1 = np.zeros(self.n)
         self.kappa = np.zeros(self.n)
         self.deps_p = np.zeros((self.n, q))
+
+    def get(self, what):
+        if what == c.Q.SIGMA:
+            return self.stress
+        if what == c.Q.DSIGMA_DEPS:
+            return self.dstress
 
     def update(self, all_strains):
         self.kappa[:] = self.kappa1[:]
@@ -393,7 +402,7 @@ class TestPlasticity(unittest.TestCase):
         mat = PlasticConsitutiveRateIndependentHistory(prm.E, prm.nu, prm.constraint, yf=yf, ri=ri)
         plasticity = Plasticity(mat)
 
-        problem = c.MechanicsProblem(mesh, prm, law=law, base=plasticity)
+        problem = c.MechanicsProblem(mesh, prm, law=law, iploop=plasticity)
 
         left = boundary.plane_at(0.0)
         right_top = boundary.point_at((LX, LY))
