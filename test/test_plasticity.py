@@ -22,46 +22,6 @@ def show_loading(loading, t0=0.0, t1=1.0, N=1000):
 ######################################################
 """
 
-
-class NormVM:
-    def __init__(self, constraint):
-        self.ss_dim = c.q_dim(constraint)
-        
-        _fact = 6.0
-        
-        if self.ss_dim == 1:
-            self.P = np.array([2/3])
-        elif self.ss_dim==3:
-            self.P = (1/3) * np.array([[2, -1, 0], [-1, 2, 0], [0, 0, _fact]])
-        elif self.ss_dim==4:
-            self.P = (1/3) * np.array([[2, -1, -1, 0], [-1, 2, -1, 0], [-1, -1, 2, 0], [0, 0, 0, _fact]])
-        elif self.ss_dim==6:
-            self.P = (1/3) * np.array( [ [2, -1, -1, 0, 0, 0], [-1, 2, -1, 0, 0, 0], [-1, -1, 2, 0, 0, 0] \
-                                       , [0, 0, 0, _fact, 0, 0], [0, 0, 0, 0, _fact, 0], [0, 0, 0, 0, 0, _fact] ] )
-
-    def __call__(self, ss):
-        """
-        ss: stress/strain vector for which
-        se: the VM norm
-        and
-        m: the derivative of se w.r.t. ss
-        are computed/returned.
-        """
-        if self.ss_dim==1:
-            se = abs(ss)
-            m = 1 # default for the case _norm=0
-            if se>0:
-                m = np.sign(ss[0])
-        else:
-            assert (len(ss)==self.ss_dim)
-            se = (1.5 * ss.T @ self.P @ ss) ** 0.5
-            if se == 0:
-                m = np.zeros(self.ss_dim)  # using central difference method
-                # m = np.sqrt(1.5 * np.diag(self.P)) # using forward difference method
-            else:
-                m = (1.5 / se) * self.P @ ss
-        return se, m
-
 class RateIndependentHistory:
     def __init__(self, p=None, dp_dsig=None, dp_dk=None):
         """
@@ -287,7 +247,7 @@ class Yield_VM:
         self.constraint = constraint
         self.ss_dim = c.q_dim(constraint)
         self.H = H # isotropic hardening modulus
-        self.vm_norm = NormVM(self.constraint)
+        self.vm_norm = c.NormVM(self.constraint)
         
     def __call__(self, stress, kappa=0):
         """
@@ -301,7 +261,7 @@ class Yield_VM:
         kappa: history variable(s), here related to isotropic hardening
         """
         assert (len(stress) == self.ss_dim)
-        se, m = self.vm_norm(stress)
+        se, m = self.vm_norm.call(stress)
         f = se - (self.y0 + self.H * kappa)
         fk = - self.H
         if self.ss_dim==1:

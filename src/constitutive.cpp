@@ -1,9 +1,10 @@
 #include <pybind11/eigen.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
-#include <interfaces.h>
-#include <linear_elastic.h>
-#include <local_damage.h>
+#include "interfaces.h"
+#include "linear_elastic.h"
+#include "local_damage.h"
+#include "plasticity.h"
 
 namespace py = pybind11;
 
@@ -106,4 +107,12 @@ PYBIND11_MODULE(cpp, m)
     gdm.def(pybind11::init<double, double, Constraint, std::shared_ptr<DamageLawInterface>,
                            std ::shared_ptr<StrainNormInterface>>());
     gdm.def("kappa", &GradientDamage::Kappa);
+
+    /*************************************************************************
+     **   PLASTICITY
+     *************************************************************************/
+    pybind11::class_<NormVM> normVM(m, "NormVM");
+    normVM.def(pybind11::init<Constraint>());
+    normVM.def("call", &NormVM::Call);
+    normVM.def_readonly("P", &NormVM::_P);
 }
