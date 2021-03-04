@@ -96,9 +96,12 @@ class LoadDisplacementCurve:
 
     def show(self, fmt="-rx"):
         if self.is_root:
-            from fenics_helpers.plotting import AdaptivePlot
+            try:
+                from fenics_helpers.plotting import AdaptivePlot
 
-            self.plot = AdaptivePlot(fmt)
+                self.plot = AdaptivePlot(fmt)
+            except ImportError:
+                print("Skip LD.show() because matplotlib.pyplot cannot be imported.")
 
     def keep(self):
         if self.is_root:
