@@ -22,41 +22,6 @@ def show_loading(loading, t0=0.0, t1=1.0, N=1000):
 ######################################################
 """
 
-class RateIndependentHistory:
-    def __init__(self, p=None, dp_dsig=None, dp_dk=None):
-        """
-        The goal of this class is to hardcode the consistent provide of enough information about a rate-independent history evolution.
-        This includes a callable (p_and diffs) with:
-            INPUTS:
-                sigma: effective (elastic) stress
-                kappa: internal variable(s)
-            OUTPUTS:
-                p: (depending on material) the intended rate-independent function "p(sigma, kappa)"
-                    , such that: kappa_dot = lamda_dot * p , where lamda is the well-known "plastic multiplier".
-                    ---> this is a "rate-independent" evolution of "kappa".
-                dp_dsig: accordingly the derivative of "p" w.r.t. sigma (with same inputs)
-                dp_dk: accordingly the derivative of "p" w.r.t. kappa (with same inputs)
-        IMPORTANT:
-            All outputs must be in form of 2-D np.array with a full shape (m,n), e.g. scalar values are of shape (1,1)
-        """
-        if p is None: # default is p=1, i.e. kappa_dot = lamda_dot
-            def p_and_diffs(sigma, kappa):
-                return np.array([[1.0]]), np.array([[0.0]]), np.array([[0.0]])
-        else:
-            assert(dp_dsig is not None)
-            assert(dp_dk is not None)
-            def p_and_diffs(sigma, kappa):
-                return p(sigma, kappa), dp_dsig(sigma, kappa), dp_dk(sigma, kappa)
-        self.p_and_diffs = p_and_diffs
-    def __call__(self, sigma, kappa):
-        """
-        sigma: effective stress
-        kappa: internal variable(s)
-        returns:
-            p, dp_dsig, dp_dk (all explained in constructor)
-        """
-        return self.p_and_diffs(sigma, kappa)
-
 def constitutive_coeffs(E=1000, noo=0.0, constraint='PLANE_STRESS'):
     lamda=(E*noo/(1+noo))/(1-2*noo)
     mu=E/(2*(1+noo))
@@ -95,7 +60,7 @@ class ElasticConstitutive():
                         [0, 0, 0, 0, 0, _fact * self.mu],
                     ])
 
-class RateIndependentHistory_PlasticWork(RateIndependentHistory):
+class RateIndependentHistory_PlasticWork(c.RateIndependentHistory):
     def __init__(self, yield_function):
         self.yf = yield_function
         def p_and_diffs(sigma, kappa):
@@ -178,7 +143,7 @@ class PlasticConsitutiveRateIndependentHistory(PlasticConsitutivePerfect):
             kappa_dot = lamda_dot * p(sigma, kappa), where "p" is a plastic modulus function
         """
         super().__init__(E, nu, constraint, yf)
-        assert(isinstance(ri, RateIndependentHistory))
+        assert(isinstance(ri, c.RateIndependentHistory))
         self.ri = ri # ri: rate-independent
     
     def correct_stress(self, sig_tr, k0=0.0, _Ct=True, tol=1e-9, max_iters=20):
@@ -261,7 +226,7 @@ class Yield_VM:
         kappa: history variable(s), here related to isotropic hardening
         """
         assert (len(stress) == self.ss_dim)
-        se, m = self.vm_norm.call(stress)
+        se, m = self.vm_norm(stress)
         f = se - (self.y0 + self.H * kappa)
         fk = - self.H
         if self.ss_dim==1:
@@ -357,7 +322,7 @@ class TestPlasticity(unittest.TestCase):
         )
 
         yf = Yield_VM(prm.sig0, prm.constraint, H=prm.H)
-        ri = RateIndependentHistory()
+        ri = c.RateIndependentHistory()
         # mat = PlasticConsitutivePerfect(prm.E, prm.nu, prm.constraint, yf=yf)
         mat = PlasticConsitutiveRateIndependentHistory(prm.E, prm.nu, prm.constraint, yf=yf, ri=ri)
         plasticity = Plasticity(mat)

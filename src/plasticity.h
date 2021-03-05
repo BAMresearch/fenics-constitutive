@@ -1,5 +1,6 @@
 #pragma once
 #include "interfaces.h"
+#include <tuple>
 
 class NormVM
 {
@@ -59,4 +60,27 @@ public:
 
     int _q;
     Eigen::MatrixXd _P;
+};
+
+class RateIndependentHistory
+{
+public:
+    // Attributes
+    Eigen::MatrixXd _p;
+    Eigen::MatrixXd _dp_dsig;
+    Eigen::MatrixXd _dp_dk;
+    
+    // Constructor
+    RateIndependentHistory()
+    {
+    _p.setOnes(1, 1);
+    _dp_dsig.setZero(1, 1);
+    _dp_dk.setZero(1, 1);
+    }
+    
+    // Call
+    std::tuple<Eigen::MatrixXd, Eigen::MatrixXd, Eigen::MatrixXd> Call(Eigen::VectorXd sigma, double kappa)
+    {
+    return {_p, _dp_dsig, _dp_dk};
+    }
 };

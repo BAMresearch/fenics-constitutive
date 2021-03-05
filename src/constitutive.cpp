@@ -113,6 +113,11 @@ PYBIND11_MODULE(cpp, m)
      *************************************************************************/
     pybind11::class_<NormVM> normVM(m, "NormVM");
     normVM.def(pybind11::init<Constraint>());
-    normVM.def("call", &NormVM::Call);
+    normVM.def("__call__", &NormVM::Call);
     normVM.def_readonly("P", &NormVM::_P);
+    
+    pybind11::class_<RateIndependentHistory> RateIndependentHistory(m, "RateIndependentHistory");
+    RateIndependentHistory.def(pybind11::init<>());
+    RateIndependentHistory.def("__call__", &RateIndependentHistory::Call);
+//     RateIndependentHistory.def_readonly("P", &RateIndependentHistory::_p);
 }
