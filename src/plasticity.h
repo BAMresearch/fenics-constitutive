@@ -119,19 +119,12 @@ class ElasticConstitutive
                 _D.resize(3,3);
                 _D << 1.0 , _noo, 0.0, _noo, 1.0, 0.0, 0.0, 0.0, fact * 0.5 * (1 - _noo);
                 _D *= _E / (1.0 - _noo * _noo);
-                //_D = (_E / (1 - _noo ** 2)) * np.array([ [1, self.noo, 0], [self.noo, 1, 0], [0, 0, _fact * 0.5 * (1-self.noo) ] ])
             } else if(_ss_dim == 4){
                 _D.resize(4,4);
                 _D <<   2 * mu + lamda, lamda, lamda, 0,
                         lamda, 2 * mu + lamda, lamda, 0,
                         lamda, lamda, 2 * mu + lamda, 0,
                         0, 0, 0, fact * mu;
-                //self.D = np.array([
-                        //[2 * self.mu + self.lamda, self.lamda, self.lamda, 0],
-                        //[self.lamda, 2 * self.mu + self.lamda, self.lamda, 0],
-                        //[self.lamda, self.lamda, 2 * self.mu + self.lamda, 0],
-                        //[0, 0, 0, _fact * self.mu],
-                    //])
             }else if(_ss_dim == 6){
                 _D.resize(6,6);
                 _D <<
@@ -167,7 +160,6 @@ public:
         
     std::tuple<double, Eigen::VectorXd, Eigen::MatrixXd, double, Eigen::VectorXd> Call(Eigen::VectorXd stress, double kappa=0.0)
     {
-        //"""
         //Evaluate the yield function quantities at a specific stress level (as a vector):
             //f: yield function itself
             //m: flow vector; derivative of "f" w.r.t. stress (associated flow rule)
@@ -176,7 +168,6 @@ public:
             //mk: derivative of "m" w.r.t. kappa
         //The given stress vector must be consistent with self.ss_dim
         //kappa: history variable(s), here related to isotropic hardening
-        //"""
         double se;
         Eigen::VectorXd m;
         Eigen::MatrixXd dm;
@@ -196,10 +187,8 @@ public:
             if (se != 0.0){
                 dm = 6.0 * se * _vm_norm._P -6.0 * (_vm_norm._P * stress) * m.transpose();
                 dm /= 4 * se * se;
-                //dm = (6 * se * self.vm_norm.P - 6 * np.outer(self.vm_norm.P @ stress, m)) / (4 * se ** 2)
             }
             mk.setZero(_ss_dim);
-            // = np.array(len(stress) * [0.0])
         }
         return {f, m, dm, -_H, mk};
     }

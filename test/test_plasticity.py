@@ -22,43 +22,6 @@ def show_loading(loading, t0=0.0, t1=1.0, N=1000):
 ######################################################
 """
 
-# def constitutive_coeffs(E=1000, noo=0.0, constraint='PLANE_STRESS'):
-    # lamda=(E*noo/(1+noo))/(1-2*noo)
-    # mu=E/(2*(1+noo))
-    # if constraint=='PLANE_STRESS':
-        # lamda = 2*mu*lamda/(lamda+2*mu)
-    # return mu, lamda
-
-# class ElasticConstitutive():
-    # def __init__(self, E, noo, constraint):
-        # self.E = E
-        # self.noo = noo
-        # self.constraint = constraint
-        # self.ss_dim = c.q_dim(constraint)
-        
-        # if self.ss_dim == 1:
-            # self.D = np.array([self.E])
-        # else:
-            # self.mu, self.lamda = c.constitutive_coeffs(self.E, self.noo, constraint)
-            # _fact = 1
-            # if self.ss_dim == 3:
-                # self.D = (self.E / (1 - self.noo ** 2)) * np.array([ [1, self.noo, 0], [self.noo, 1, 0], [0, 0, _fact * 0.5 * (1-self.noo) ] ])
-            # elif self.ss_dim == 4:
-                # self.D = np.array([
-                        # [2 * self.mu + self.lamda, self.lamda, self.lamda, 0],
-                        # [self.lamda, 2 * self.mu + self.lamda, self.lamda, 0],
-                        # [self.lamda, self.lamda, 2 * self.mu + self.lamda, 0],
-                        # [0, 0, 0, _fact * self.mu],
-                    # ])
-            # elif self.ss_dim == 6:
-                # self.D = np.array([
-                        # [2 * self.mu + self.lamda, self.lamda, self.lamda, 0, 0, 0],
-                        # [self.lamda, 2 * self.mu + self.lamda, self.lamda, 0, 0, 0],
-                        # [self.lamda, self.lamda, 2 * self.mu + self.lamda, 0, 0, 0],
-                        # [0, 0, 0, _fact * self.mu, 0, 0],
-                        # [0, 0, 0, 0, _fact * self.mu, 0],
-                        # [0, 0, 0, 0, 0, _fact * self.mu],
-                    # ])
 
 class RateIndependentHistory_PlasticWork(c.RateIndependentHistory):
     def __init__(self, yield_function):
@@ -206,39 +169,6 @@ class PlasticConsitutiveRateIndependentHistory(PlasticConsitutivePerfect):
         else: # still elastic zone
             return sig_tr, self.D, k0, 0.0
 
-# class Yield_VM:
-    # def __init__(self, y0, constraint, H=0):
-        # self.y0 = y0 # yield stress
-        # self.constraint = constraint
-        # self.ss_dim = c.q_dim(constraint)
-        # self.H = H # isotropic hardening modulus
-        # self.vm_norm = c.NormVM(self.constraint)
-        
-    # def __call__(self, stress, kappa=0):
-        # """
-        # Evaluate the yield function quantities at a specific stress level (as a vector):
-            # f: yield function itself
-            # m: flow vector; derivative of "f" w.r.t. stress (associated flow rule)
-            # dm: derivative of flow vector w.r.t. stress; second derivative of "f" w.r.t. stress
-            # fk: derivative of "f" w.r.t. kappa
-            # mk: derivative of "m" w.r.t. kappa
-        # The given stress vector must be consistent with self.ss_dim
-        # kappa: history variable(s), here related to isotropic hardening
-        # """
-        # assert (len(stress) == self.ss_dim)
-        # se, m = self.vm_norm(stress)
-        # f = se - (self.y0 + self.H * kappa)
-        # fk = - self.H
-        # if self.ss_dim==1:
-            # dm = 0.0 # no dependency on "self.H"
-            # mk = 0.0
-        # else:
-            # if se ==0:
-                # dm = None # no needed in such a case
-            # else:
-                # dm = (6 * se * self.vm_norm.P - 6 * np.outer(self.vm_norm.P @ stress, m)) / (4 * se ** 2) # no dependency on "self.H"
-            # mk = np.array(len(stress) * [0.0])
-        # return f, np.atleast_1d(m), np.atleast_2d(dm), fk, np.atleast_1d(mk)
 
 """
 ######################################################
