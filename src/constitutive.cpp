@@ -120,4 +120,18 @@ PYBIND11_MODULE(cpp, m)
     RateIndependentHistory.def(pybind11::init<>());
     RateIndependentHistory.def("__call__", &RateIndependentHistory::Call);
 //     RateIndependentHistory.def_readonly("P", &RateIndependentHistory::_p);
+    
+    
+    m.def("constitutive_coeffs", &constitutive_coeffs);
+
+    pybind11::class_<ElasticConstitutive> ElasticConstitutive(m, "ElasticConstitutive");
+    ElasticConstitutive.def(pybind11::init<double, double, Constraint>());
+    ElasticConstitutive.def_readonly("ss_dim", &ElasticConstitutive::_ss_dim);
+    ElasticConstitutive.def_readonly("D", &ElasticConstitutive::_D);
+    //ElasticConstitutive.def_readonly("ss_dim", &ElasticConstitutive::_ss_dim);
+
+    pybind11::class_<YieldVM> YieldVM(m, "YieldVM");
+    YieldVM.def(pybind11::init<double, Constraint, double>());
+    YieldVM.def("__call__", &YieldVM::Call);
+    YieldVM.def_readonly("ss_dim", &YieldVM::_ss_dim);
 }
