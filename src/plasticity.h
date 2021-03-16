@@ -66,20 +66,20 @@ class RateIndependentHistory
 {
 public:
     // Attributes
-    Eigen::MatrixXd _p;
-    Eigen::MatrixXd _dp_dsig;
-    Eigen::MatrixXd _dp_dk;
+    double _p;
+    Eigen::VectorXd _dp_dsig;
+    double _dp_dk;
     
     // Constructor
     RateIndependentHistory()
     {
-    _p.setOnes(1, 1);
-    _dp_dsig.setZero(1, 1);
-    _dp_dk.setZero(1, 1);
+    _p = 1.0;
+    _dp_dsig.setZero(1);
+    _dp_dk = 0.0;
     }
     
     // Call
-    std::tuple<Eigen::MatrixXd, Eigen::MatrixXd, Eigen::MatrixXd> Call(Eigen::VectorXd sigma, double kappa)
+    std::tuple<double, Eigen::VectorXd, double> Call(Eigen::VectorXd sigma, double kappa)
     {
     return {_p, _dp_dsig, _dp_dk};
     }

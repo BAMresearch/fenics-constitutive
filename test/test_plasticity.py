@@ -130,6 +130,7 @@ class PlasticConsitutiveRateIndependentHistory(PlasticConsitutivePerfect):
             d_eps_p = dl * m # change in plastic strain
             es = sig_c - sig_tr + self.D @ d_eps_p
             p, dp_dsig, dp_dk = self.ri(sig_c, k)
+            p = np.atleast_2d(p); dp_dk = np.atleast_2d(dp_dk)
             if max(dp_dsig.shape) != _d:
                 dp_dsig = dp_dsig * np.ones((1, _d))
             ek = k - k0 - dl * p
@@ -150,6 +151,7 @@ class PlasticConsitutiveRateIndependentHistory(PlasticConsitutivePerfect):
                 d_eps_p = dl * m # change in plastic strain
                 es = sig_c - sig_tr + self.D @ d_eps_p
                 p, dp_dsig, dp_dk = self.ri(sig_c, k)
+                p = np.atleast_2d(p); dp_dk = np.atleast_2d(dp_dk)
                 if max(dp_dsig.shape) != _d:
                     dp_dsig = np.zeros((1, _d))
                 ek = k - k0 - dl * p
