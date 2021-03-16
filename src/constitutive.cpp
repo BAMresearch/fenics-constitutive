@@ -111,27 +111,27 @@ PYBIND11_MODULE(cpp, m)
     /*************************************************************************
      **   PLASTICITY
      *************************************************************************/
-    pybind11::class_<NormVM> normVM(m, "NormVM");
-    normVM.def(pybind11::init<Constraint>());
-    normVM.def("__call__", &NormVM::Call);
-    normVM.def_readonly("P", &NormVM::_P);
+    pybind11::class_<NormVM> nVM(m, "NormVM");
+    nVM.def(pybind11::init<Constraint>());
+    nVM.def("__call__", &NormVM::Call);
+    nVM.def_readonly("P", &NormVM::_P);
     
-    pybind11::class_<RateIndependentHistory> RateIndependentHistory(m, "RateIndependentHistory");
-    RateIndependentHistory.def(pybind11::init<>());
-    RateIndependentHistory.def("__call__", &RateIndependentHistory::Call);
-//     RateIndependentHistory.def_readonly("P", &RateIndependentHistory::_p);
+    pybind11::class_<RateIndependentHistory> ri(m, "RateIndependentHistory");
+    ri.def(pybind11::init<>());
+    ri.def("__call__", &RateIndependentHistory::Call);
+//     ri.def_readonly("P", &RateIndependentHistory::_p);
     
     
     m.def("constitutive_coeffs", &constitutive_coeffs);
 
-    pybind11::class_<ElasticConstitutive> ElasticConstitutive(m, "ElasticConstitutive");
-    ElasticConstitutive.def(pybind11::init<double, double, Constraint>());
-    ElasticConstitutive.def_readonly("ss_dim", &ElasticConstitutive::_ss_dim);
-    ElasticConstitutive.def_readonly("D", &ElasticConstitutive::_D);
-    //ElasticConstitutive.def_readonly("ss_dim", &ElasticConstitutive::_ss_dim);
-
-    pybind11::class_<YieldVM> YieldVM(m, "YieldVM");
-    YieldVM.def(pybind11::init<double, Constraint, double>());
-    YieldVM.def("__call__", &YieldVM::Call);
-    YieldVM.def_readonly("ss_dim", &YieldVM::_ss_dim);
+    pybind11::class_<ElasticConstitutive> ec(m, "ElasticConstitutive");
+    ec.def(pybind11::init<double, double, Constraint>());
+    ec.def_readonly("ss_dim", &ElasticConstitutive::_ss_dim);
+    ec.def_readonly("D", &ElasticConstitutive::_D);
+//     ec.def_readonly("ss_dim", &ElasticConstitutive::_ss_dim);
+    
+    pybind11::class_<YieldVM> yVM(m, "YieldVM");
+    yVM.def(pybind11::init<double, Constraint, double>());
+    yVM.def("__call__", &YieldVM::Call);
+    yVM.def_readonly("ss_dim", &YieldVM::_ss_dim);
 }
