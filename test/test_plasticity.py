@@ -109,7 +109,7 @@ class PlasticConsitutiveRateIndependentHistory(PlasticConsitutivePerfect):
         assert(isinstance(ri, c.RateIndependentHistory))
         self.ri = ri # ri: rate-independent
     
-    def correct_stress(self, sig_tr, k0=0.0, _Ct=True, tol=1e-9, max_iters=20):
+    def correct_stress(self, sig_tr, k0=0.0, tol=1e-9, max_iters=20, _Ct=True):
         """
         overwritten to the superclass'
         one additional equation to be satisfied is the rate-independent equation:
@@ -130,7 +130,7 @@ class PlasticConsitutiveRateIndependentHistory(PlasticConsitutivePerfect):
             d_eps_p = dl * m # change in plastic strain
             es = sig_c - sig_tr + self.D @ d_eps_p
             p, dp_dsig, dp_dk = self.ri(sig_c, k)
-            p = np.atleast_2d(p); dp_dk = np.atleast_2d(dp_dk)
+            p = np.atleast_2d(p); dp_dk = np.atleast_2d(dp_dk); dp_dsig=np.atleast_2d(dp_dsig);
             if max(dp_dsig.shape) != _d:
                 dp_dsig = dp_dsig * np.ones((1, _d))
             ek = k - k0 - dl * p
@@ -151,7 +151,7 @@ class PlasticConsitutiveRateIndependentHistory(PlasticConsitutivePerfect):
                 d_eps_p = dl * m # change in plastic strain
                 es = sig_c - sig_tr + self.D @ d_eps_p
                 p, dp_dsig, dp_dk = self.ri(sig_c, k)
-                p = np.atleast_2d(p); dp_dk = np.atleast_2d(dp_dk)
+                p = np.atleast_2d(p); dp_dk = np.atleast_2d(dp_dk); dp_dsig=np.atleast_2d(dp_dsig);
                 if max(dp_dsig.shape) != _d:
                     dp_dsig = np.zeros((1, _d))
                 ek = k - k0 - dl * p
@@ -170,7 +170,6 @@ class PlasticConsitutiveRateIndependentHistory(PlasticConsitutivePerfect):
             return sig_c, Ct, k, d_eps_p
         else: # still elastic zone
             return sig_tr, self.D, k0, 0.0
-
 
 """
 ######################################################
@@ -213,7 +212,7 @@ class Plasticity:
             strain = all_strains[q * i : q * i + q]
             sig_tr_i = self.mat.D @ (strain - self.eps_p[i])
 
-            sig_cr, Ct, k, d_eps_p = self.mat.correct_stress(sig_tr=sig_tr_i, k0=self.kappa[i])
+            sig_cr, Ct, k, d_eps_p = self.mat.correct_stress(sig_tr_i, self.kappa[i], 1e-9, 20)
             # assignments:
             self.kappa1[i] = k # update history variable(s)
             self.stress[i] = sig_cr
@@ -255,8 +254,8 @@ class TestPlasticity(unittest.TestCase):
 
         yf = c.YieldVM(prm.sig0, prm.constraint, prm.H)
         ri = c.RateIndependentHistory()
-        # mat = PlasticConsitutivePerfect(prm.E, prm.nu, prm.constraint, yf=yf)
-        mat = PlasticConsitutiveRateIndependentHistory(prm.E, prm.nu, prm.constraint, yf=yf, ri=ri)
+        # mat = PlasticConsitutiveRateIndependentHistory(prm.E, prm.nu, prm.constraint, yf=yf, ri=ri)
+        mat = c.PlasticConsitutiveRateIndependentHistory(prm.E, prm.nu, prm.constraint, yf, ri)
         plasticity = Plasticity(mat)
 
         problem = c.MechanicsProblem(mesh, prm, law=law, iploop=plasticity)
@@ -308,6 +307,10 @@ class TestPlasticity(unittest.TestCase):
 
         TimeStepper(solve, pp, problem.u).dt_max(0.02).adaptive(1.0, dt=0.01)
 
-
 if __name__ == "__main__":
+    ### ALL TESTs
     unittest.main()
+    
+    ### SELECTIVE
+    # tests = TestPlasticity()
+    # tests.test_bending()
