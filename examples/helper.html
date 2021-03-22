@@ -100,6 +100,7 @@
 </li>
 <li class="toctree-l1"><a class="reference internal" href="plate_with_hole.html">Plate with hole</a></li>
 <li class="toctree-l1"><a class="reference internal" href="ramberg_osgood.html">Ramberg Osgood material law</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../src/README.html">Thoughts/design</a></li>
 </ul>
 
             
@@ -182,8 +183,9 @@ and just ignore the warnings.</p>
 <span class="n">parameters</span><span class="p">[</span><span class="s2">&quot;form_compiler&quot;</span><span class="p">][</span><span class="s2">&quot;representation&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;quadrature&quot;</span>
 <span class="n">warnings</span><span class="o">.</span><span class="n">simplefilter</span><span class="p">(</span><span class="s2">&quot;ignore&quot;</span><span class="p">,</span> <span class="n">QuadratureRepresentationDeprecationWarning</span><span class="p">)</span>
 
-
 <span class="k">try</span><span class="p">:</span>
+    <span class="kn">import</span> <span class="nn">fenics_helpers</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">fenics_helpers</span><span class="p">)</span>
     <span class="kn">from</span> <span class="nn">fenics_helpers.boundary</span> <span class="kn">import</span> <span class="o">*</span>
     <span class="kn">from</span> <span class="nn">fenics_helpers.timestepping</span> <span class="kn">import</span> <span class="n">TimeStepper</span>
 <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>

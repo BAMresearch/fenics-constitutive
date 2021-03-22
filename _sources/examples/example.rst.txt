@@ -15,7 +15,7 @@ Material models
 Uniaxial damage model
 ---------------------
 
-We assume the material to consist of "fibers" that are perfectly
+We assume the material to consist of “fibers” that are perfectly
 brittle, meaning they instantly fail at a critical point. But since not
 all fibers fail at the same time, we have a reduction of affected area.
 For :math:`t=0` we have :math:`A_0=A` and for a :math:`t_\mathrm{end}`

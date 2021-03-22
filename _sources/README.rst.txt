@@ -3,7 +3,7 @@ FEniCS Constitutive
 
 https://bamresearch.github.io/fenics-constitutive
 
-We show examples on how to implement complex constitutive models, e.g.
+We show examples on how to implement complex constitutive models, e.g. 
 plasticity with return mapping in each Gauss point, using FEniCS
 quadrature function spaces.
 
@@ -25,7 +25,7 @@ used to
 
    -  classically a Newton-Raphson algorithm on each Gauss point
 
--  use formulations based on eigenvalues, e.g. the Rankine norm
+-  use formulations based on eigenvalues, e.g. the Rankine norm
 
 Additionally, there is this feeling of less control over the actual
 code, as it is automatically generated and not designed to be

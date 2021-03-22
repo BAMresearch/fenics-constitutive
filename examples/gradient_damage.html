@@ -110,6 +110,7 @@
 <li class="toctree-l1"><a class="reference internal" href="helper.html">Helper classes and functions</a></li>
 <li class="toctree-l1"><a class="reference internal" href="plate_with_hole.html">Plate with hole</a></li>
 <li class="toctree-l1"><a class="reference internal" href="ramberg_osgood.html">Ramberg Osgood material law</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../src/README.html">Thoughts/design</a></li>
 </ul>
 
             
@@ -777,10 +778,10 @@ These can be modified to use an <a class="reference external" href="gradient_dam
 
 
 <span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
-    <span class="k">assert</span> <span class="n">gdm_error</span><span class="p">(</span><span class="mi">200</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mf">1.0e-8</span>
-    <span class="n">convergence_test</span><span class="p">()</span>
+    <span class="c1"># assert gdm_error(200) &lt; 1.0e-8</span>
+    <span class="c1"># convergence_test()</span>
     <span class="n">three_point_bending</span><span class="p">()</span>
-    <span class="n">list_timings</span><span class="p">(</span><span class="n">TimingClear</span><span class="o">.</span><span class="n">keep</span><span class="p">,</span> <span class="p">[</span><span class="n">TimingType</span><span class="o">.</span><span class="n">wall</span><span class="p">])</span>
+    <span class="c1"># list_timings(TimingClear.keep, [TimingType.wall])</span>
 </pre></div>
 </div>
 </div>
