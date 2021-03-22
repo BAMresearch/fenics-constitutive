@@ -640,10 +640,10 @@ def three_point_bending(problem=GDM, linear_solver=LUSolver("mumps")):
 
 
 if __name__ == "__main__":
-    assert gdm_error(200) < 1.0e-8
-    convergence_test()
+    # assert gdm_error(200) < 1.0e-8
+    # convergence_test()
     three_point_bending()
-    list_timings(TimingClear.keep, [TimingType.wall])
+    # list_timings(TimingClear.keep, [TimingType.wall])
 
 """
 Extensions
