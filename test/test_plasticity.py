@@ -266,7 +266,7 @@ class TestPlasticity(unittest.TestCase):
             d_eps_p = array([ 0.00422003, -0.00173456,  0.00100407])
         """ 
         prm = c.Parameters(c.Constraint.PLANE_STRESS)
-        law = law_from_prm(prm)
+        law = plasticity_law(prm)
         law.resize(1)
         strain = np.array([ 0.01698246, -0.00421753,  0.00357475])
         sig_cr = np.array([13.206089  ,  1.47886298,  0.98872433])
