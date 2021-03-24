@@ -22,7 +22,6 @@ def show_loading(loading, t0=0.0, t1=1.0, N=1000):
 ######################################################
 """
 
-
 class RateIndependentHistory_PlasticWork(c.RateIndependentHistory):
     def __init__(self, yield_function):
         self.yf = yield_function
@@ -42,8 +41,8 @@ class PlasticConsitutivePerfect(c.ElasticConstitutive):
         yf: a callable with:
             argument:      stress state
             return values: f: yield surface evaluation
-                           m: flow vector; e.g. with associated flow rule: the first derivative of yield surface w.r.t. stress
-                           dm: derivative of flow vector w.r.t. stress; e.g. with associated flow rule: second derivative of yield surface w.r.t. stress
+                            m: flow vector; e.g. with associated flow rule: the first derivative of yield surface w.r.t. stress
+                            dm: derivative of flow vector w.r.t. stress; e.g. with associated flow rule: second derivative of yield surface w.r.t. stress
         """
         super().__init__(E, nu, constraint)
         self.yf = yf
@@ -139,7 +138,7 @@ class PlasticConsitutiveRateIndependentHistory(PlasticConsitutivePerfect):
             _it = 0
             while e_norm > tol and _it<=max_iters:
                 A1 = np.append( np.append(np.eye(_d) + dl * self.D @ dm, np.zeros((_d,1)), axis=1) \
-                               , (self.D @ m).reshape((-1,1)), axis=1 )
+                                , (self.D @ m).reshape((-1,1)), axis=1 )
                 A2 = np.append(np.append(- dl * dp_dsig, 1 - dl * dp_dk, axis=1), -p, axis=1)
                 A3 = np.append(np.append(m, fk), 0).reshape((1,-1))
                 Jac = np.append(np.append(A1, A2, axis=0), A3, axis=0)
@@ -161,7 +160,7 @@ class PlasticConsitutiveRateIndependentHistory(PlasticConsitutivePerfect):
             # after converging return-mapping:
             if _Ct:
                 A1 = np.append( np.append(np.eye(_d) + dl * self.D @ dm, np.zeros((_d,1)), axis=1) \
-                               , (self.D @ m).reshape((-1,1)), axis=1 )
+                                , (self.D @ m).reshape((-1,1)), axis=1 )
                 A2 = np.append(np.append(- dl * dp_dsig, 1 - dl * dp_dk, axis=1), -p, axis=1)
                 A3 = np.append(np.append(m, fk), 0).reshape((1,-1))
                 Jac = np.append(np.append(A1, A2, axis=0), A3, axis=0)
@@ -170,15 +169,8 @@ class PlasticConsitutiveRateIndependentHistory(PlasticConsitutivePerfect):
             return sig_c, Ct, k, d_eps_p
         else: # still elastic zone
             return sig_tr, self.D, k0, 0.0
-
-"""
-######################################################
-##             ABBAS PLASTICITY MODEL END
-######################################################
-"""
-
-
-class Plasticity:
+        
+class PlasticityIPLoopInPython:
     def __init__(self, mat):
         self.mat = mat
         self.q = mat.ss_dim
@@ -219,46 +211,103 @@ class Plasticity:
             self.dstress[i] = Ct.flatten()
             self.deps_p[i] = d_eps_p # store change in the cumulated plastic strain
 
+"""
+######################################################
+##             ABBAS PLASTICITY MODEL END
+######################################################
+"""
+
+def revise_prm(prm):
+    prm.E = 1000.0
+    prm.Et = prm.E / 100.0
+    prm.sig0 = 12.0
+    prm.H = 15.0 * prm.E * prm.Et / (prm.E - prm.Et)
+    prm.nu = 0.3
+    prm.deg_d = 3
+    prm.deg_q = 4
+    return prm
+
+def plasticity_law(prm):
+    prm = revise_prm(prm)
+    yf = c.YieldVM(prm.sig0, prm.constraint, prm.H)
+    ri = c.RateIndependentHistory()
+    ## law (at GP-level) in PYTHON
+    # law = PlasticConsitutiveRateIndependentHistory(prm.E, prm.nu, prm.constraint, yf=yf, ri=ri)
+    ## law (at GP-level) in C++
+    law = c.PlasticConsitutiveRateIndependentHistory(prm.E, prm.nu, prm.constraint, yf, ri)
+    return law
+
 class TestPlasticity(unittest.TestCase):
+    
+    def test_at_one_point(self):
+        """
+        Given the adjusted parameters:
+            
+            PLANE_STRESS
+            prm.E = 1000.0
+            prm.Et = prm.E / 100.0
+            prm.sig0 = 12.0
+            prm.H = 15.0 * prm.E * prm.Et / (prm.E - prm.Et)
+            prm.nu = 0.3
+        
+        , the following inputs:
+            
+            strain = array([ 0.01698246, -0.00421753,  0.00357475])
+            k0 = 0.0 (default value)
+                (this also means: sig_tr = array([17.27165151,  0.96396865,  1.37490339]) )
+        
+        , must result in:
+        
+            sig_cr = array([13.206089  ,  1.47886298,  0.98872433])
+            Ct = array([[280.44279754, 338.97481295, -51.57281077],
+               [338.97481295, 848.94226837,   3.64252814],
+               [-51.57281077,   3.64252814, 271.93046544]])
+            k = array([0.00428167])
+            d_eps_p = array([ 0.00422003, -0.00173456,  0.00100407])
+        """ 
+        prm = c.Parameters(c.Constraint.PLANE_STRESS)
+        law = law_from_prm(prm)
+        law.resize(1)
+        strain = np.array([ 0.01698246, -0.00421753,  0.00357475])
+        sig_cr = np.array([13.206089  ,  1.47886298,  0.98872433])
+        Ct = np.array([[280.44279754, 338.97481295, -51.57281077],
+               [338.97481295, 848.94226837,   3.64252814],
+               [-51.57281077,   3.64252814, 271.93046544]])
+        gp_id = 0; k0 = 0.0;
+        sigma, dsigma = law.evaluate(strain, gp_id)
+        sigma_c, dsigma_c, _, _ = law.correct_stress(law.D@strain, k0, 1e-9, 20)
+        self.assertLess( np.linalg.norm(sigma-sigma_c), 1e-9)
+        self.assertLess( np.linalg.norm(dsigma-dsigma_c), 1e-9)
+        self.assertLess( np.linalg.norm(sigma-sig_cr), 1e-5)
+        self.assertLess( np.linalg.norm(dsigma-Ct), 5e-4)
+    
     def test_bending(self):
         # return
         LX = 6.0
         LY = 0.5
         LZ = 0.5
-
         mesh_resolution = 6.0
 
         def loading(t):
             level = 4 * LZ
             N = 1.5
             return level * np.sin(N * t * 2 * np.pi)
-
         # show_loading(loading)  # if you really insist on it :P
-
-        prm = c.Parameters(c.Constraint.PLANE_STRESS)
-        prm.E = 1000.0
-        prm.Et = prm.E / 100.0
-        prm.sig0 = 12.0
-        prm.H = 15.0 * prm.E * prm.Et / (prm.E - prm.Et)
-        prm.nu = 0.3
-        prm.deg_d = 3
-        prm.deg_q = 4
-        law = None # for now, plays no role.
-
+        
         mesh = df.RectangleMesh(
             df.Point(0, 0),
             df.Point(LX, LY),
             int(LX * mesh_resolution),
             int(LY * mesh_resolution),
         )
-
-        yf = c.YieldVM(prm.sig0, prm.constraint, prm.H)
-        ri = c.RateIndependentHistory()
-        # mat = PlasticConsitutiveRateIndependentHistory(prm.E, prm.nu, prm.constraint, yf=yf, ri=ri)
-        mat = c.PlasticConsitutiveRateIndependentHistory(prm.E, prm.nu, prm.constraint, yf, ri)
-        plasticity = Plasticity(mat)
-
-        problem = c.MechanicsProblem(mesh, prm, law=law, iploop=plasticity)
+        
+        prm = c.Parameters(c.Constraint.PLANE_STRESS)
+        law = plasticity_law(prm)
+        
+        ## ip-loop in PYTHON
+        # problem = c.MechanicsProblem(mesh, prm, law=None, iploop=PlasticityIPLoopInPython(law))
+        ## ip-loop in C++
+        problem = c.MechanicsProblem(mesh, prm, law=law)
 
         left = boundary.plane_at(0.0)
         right_top = boundary.point_at((LX, LY))
@@ -314,3 +363,4 @@ if __name__ == "__main__":
     ### SELECTIVE
     # tests = TestPlasticity()
     # tests.test_bending()
+    # tests.test_at_one_point()

@@ -195,8 +195,19 @@ public:
 };
 
 
-class PlasticConsitutiveRateIndependentHistory : public ElasticConstitutive
+class PlasticConsitutiveRateIndependentHistory : public MechanicsLaw, public ElasticConstitutive
 {
+private:
+    QValues _kappa1; // history values (iterative)
+    QValues _kappa; // history values (converged)
+    Eigen::MatrixXd _deps_p; // Incremental plastic strains
+    Eigen::MatrixXd _eps_p; // Cumulative plastic strains
+    
+    Eigen::VectorXd sig_cr;
+    Eigen::MatrixXd Ct;
+    double k;
+    Eigen::VectorXd d_eps_p;
+    
 public:
     // Attributes (additional)
 //     Yield _yf;
@@ -208,14 +219,41 @@ public:
         // , which is based on:
         //    kappa_dot = lamda_dot * p(sigma, kappa), where "p" is a plastic modulus function
     PlasticConsitutiveRateIndependentHistory(double E, double nu, Constraint constraint, YieldVM yf, RateIndependentHistory ri)
-        : ElasticConstitutive(E, nu, constraint)
+        : MechanicsLaw(constraint)
+        , ElasticConstitutive(E, nu, constraint)
         , _yf(yf)
         , _ri(ri)
+        , _kappa1(1)
+        , _kappa(1)
     {
     assert(_ss_dim == _yf._ss_dim);
     }
     
-    // correct_stress
+    void Resize(int n) override
+    {
+        _kappa1.Resize(n);
+        _kappa.Resize(n);
+        _deps_p.setZero(n, _ss_dim);
+        _eps_p.setZero(n, _ss_dim);
+    }
+    
+    std::pair<Eigen::VectorXd, Eigen::MatrixXd> Evaluate(const Eigen::VectorXd& strain, int i = 0) override
+    {
+        auto sig_tr_i = _D * (strain - _eps_p.row(i).transpose());
+        std::tie(sig_cr, Ct, k, d_eps_p) = correct_stress(sig_tr_i, _kappa.GetScalar(i), 1e-9, 20);
+        // assignments:
+        _kappa1.Set(k, i); // update history variable(s)
+        _deps_p.row(i) = d_eps_p; // store change in the cumulated plastic strain
+        return {sig_cr, Ct};
+    }
+    
+    void Update(const Eigen::VectorXd& strain, int i = 0) override
+    {
+        _kappa.Set(_kappa1.GetScalar(i), i);
+        _eps_p.row(i) = _eps_p.row(i) + _deps_p.row(i);
+    }
+    
+    // correct_stress (RETURN-MAPPING)
     std::tuple<Eigen::VectorXd, Eigen::MatrixXd, double, Eigen::VectorXd> correct_stress(Eigen::VectorXd sig_tr, double k0, double tol=1e-9, int max_iters=20)
     {
     double f;

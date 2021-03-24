@@ -135,7 +135,7 @@ PYBIND11_MODULE(cpp, m)
     yVM.def("__call__", &YieldVM::Call);
     yVM.def_readonly("ss_dim", &YieldVM::_ss_dim);
     
-    pybind11::class_<PlasticConsitutiveRateIndependentHistory> pcrih(m, "PlasticConsitutiveRateIndependentHistory");
+    pybind11::class_<PlasticConsitutiveRateIndependentHistory, std::shared_ptr<PlasticConsitutiveRateIndependentHistory>, MechanicsLaw> pcrih(m, "PlasticConsitutiveRateIndependentHistory");
 //     pcrih.def(pybind11::init<double, double, Constraint, Yield, RateIndependentHistory>());
     pcrih.def(pybind11::init<double, double, Constraint, YieldVM, RateIndependentHistory>());
     pcrih.def("correct_stress", &PlasticConsitutiveRateIndependentHistory::correct_stress);
