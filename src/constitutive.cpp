@@ -115,28 +115,22 @@ PYBIND11_MODULE(cpp, m)
     nVM.def(pybind11::init<Constraint>());
     nVM.def("__call__", &NormVM::Call);
     nVM.def_readonly("P", &NormVM::_P);
-    
+
     pybind11::class_<RateIndependentHistory> ri(m, "RateIndependentHistory");
     ri.def(pybind11::init<>());
     ri.def("__call__", &RateIndependentHistory::Call);
-//     ri.def_readonly("P", &RateIndependentHistory::_p);
-    
-    
-    m.def("constitutive_coeffs", &constitutive_coeffs);
+    //     ri.def_readonly("P", &RateIndependentHistory::_p);
 
-    pybind11::class_<ElasticConstitutive> ec(m, "ElasticConstitutive");
-    ec.def(pybind11::init<double, double, Constraint>());
-    ec.def_readonly("ss_dim", &ElasticConstitutive::_ss_dim);
-    ec.def_readonly("D", &ElasticConstitutive::_D);
-//     ec.def_readonly("ss_dim", &ElasticConstitutive::_ss_dim);
-    
+
     pybind11::class_<YieldVM> yVM(m, "YieldVM");
     yVM.def(pybind11::init<double, Constraint, double>());
     yVM.def("__call__", &YieldVM::Call);
     yVM.def_readonly("ss_dim", &YieldVM::_ss_dim);
-    
-    pybind11::class_<PlasticConsitutiveRateIndependentHistory, std::shared_ptr<PlasticConsitutiveRateIndependentHistory>, MechanicsLaw> pcrih(m, "PlasticConsitutiveRateIndependentHistory");
-//     pcrih.def(pybind11::init<double, double, Constraint, Yield, RateIndependentHistory>());
+
+    pybind11::class_<PlasticConsitutiveRateIndependentHistory,
+                     std::shared_ptr<PlasticConsitutiveRateIndependentHistory>, MechanicsLaw>
+            pcrih(m, "PlasticConsitutiveRateIndependentHistory");
+    //     pcrih.def(pybind11::init<double, double, Constraint, Yield, RateIndependentHistory>());
     pcrih.def(pybind11::init<double, double, Constraint, YieldVM, RateIndependentHistory>());
     pcrih.def("correct_stress", &PlasticConsitutiveRateIndependentHistory::correct_stress);
     pcrih.def_readonly("ss_dim", &PlasticConsitutiveRateIndependentHistory::_ss_dim);
