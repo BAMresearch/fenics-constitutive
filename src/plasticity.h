@@ -115,7 +115,7 @@ public:
 
         if (_ss_dim == 1)
         {
-            //_D.resize(1, 1);
+            _D.resize(1, 1);
             _D << _E;
         }
         else
