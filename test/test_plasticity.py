@@ -259,7 +259,6 @@ def revise_prm(prm):
 
 
 def plasticity_law(prm):
-    prm = revise_prm(prm)
     yf = c.YieldVM(prm.sig0, prm.constraint, prm.H)
     ri = c.RateIndependentHistory()
     ## law (at GP-level) in PYTHON
@@ -268,6 +267,9 @@ def plasticity_law(prm):
     law = c.PlasticConsitutiveRateIndependentHistory(
         prm.E, prm.nu, prm.constraint, yf, ri
     )
+
+    law = c.SomethingPlasticity(VonMisesYieldFunction(...), AssociatedFlowRule(...), MixedHardening(...), )
+
     return law
 
 
@@ -299,7 +301,7 @@ class TestPlasticity(unittest.TestCase):
             d_eps_p = array([ 0.00422003, -0.00173456,  0.00100407])
         """
         prm = c.Parameters(c.Constraint.PLANE_STRESS)
-        law = plasticity_law(prm)
+        law = plasticity_law(revise_prm(prm))
         law.resize(1)
         strain = np.array([0.01698246, -0.00421753, 0.00357475])
         sig_cr = np.array([13.206089, 1.47886298, 0.98872433])
@@ -322,6 +324,15 @@ class TestPlasticity(unittest.TestCase):
     def test_1d(self):
         mesh = df.UnitIntervalMesh(5)
         prm = c.Parameters(c.Constraint.UNIAXIAL_STRESS)
+        # I think that this test should fail for UNIAXIAL_STRAIN...
+        prm.E = 17.0
+        prm.Et = 12.0
+        prm.sig0 = 42.0
+        prm.H = prm.E * prm.Et / (prm.E - prm.Et)
+        prm.nu = 0.2
+        prm.deg_d = 3
+        prm.deg_q = 4
+
         law = plasticity_law(prm)
         problem = c.MechanicsProblem(mesh, prm, law=law)
 
@@ -335,23 +346,28 @@ class TestPlasticity(unittest.TestCase):
         problem.set_bcs(bcs)
         
         ld = c.helper.LoadDisplacementCurve(bcs[0])
-        ld.show()
 
-        for t in np.linspace(0., 0.2, 10):
+        # we do two load increments, the first to sigma0, the second to 
+        # 2*sigma0
+        eps_of_sig0 = prm.sig0/prm.E
+        for t in np.linspace(0., 2 * eps_of_sig0 , 3):
             bc_expr.u = t
             problem.solve()
             problem.update()
             ld(t, df.assemble(problem.R))
 
-        ld.keep()
-        pass
+        first_slope = (ld.load[1] - ld.load[0]) / eps_of_sig0
+        second_slope = (ld.load[2] - ld.load[1]) / eps_of_sig0
+        
+        self.assertAlmostEqual(first_slope, prm.E)
+        self.assertAlmostEqual(second_slope, prm.Et)
 
     def test_bending(self):
         # return
         LX = 6.0
         LY = 0.5
         LZ = 0.5
-        mesh_resolution = 6.0
+        mesh_resolution = 2.0
 
         def loading(t):
             level = 4 * LZ
@@ -368,7 +384,7 @@ class TestPlasticity(unittest.TestCase):
         )
 
         prm = c.Parameters(c.Constraint.PLANE_STRESS)
-        law = plasticity_law(prm)
+        law = plasticity_law(revise_prm(prm))
 
         ## ip-loop in PYTHON
         # problem = c.MechanicsProblem(mesh, prm, law=None, iploop=PlasticityIPLoopInPython(law))
@@ -400,7 +416,7 @@ class TestPlasticity(unittest.TestCase):
             return solver.solve(problem, problem.u.vector())
 
         ld = c.helper.LoadDisplacementCurve(bcs[0])
-        # ld.show()
+        ld.show()
 
         if not ld.is_root:
             set_log_level(LogLevel.ERROR)
@@ -425,10 +441,10 @@ class TestPlasticity(unittest.TestCase):
 
 if __name__ == "__main__":
     ### ALL TESTs
-    # unittest.main()
+    unittest.main()
 
     ### SELECTIVE
-    tests = TestPlasticity()
+    # tests = TestPlasticity()
     # tests.test_1d()
-    tests.test_bending()
+    # tests.test_bending()
     # tests.test_at_one_point()

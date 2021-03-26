@@ -2,6 +2,7 @@
 #include <Eigen/Dense>
 // #include<eigen3/Eigen/Dense>
 #include "interfaces.h"
+#include "linear_elastic.h"
 #include <tuple>
 
 class NormVM
@@ -38,8 +39,7 @@ public:
     {
         if (_q == 1)
         {
-            Eigen::VectorXd m;
-            m.resize(_q);
+            Eigen::VectorXd m(_q);
             m[0] = 1;
             if (ss[0] < 0.)
                 m[0] = -1;
@@ -67,84 +67,14 @@ public:
 class RateIndependentHistory
 {
 public:
-    // Attributes
-    double _p;
-    Eigen::VectorXd _dp_dsig;
-    double _dp_dk;
-
-    // Constructor
-    RateIndependentHistory()
+    //! @brief returns hardening hypothesis p, dp_dsigma and dp_dkappa
+    virtual std::tuple<double, Eigen::VectorXd, double> Call(Eigen::VectorXd sigma, double kappa)
     {
-        _p = 1.0;
-        _dp_dk = 0.0;
-    }
-
-    // Call
-    std::tuple<double, Eigen::VectorXd, double> Call(Eigen::VectorXd sigma, double kappa)
-    {
-        _dp_dsig.setZero(sigma.size());
-        return {_p, _dp_dsig, _dp_dk};
+        return {1., Eigen::VectorXd::Zero(sigma.size()), 0.0};
     }
 };
 
 
-std::pair<double, double> constitutive_coeffs(double E = 1000., double noo = 0.0, Constraint c = PLANE_STRESS)
-{
-    double lamda = (E * noo / (1. + noo)) / (1. - 2. * noo);
-    double mu = E / (2. * (1. + noo));
-    if (c == PLANE_STRESS)
-        lamda = 2. * mu * lamda / (lamda + 2. * mu);
-    return {mu, lamda};
-}
-
-class ElasticConstitutive
-{
-public:
-    double _E;
-    double _noo;
-    Constraint _c;
-    int _ss_dim;
-    Eigen::MatrixXd _D;
-
-    ElasticConstitutive(double E, double noo, Constraint c)
-    {
-        _E = E;
-        _noo = noo;
-        _c = c;
-        _ss_dim = Dim::Q(c);
-
-        if (_ss_dim == 1)
-        {
-            _D.resize(1, 1);
-            _D << _E;
-        }
-        else
-        {
-            double mu, lamda;
-            std::tie(mu, lamda) = constitutive_coeffs(_E, _noo, _c);
-            double fact = 1.0;
-            if (_ss_dim == 3)
-            {
-                _D.resize(3, 3);
-                _D << 1.0, _noo, 0.0, _noo, 1.0, 0.0, 0.0, 0.0, fact * 0.5 * (1 - _noo);
-                _D *= _E / (1.0 - _noo * _noo);
-            }
-            else if (_ss_dim == 4)
-            {
-                _D.resize(4, 4);
-                _D << 2 * mu + lamda, lamda, lamda, 0, lamda, 2 * mu + lamda, lamda, 0, lamda, lamda, 2 * mu + lamda, 0,
-                        0, 0, 0, fact * mu;
-            }
-            else if (_ss_dim == 6)
-            {
-                _D.resize(6, 6);
-                _D << 2 * mu + lamda, lamda, lamda, 0, 0, 0, lamda, 2 * mu + lamda, lamda, 0, 0, 0, lamda, lamda,
-                        2 * mu + lamda, 0, 0, 0, 0, 0, 0, fact * mu, 0, 0, 0, 0, 0, 0, fact * mu, 0, 0, 0, 0, 0, 0,
-                        fact * mu;
-            }
-        }
-    }
-};
 class YieldVM
 {
 public:
@@ -165,6 +95,8 @@ public:
     std::tuple<double, Eigen::VectorXd, Eigen::MatrixXd, double, Eigen::VectorXd> Call(Eigen::VectorXd stress,
                                                                                        double kappa = 0.0)
     {
+
+
         // Evaluate the yield function quantities at a specific stress level (as a vector):
         // f: yield function itself
         // m: flow vector; derivative of "f" w.r.t. stress (associated flow rule)
@@ -178,6 +110,8 @@ public:
         Eigen::MatrixXd dm;
         Eigen::VectorXd mk;
         double f;
+
+        // double sqrt_3_J2 = se;
 
         std::tie(se, m) = _vm_norm.Call(stress);
         f = se - (_y0 + _H * kappa);
@@ -204,7 +138,7 @@ public:
 };
 
 
-class PlasticConsitutiveRateIndependentHistory : public MechanicsLaw, public ElasticConstitutive
+class PlasticConsitutiveRateIndependentHistory : public MechanicsLaw
 {
 private:
     QValues _kappa1; // history values (iterative)
@@ -217,7 +151,10 @@ private:
     double k;
     Eigen::VectorXd d_eps_p;
 
+
 public:
+    Eigen::MatrixXd _D;
+    int _ss_dim;
     // Attributes (additional)
     //     Yield _yf;
     YieldVM _yf;
@@ -230,7 +167,8 @@ public:
     PlasticConsitutiveRateIndependentHistory(double E, double nu, Constraint constraint, YieldVM yf,
                                              RateIndependentHistory ri)
         : MechanicsLaw(constraint)
-        , ElasticConstitutive(E, nu, constraint)
+        , _D(C(E, nu, constraint))
+        , _ss_dim(Dim::Q(constraint))
         , _yf(yf)
         , _ri(ri)
         , _kappa1(1)
