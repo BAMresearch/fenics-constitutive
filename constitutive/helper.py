@@ -151,6 +151,20 @@ class LocalProjector:
         self.solver.solve_local_rhs(u)
 
 
+def local_project(v, V, dx, u=None ):
+    dv = df.TrialFunction(V)
+    v_ = df.TestFunction(V)
+    a_proj = df.inner(dv, v_) * dx
+    b_proj = df.inner(v, v_) * dx
+    solver = df.LocalSolver(a_proj, b_proj)
+    solver.factorize()
+    if u is None:
+        u = df.Function(V)
+        solver.solve_local_rhs(u)
+        return u
+    else:
+        solver.solve_local_rhs(u)
+
 """
 Setting values for the quadrature space
 ---------------------------------------
@@ -183,3 +197,41 @@ def spaces(mesh, deg_q, qdim):
     QV = df.VectorElement(q, cell, deg_q, quad_scheme="default", dim=qdim)
     QT = df.TensorElement(q, cell, deg_q, quad_scheme="default", shape=(qdim, qdim))
     return [df.FunctionSpace(mesh, Q) for Q in [QF, QV, QT]]
+
+
+def quadrature_space(V):
+    Qe = df.FiniteElement(
+        "Quadrature",
+        V.mesh().ufl_cell(),
+        degree=V.ufl_element().degree(),
+        quad_scheme="default",
+    )
+    return df.FunctionSpace(V.mesh(), Qe)
+
+
+def quadrature_vector_space(V, dim=None):
+    dim = V.ufl_element().value_size() if dim is None else dim
+    Qe = df.VectorElement(
+        "Quadrature",
+        V.mesh().ufl_cell(),
+        degree=V.ufl_element().degree(),
+        dim=dim,
+        quad_scheme="default",
+    )
+    return df.FunctionSpace(V.mesh(), Qe)
+
+
+def quadrature_tensor_space(V, shape=None):
+    shape = (
+        (V.ufl_element().value_size(), V.ufl_element().value_size())
+        if shape is None
+        else shape
+    )
+    Qe = df.TensorElement(
+        "Quadrature",
+        V.mesh().ufl_cell(),
+        degree=V.ufl_element().degree(),
+        shape=shape,
+        quad_scheme="default",
+    )
+    return df.FunctionSpace(V.mesh(), Qe)
