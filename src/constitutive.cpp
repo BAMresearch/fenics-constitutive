@@ -51,7 +51,11 @@ PYBIND11_MODULE(cpp, m)
                py::arg("law"), py::arg("ips") = std::vector<int>());
     ipLoop.def("add_law", py::overload_cast<std::shared_ptr<LawInterface>, std::vector<int>>(&IpLoop::AddLaw),
                py::arg("law"), py::arg("ips") = std::vector<int>());
-    ipLoop.def("evaluate", &IpLoop::Evaluate, py::arg("eps"), py::arg("e") = Eigen::VectorXd());
+
+    ipLoop.def("evaluate", py::overload_cast<const Eigen::VectorXd&, const Eigen::VectorXd&>(&IpLoop::Evaluate),
+               py::arg("eps"), py::arg("e") = Eigen::VectorXd());
+    ipLoop.def("evaluate", py::overload_cast<>(&IpLoop::Evaluate));
+    //ipLoop.def("evaluate", &IpLoop::Evaluate, py::arg("eps"), py::arg("e") = Eigen::VectorXd());
     ipLoop.def("update", &IpLoop::Update, py::arg("eps"), py::arg("e") = Eigen::VectorXd());
     ipLoop.def("resize", &IpLoop::Resize);
     ipLoop.def("get", &IpLoop::Get);

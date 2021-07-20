@@ -4,6 +4,8 @@
 #include <vector>
 #include <numeric>
 #include <memory>
+#include <pybind11/pybind11.h>
+namespace py = pybind11;
 
 enum Constraint
 {
@@ -24,7 +26,12 @@ enum Q
     EEQ,
     DEEQ,
     KAPPA,
-    LAST
+    L,
+    F,
+    D,
+    LAST,
+
+
 };
 
 class QValues
@@ -241,7 +248,7 @@ public:
         return _outputs.at(what).data;
     }
 
-    void Set(Q what, Eigen::VectorXd& input)
+    void Set(Q what, const Eigen::VectorXd& input)
     {
         _inputs.at(what).data = input;
     }
