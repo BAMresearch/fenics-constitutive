@@ -5,6 +5,7 @@
 #include "linear_elastic.h"
 #include "local_damage.h"
 #include "plasticity.h"
+#include "hypoelasticity.h"
 
 namespace py = pybind11;
 
@@ -59,6 +60,7 @@ PYBIND11_MODULE(cpp, m)
     ipLoop.def("update", &IpLoop::Update, py::arg("eps"), py::arg("e") = Eigen::VectorXd());
     ipLoop.def("resize", &IpLoop::Resize);
     ipLoop.def("get", &IpLoop::Get);
+    ipLoop.def("set", &IpLoop::Set);
     ipLoop.def("required_inputs", &IpLoop::RequiredInputs);
 
     pybind11::class_<LawInterface, std::shared_ptr<LawInterface>> law(m, "LawInterface");

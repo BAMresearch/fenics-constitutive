@@ -27,8 +27,9 @@ enum Q
     DEEQ,
     KAPPA,
     L,
-    F,
-    D,
+    //F,
+    //D,
+    TIME_STEP,
     LAST,
 
 
