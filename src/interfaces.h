@@ -241,6 +241,11 @@ public:
         return _outputs.at(what).data;
     }
 
+    void Set(Q what, Eigen::VectorXd& input)
+    {
+        _inputs.at(what).data = input;
+    }
+
     std::vector<Q> RequiredInputs() const
     {
         std::vector<Q> required;
@@ -251,6 +256,15 @@ public:
                 required.push_back(q);
         }
         return required;
+    }
+
+    virtual void Evaluate()
+    {
+        FixIPs();
+
+        for (unsigned iLaw = 0; iLaw < _laws.size(); ++iLaw)
+            for (int ip : _ips[iLaw])
+                _laws[iLaw]->Evaluate(_inputs, _outputs, ip);
     }
 
     virtual void Evaluate(const Eigen::VectorXd& all_strains, const Eigen::VectorXd& all_neeq)
