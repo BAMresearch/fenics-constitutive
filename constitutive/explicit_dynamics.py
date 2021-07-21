@@ -20,7 +20,7 @@ def sym_grad_vector(u):
     )
 class CDM:
     def __init__(
-        self, V, u0, v0, t0, f_ext, bcs, M, law, damping_factor=None, calculate_F = False
+        self, V, u0, v0, t0, f_ext, bcs, M, law, damping_factor=None, calculate_F = False, bc_mesh = "current"
     ):
         self.QT = helper.quadrature_tensor_space(V, shape=(3, 3))
         self.QV = helper.quadrature_vector_space(V, dim=6)
@@ -72,9 +72,16 @@ class CDM:
         # multiply with damping factors if needed
         helper.function_set(self.v, c1 * self.v.vector().get_local() + c2 * h * self.a)
         if self.bcs is not None:
-            for bc in self.bcs:
-                bc.apply(self.v.vector())
-
+            if self.bc_mesh == "current": 
+                for bc in self.bcs:
+                    bc.apply(self.v.vector())
+            elif self.bc_mesh == "initial":
+                helper.function_add(self.x, -self.u.vector().get_local())
+                df.set_coordinates(self.mesh.geometry(), self.x)
+                for bc in self.bcs:
+                    bc.apply(self.v.vector())
+                helper.function_add(self.x, self.u.vector().get_local())
+        
         du = h * self.v.vector().get_local()
         helper.function_add(self.x, du * 0.5)
 
