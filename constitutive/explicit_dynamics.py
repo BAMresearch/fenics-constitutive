@@ -53,7 +53,7 @@ class CDM:
         self.M_inv = 1 / M
         self.x = df.interpolate(df.Expression(("x[0]", "x[1]", "x[2]"), degree=1), V)
         self.damping_factor = damping_factor
-    
+    @profile
     def step(self, h):
 
         if self.damping_factor is not None:
