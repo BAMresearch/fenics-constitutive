@@ -3,17 +3,27 @@ import warnings
 import numpy as np
 
 import dolfin as df
-from . import helper as h
-import .cpp as cpp
+from . import helper
+from . import cpp
 
-
+def sym_grad_vector(u):
+    e = df.sym(df.grad(u))
+    return df.as_vector(
+        [
+            e[0, 0],
+            e[1, 1],
+            e[2, 2],
+            2 ** 0.5 * e[1, 2],
+            2 ** 0.5 * e[0, 2],
+            2 ** 0.5 * e[0, 1],
+        ]
+    )
 class CDM:
     def __init__(
-        self, V, u0, v0, t0, f_ext, bcs, M, damping_factor=None, calculate_F = False
+        self, V, u0, v0, t0, f_ext, bcs, M, law, damping_factor=None, calculate_F = False
     ):
-        self.QT = h.quadrature_tensor_space(V, shape=(3, 3))
-        self.QV = h.quadrature_vector_space(V, dim=6)
-        # self.Q = quadrature_space(V)
+        self.QT = helper.quadrature_tensor_space(V, shape=(3, 3))
+        self.QV = helper.quadrature_vector_space(V, dim=6)
 
         self.stress = df.Function(self.QV)
         self.mesh = V.mesh()
@@ -22,8 +32,12 @@ class CDM:
         self.a = np.zeros_like(self.u.vector().get_local())
         self.L = df.Function(self.QT)
         self.F = df.Function(self.QT) if calculate_F else None
-        self.t = np.ones(self.a.size//3) * t0
+        self.t = np.ones(self.QT.dim()//9) * t0
+        
         self.ip_loop = cpp.IpLoop()
+        self.ip_loop.add_law(law, np.arange(self.QT.dim()//9))
+        self.ip_loop.resize(self.QT.dim()//9)
+        
         self.f_ext = f_ext
         self.test_function = df.TestFunction(V)
         self.f_int_form = df.inner(
@@ -39,8 +53,7 @@ class CDM:
         self.M_inv = 1 / M
         self.x = df.interpolate(df.Expression(("x[0]", "x[1]", "x[2]"), degree=1), V)
         self.damping_factor = damping_factor
-        # self.calculate_F = calculate_F
-
+    
     def step(self, h):
 
         if self.damping_factor is not None:
@@ -57,28 +70,17 @@ class CDM:
         # given: v_n-1/2, x_n/u_n, a_n, f_int_n
         # Advance velocities and nodal positions in time
         # multiply with damping factors if needed
-        function_set(self.v, c1 * self.v.vector().get_local() + c2 * h * self.a)
-        # self.v.vector().set_local(c1 * self.v.vector().get_local() + c2 * h * self.a)
-        # self.v.vector().apply("insert")
+        helper.function_set(self.v, c1 * self.v.vector().get_local() + c2 * h * self.a)
         if self.bcs is not None:
             for bc in self.bcs:
                 bc.apply(self.v.vector())
 
-        # x_old = self.x.vector().get_local()
-        # u_old = self.u.vector().get_local()
-
         du = h * self.v.vector().get_local()
-        function_add(self.x, du * 0.5)
-        # self.x.vector().add_local(du * 0.5)
-        # self.x.vector().apply("insert")
-
-        # we don't need to apply the boundary condition to x, if we apply bc to velocities
+        helper.function_add(self.x, du * 0.5)
 
         df.set_coordinates(self.mesh.geometry(), self.x)
 
-        # This can hopefully be done more efficiently
-
-        local_project(
+        helper.local_project(
             df.nabla_grad(self.v),
             self.QT,
             df.dx(
@@ -89,25 +91,17 @@ class CDM:
             ),
             self.L,
         )
-
-        self.ip_loop.set(cpp.SIGMA, self.stress.vector().get_local())
-        self.ip_loop.set(cpp.L, self.L.vector().get_local())
-        self.ip_loop.set(cpp.TIME_STEP, np.ones_like(self.t) * h)
+        self.ip_loop.set(cpp.Q.SIGMA, self.stress.vector().get_local())
+        self.ip_loop.set(cpp.Q.L, self.L.vector().get_local())
+        self.ip_loop.set(cpp.Q.TIME_STEP, np.ones_like(self.t) * h)
+        
         self.ip_loop.evaluate()
-        function_set(self.stress, self.ip_loop.get(cpp.SIGMA))
-        # self.stress.vector().set_local(new_stress)
-        # self.stress.vector().apply("insert")
-        # calculate internal forces at t_n+1, therefore we first need to set nodal positions
 
-        function_add(self.u, du)
-        function_add(self.x, du * 0.5)
+        helper.function_set(self.stress, self.ip_loop.get(cpp.Q.SIGMA))
 
-        # self.u.vector().add_local(du)
-        # self.x.vector().add_local(du * 0.5)
-        # self.u.vector().apply("insert")
-        # self.x.vector().apply("insert")
+        helper.function_add(self.u, du)
+        helper.function_add(self.x, du * 0.5)
 
-        # df.MPI.barrier(df.MPI.comm_world)
         df.set_coordinates(self.mesh.geometry(), self.x)
 
         self.t += h

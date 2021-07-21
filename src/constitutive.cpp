@@ -35,6 +35,8 @@ PYBIND11_MODULE(cpp, m)
             .value("EEQ", Q::EEQ)
             .value("EPS", Q::EPS)
             .value("E", Q::E)
+            .value("L", Q::L)
+            .value("TIME_STEP", Q::TIME_STEP)
             .value("KAPPA", Q::KAPPA)
             .value("DEEQ", Q::DEEQ)
             .value("DSIGMA_DE", Q::DSIGMA_DE);
@@ -60,6 +62,7 @@ PYBIND11_MODULE(cpp, m)
     ipLoop.def("update", &IpLoop::Update, py::arg("eps"), py::arg("e") = Eigen::VectorXd());
     ipLoop.def("resize", &IpLoop::Resize);
     ipLoop.def("get", &IpLoop::Get);
+    ipLoop.def("get_ips", &IpLoop::GetIPs);
     ipLoop.def("set", &IpLoop::Set);
     ipLoop.def("required_inputs", &IpLoop::RequiredInputs);
 
@@ -99,6 +102,9 @@ PYBIND11_MODULE(cpp, m)
     pybind11::class_<LinearElastic, std::shared_ptr<LinearElastic>, MechanicsLaw> linearElastic(m, "LinearElastic");
     linearElastic.def(pybind11::init<double, double, Constraint>(), py::arg("E"), py::arg("nu"), py::arg("constraint"));
 
+    pybind11::class_<Hypoelasticity, std::shared_ptr<Hypoelasticity>, LawInterface> hypoelasticity(m, "Hypoelasticity");
+    hypoelasticity.def(pybind11::init<double, double>(), py::arg("E"), py::arg("nu"));
+    hypoelasticity.def_readonly("C", &Hypoelasticity::C);
 
     pybind11::class_<LocalDamage, std::shared_ptr<LocalDamage>, MechanicsLaw> local(m, "LocalDamage");
     local.def(pybind11::init<double, double, Constraint, std::shared_ptr<DamageLawInterface>,

@@ -235,3 +235,36 @@ def quadrature_tensor_space(V, shape=None):
         quad_scheme="default",
     )
     return df.FunctionSpace(V.mesh(), Qe)
+
+def function_set(f, values):
+    """
+    f:
+        any fenics function object
+    values:
+        entries for f
+    """
+    v = f.vector()
+    v.zero()
+    v.add_local(values.flatten())
+    v.apply("insert")
+
+def function_add(f, values):
+    """
+    f:
+        any fenics function object
+    values:
+        entries for f
+    """
+    v = f.vector()
+    v.add_local(values.flatten())
+    v.apply("insert")
+
+def function_get(f):
+    """
+    f:
+        any fenics function object
+    values:
+        entries for f
+    """
+    v = f.vector()
+    return v.get_local()

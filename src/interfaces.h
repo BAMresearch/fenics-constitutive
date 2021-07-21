@@ -4,8 +4,10 @@
 #include <vector>
 #include <numeric>
 #include <memory>
-#include <pybind11/pybind11.h>
+#include <pybind11/pybind11.h> 
+#include <string>
 namespace py = pybind11;
+using namespace std;
 
 enum Constraint
 {
@@ -244,6 +246,11 @@ public:
             law->Resize(_n);
     }
 
+    std::vector<int> GetIPs(int ilaw)
+    {
+        return _ips[ilaw];
+    }
+
     Eigen::VectorXd Get(Q what)
     {
         return _outputs.at(what).data;
@@ -251,6 +258,8 @@ public:
 
     void Set(Q what, const Eigen::VectorXd& input)
     {
+        //if (input.size() != _inputs.at(what).data.size())
+            //throw std::runtime_error("The IPs numbers don't match! Expected " + to_string(_inputs.at(what).data.size()) + " but found " + to_string(input.size()));
         _inputs.at(what).data = input;
     }
 
@@ -270,7 +279,7 @@ public:
     {
         FixIPs();
 
-        for (unsigned iLaw = 0; iLaw < _laws.size(); ++iLaw)
+        for (unsigned iLaw = 0; iLaw < _laws.size(); iLaw++)
             for (int ip : _ips[iLaw])
                 _laws[iLaw]->Evaluate(_inputs, _outputs, ip);
     }
@@ -317,7 +326,7 @@ private:
         for (const auto& v : _ips)
             total_num_ips += v.size();
         if (total_num_ips != _n)
-            throw std::runtime_error("The IPs numbers don't match!");
+            throw std::runtime_error("The IPs numbers don't match! Expected " + to_string(_n) + " but found " + to_string(total_num_ips));
 
         // complete check if all IPs have a law.
         std::vector<bool> all(_n, false);
