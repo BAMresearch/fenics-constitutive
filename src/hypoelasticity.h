@@ -19,6 +19,38 @@ Eigen::MatrixXd mandel_to_matrix(Eigen::VectorXd v){
 }
 
 
+class JaumannUpdate : public LawInterface
+{
+public:
+    std::shared_ptr<LawInterface> _law;
+
+    UpdatedLagrangianAdapter(std::shared_ptr<LawInterface> law)
+    : _law(law)
+    {
+        _law.total_strains = false;
+        _law.tangent = false;
+    }
+
+    void DefineInputs(std::vector<QValues>& input) const override
+    {
+        input[L] = QValues(3,3);
+        input[SIGMA] = QValues(6);
+    }
+
+    void DefineOutputs(std::vector<QValues>& output) const override
+    {
+        _law.DefineOutputs(output);
+    }
+
+    void Evaluate(std::vector<QValues>& input, std::vector<QValues>& out, int i) override
+    {
+        
+        _law.Evaluate(std::vector<QValues>& input, std::vector<QValues>& out, int i);
+    }
+
+}
+
+
 class Hypoelasticity : public LawInterface
 {
 public:
