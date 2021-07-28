@@ -209,6 +209,19 @@ private:
     std::shared_ptr<MechanicsLaw> _law;
 };
 
+struct ConverterInterface
+{
+    virtual void DefineInputs(std::vector<QValues>& input) const = 0;
+    virtual void ConvertInput(std::vector<QValues>& input, int i) = 0;
+
+    virtual void DefineOutputs(std::vector<QValues>& output) const
+    {
+    }
+    
+    virtual void ConvertOutput(std::vector<QValues>& output, int i)
+    {
+    }
+};
 
 class IpLoop
 {
@@ -230,6 +243,19 @@ public:
             Resize(_n);
     }
 
+    void AddLaw(std::shared_ptr<LawInterface> law, std::shared_ptr<ConverterInterface> converter,  std::vector<int> ips)
+    {
+        _laws.push_back(law);
+        _ips.push_back(ips);
+        _converters.push_back(converter);
+        law->DefineInputs(_inputs);
+        law->DefineOutputs(_outputs);
+        converter->DefineInputs(_inputs);
+        converter->DefineOutputs(_outputs);
+
+        if (_n != 0)
+            Resize(_n);
+    }
     void AddLaw(std::shared_ptr<MechanicsLaw> law, std::vector<int> ips)
     {
         auto law_interface = std::make_shared<MechanicsLawAdapter>(law);
@@ -275,6 +301,18 @@ public:
         return required;
     }
 
+    virtual void EvaluateWithConverter()
+    {
+        FixIPs();
+
+        for (unsigned iLaw = 0; iLaw < _laws.size(); iLaw++){
+            for (int ip : _ips[iLaw]){
+                _converters[iLaw]->ConvertInput(_inputs, ip);
+                _laws[iLaw]->Evaluate(_inputs, _outputs, ip);
+                _converters[iLaw]->ConvertOutput(_outputs, ip);
+            }
+        }
+    }
     virtual void Evaluate()
     {
         FixIPs();
@@ -305,6 +343,7 @@ public:
     }
 
     std::vector<std::shared_ptr<LawInterface>> _laws;
+    std::vector<std::shared_ptr<ConverterInterface>> _converters;
     std::vector<std::vector<int>> _ips;
     std::vector<QValues> _outputs;
     std::vector<QValues> _inputs;

@@ -13,8 +13,8 @@ warnings.simplefilter("ignore", QuadratureRepresentationDeprecationWarning)
 
 
 
-mesh = df.UnitCubeMesh(20,20,20)
-mesh = df.UnitCubeMesh(20,20,20)
+mesh = df.UnitCubeMesh(2,2,2)
+mesh0 = df.UnitCubeMesh(2,2,2)
 V0 = df.VectorFunctionSpace(mesh0, "Lagrange", 1)
 V = df.VectorFunctionSpace(mesh, "Lagrange", 1)
 VD = df.VectorFunctionSpace(mesh,"DG",0, dim=6)
@@ -33,7 +33,8 @@ expr_back = df.Expression("0.0", degree=1)
 E, nu  = 42.0, 0.3
 rho = 1e-1
 t_end = 300
-law = c.Hypoelasticity(E,nu)
+#law = c.Hypoelasticity(E,nu)
+law = c.HookesLaw(E, nu, False, False)
 expr_right.u = expr_right.u / t_end
 print("here 1")
 bcl = df.DirichletBC(V0.sub(0), expr_left, left)
@@ -86,7 +87,7 @@ def lumped_mass(V, dx, rho):
 
 print("local dimension of V:", v.vector().get_local().size // 3)
 
-solver = c.CDM(
+solver = c.CDM2(
     V, u, v, 0, None, bcs,  lumped_mass(V, df.dx, rho), law,  None
 )
 

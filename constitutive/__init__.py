@@ -1,6 +1,6 @@
 import dolfin as df
 from .mechanics_problem import *
-from .explicit_dynamics import CDM
+from .explicit_dynamics import CDM, CDM2
 
 import warnings
 from ffc.quadrature.deprecation import QuadratureRepresentationDeprecationWarning

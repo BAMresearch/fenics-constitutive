@@ -4,7 +4,7 @@
 #include "interfaces.h"
 #include "linear_elastic.h"
 #include "local_damage.h"
-#include "plasticity.h"
+//#include "plasticity.h"
 #include "hypoelasticity.h"
 
 namespace py = pybind11;
@@ -43,7 +43,17 @@ PYBIND11_MODULE(cpp, m)
 
     m.def("g_dim", &Dim::G);
     m.def("q_dim", &Dim::Q);
+    
+    m.def("jaumann_rotate_W", &jaumann_rotate_W);
+    m.def("jaumann_rotate_L", &jaumann_rotate_L);
+    m.def("compute_W", &compute_W);
+    m.def("strain_increment", &strain_increment);
 
+    pybind11::class_<JaumannUpdater, std::shared_ptr<JaumannUpdater>> jaumann_updater(m, "JaumannUpdater");
+    jaumann_updater.def(pybind11::init<int>(), py::arg("n"));
+    jaumann_updater.def("set", &JaumannUpdater::Set, py::arg("L"));
+    jaumann_updater.def("__call__", &JaumannUpdater::Rotate, py::arg("stress"), py::arg("stepsize"));
+    
     /*************************************************************************
      **   IPLOOP AND MAIN INTERFACES
      *************************************************************************/
@@ -106,6 +116,10 @@ PYBIND11_MODULE(cpp, m)
     hypoelasticity.def(pybind11::init<double, double>(), py::arg("E"), py::arg("nu"));
     hypoelasticity.def_readonly("C", &Hypoelasticity::C);
 
+    pybind11::class_<HookesLaw, std::shared_ptr<HookesLaw>, LawInterface> hookes_law(m, "HookesLaw");
+    hookes_law.def(pybind11::init<double, double, bool, bool>(), py::arg("E"), py::arg("nu"), py::arg("total_strains") = true, py::arg("tangent") = true);
+    hookes_law.def_readonly("C", &HookesLaw::_C);
+    
     pybind11::class_<LocalDamage, std::shared_ptr<LocalDamage>, MechanicsLaw> local(m, "LocalDamage");
     local.def(pybind11::init<double, double, Constraint, std::shared_ptr<DamageLawInterface>,
                              std ::shared_ptr<StrainNormInterface>>());
@@ -123,13 +137,13 @@ PYBIND11_MODULE(cpp, m)
     /*************************************************************************
      **   PLASTICITY
      *************************************************************************/
-    pybind11::class_<NormVM> normVM(m, "NormVM");
-    normVM.def(pybind11::init<Constraint>());
-    normVM.def("__call__", &NormVM::Call);
-    normVM.def_readonly("P", &NormVM::_P);
+    //pybind11::class_<NormVM> normVM(m, "NormVM");
+    //normVM.def(pybind11::init<Constraint>());
+    //normVM.def("__call__", &NormVM::Call);
+    //normVM.def_readonly("P", &NormVM::_P);
     
-    pybind11::class_<RateIndependentHistory> RateIndependentHistory(m, "RateIndependentHistory");
-    RateIndependentHistory.def(pybind11::init<>());
-    RateIndependentHistory.def("__call__", &RateIndependentHistory::Call);
+    //pybind11::class_<RateIndependentHistory> RateIndependentHistory(m, "RateIndependentHistory");
+    //RateIndependentHistory.def(pybind11::init<>());
+    //RateIndependentHistory.def("__call__", &RateIndependentHistory::Call);
 //     RateIndependentHistory.def_readonly("P", &RateIndependentHistory::_p);
 }
