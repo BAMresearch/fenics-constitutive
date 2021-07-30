@@ -1,6 +1,8 @@
 #include "interfaces.h" 
 #include <Eigen/Dense>
+
 typedef Eigen::Matrix<double, 9,1> Vector9d;
+
 Eigen::VectorXd matrix_to_mandel(Eigen::MatrixXd M){
     Eigen::VectorXd v(6);
     double s = sqrt(2);
@@ -17,7 +19,13 @@ Eigen::MatrixXd mandel_to_matrix(Eigen::VectorXd v){
         s * v(4), s * v(3), v(2);
     return M;
 }
-class JaumannUpdater
+
+struct ObjectiveStressRate
+{
+    Eigen::VectorXd Rotate(Eigen::VectorXd sigma, double h) = 0;
+}
+
+class JaumannStressRate : public ObjectiveStressRate
 {
 public:
     Eigen::VectorXd _W;
@@ -39,6 +47,7 @@ public:
             _W.segment<9>(i*9) =  Eigen::Map<Vector9d>(W_temp.data());
         }
     }
+
     Eigen::VectorXd Rotate(Eigen::VectorXd& sigma, double h)
     {
         
@@ -56,12 +65,10 @@ public:
         }
         return sigma;
     }
-
 };
 
 Eigen::VectorXd strain_increment(Eigen::VectorXd L_, double h)
 {
-    
     const int n = L_.size()/9;
     Eigen::VectorXd strain(n*6);
     Eigen::MatrixXd L_temp(3,3);
