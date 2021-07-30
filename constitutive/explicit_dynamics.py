@@ -127,7 +127,7 @@ class CDM:
 
 class CDM2:
     def __init__(
-        self, V, u0, v0, t0, f_ext, bcs, M, law, damping_factor=None, calculate_F = False, bc_mesh = "current"
+        self, V, u0, v0, t0, f_ext, bcs, M, law , damping_factor=None, calculate_F = False, bc_mesh = "current"
     ):
         self.QT = helper.quadrature_tensor_space(V, shape=(3, 3))
         self.QV = helper.quadrature_vector_space(V, dim=6)
@@ -145,7 +145,7 @@ class CDM2:
         self.ip_loop.add_law(law, np.arange(self.QT.dim()//9))
         self.ip_loop.resize(self.QT.dim()//9)
         
-        self.stress_rate = cpp.JaumannUpdater(self.QT.dim()//9)
+        self.stress_rate = cpp.JaumannStressRate(self.QT.dim()//9)
 
         self.f_ext = f_ext
         self.test_function = df.TestFunction(V)
@@ -189,7 +189,7 @@ class CDM2:
         self.ip_loop.evaluate()
 
         temp_stress = self.ip_loop.get(cpp.Q.SIGMA)
-        temp_stress =  self.stress_rate(, h * 0.5)
+        temp_stress =  self.stress_rate(temp_stress, h * 0.5)
 
         helper.function_set(self.stress, temp_stress)
 

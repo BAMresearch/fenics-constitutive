@@ -49,10 +49,11 @@ PYBIND11_MODULE(cpp, m)
     m.def("compute_W", &compute_W);
     m.def("strain_increment", &strain_increment);
 
-    pybind11::class_<JaumannUpdater, std::shared_ptr<JaumannUpdater>> jaumann_updater(m, "JaumannUpdater");
+    pybind11::class_<ObjectiveStressRate, std::shared_ptr<ObjectiveStressRate>> objective_stress_rate(m, "ObjectiveStressRate");
+    pybind11::class_<JaumannStressRate, std::shared_ptr<JaumannStressRate>, ObjectiveStressRate> jaumann_updater(m, "JaumannStressRate");
     jaumann_updater.def(pybind11::init<int>(), py::arg("n"));
-    jaumann_updater.def("set", &JaumannUpdater::Set, py::arg("L"));
-    jaumann_updater.def("__call__", &JaumannUpdater::Rotate, py::arg("stress"), py::arg("stepsize"));
+    jaumann_updater.def("set", &JaumannStressRate::Set, py::arg("L"));
+    jaumann_updater.def("__call__", &JaumannStressRate::Rotate, py::arg("stress"), py::arg("stepsize"));
     
     /*************************************************************************
      **   IPLOOP AND MAIN INTERFACES

@@ -22,14 +22,14 @@ Eigen::MatrixXd mandel_to_matrix(Eigen::VectorXd v){
 
 struct ObjectiveStressRate
 {
-    Eigen::VectorXd Rotate(Eigen::VectorXd sigma, double h) = 0;
-}
+    virtual Eigen::VectorXd Rotate(Eigen::VectorXd& sigma, double h) = 0;
+};
 
 class JaumannStressRate : public ObjectiveStressRate
 {
 public:
     Eigen::VectorXd _W;
-    JaumannUpdater(int n)
+    JaumannStressRate(int n)
     {
         _W.resize(n*9);
     }
@@ -48,7 +48,7 @@ public:
         }
     }
 
-    Eigen::VectorXd Rotate(Eigen::VectorXd& sigma, double h)
+    Eigen::VectorXd Rotate(Eigen::VectorXd& sigma, double h) override
     {
         
         const int n = _W.size() / 9;
