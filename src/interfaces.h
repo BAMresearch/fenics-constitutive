@@ -21,6 +21,8 @@ enum Constraint
 enum Q
 {
     EPS,
+    EPS_P,
+    LAMBDA,
     E,
     SIGMA,
     DSIGMA_DEPS,
