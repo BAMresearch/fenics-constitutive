@@ -75,6 +75,13 @@ public:
             out[DSIGMA_DEPS].Set(_C, i);
     }
     
+    std::pair<Eigen::MatrixXd, Eigen::VectorXd> NewtonSystem(Eigen::VectorXd sigma, double kappa, double del_lam)
+    {
+        size = _C.rows();
+        auto r_sig = sigma - sig_tr + del_lam * _C *  
+        auto D11 = Eigen::MatrixXd::Identity(size,size) + lambda * _C *
+    }
+
     void Update(const std::vector<QValues>& input, int i) override
     {
         //_kappa_0.Set(_kappa_1.Get(i), i);
@@ -95,7 +102,7 @@ struct NewtonFunction
 
 struct YieldFunction
 {
-    virtual void Evaluate(Eigen::VectorXd sigma, Eigen::VectorXd kappa);
+    virtual void Evaluate(Eigen::VectorXd sigma, double kappa);
     virtual void Evaluate(Eigen::VectorXd sigma);
     
     //Get will return the i-th derivative 
@@ -123,7 +130,7 @@ public:
     {
     }
 
-    virtual void Evaluate(Eigen::VectorXd sigma, Eigen::VectorXd kappa) override
+    void Evaluate(Eigen::VectorXd sigma, double kappa) override
     {
         auto sig_dev = T_dev * sigma;
         auto sig_eq = std::sqrt(1.5 * sigma_dev.dot(sigma_dev));
@@ -132,7 +139,7 @@ public:
         _ddf_dsig =  1.5 * (T_dev /sig_eq - sig_dev * _df_dsig.transpose()/ (sig_eq*sig_eq));
     }
 
-    virtual void Evaluate(Eigen::VectorXd sigma);
+    //virtual void Evaluate(Eigen::VectorXd sigma);
     
     //Get will return the i-th derivative 
     //of the yield function with respect to 
@@ -148,7 +155,7 @@ public:
 struct FlowRule
 {
     bool _associative;
-    virtual void Evaluate(Eigen::VectorXd sigma, Eigen::VectorXd kappa);
+    virtual void Evaluate(Eigen::VectorXd sigma, double kappa);
     virtual void Evaluate(Eigen::VectorXd sigma);
     
     //Get will return the i-th derivative
@@ -171,5 +178,25 @@ public:
 
 struct IsotropicHardeningLaw
 {
-    double Evaluate(Eigen::VectorXd sigma, double kappa) = 0;
+    virtual std::tuple<double, Eigen::VectorXd, double> Evaluate(Eigen::VectorXd sigma, double kappa) = 0;
 };
+
+class StrainHardening : public IsotropicHardeningLaw
+{
+public:
+    StrainHardening()
+    {
+    
+    }
+
+    std::tuple<double, Eigen::VectorXd, double> Evaluate(Eigen::VectorXd sigma, double kappa) override
+    {
+        /*returns
+         * double p(sig, kappa)
+         * vector dp_dsig(sig, kappa)
+         * double dp_dkappa(sig, kappa)
+         * */
+        return {1., MatrixXd::Zero(6,1), 0.};
+    }
+
+}
