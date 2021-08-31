@@ -4,7 +4,7 @@
 #include "interfaces.h"
 #include "linear_elastic.h"
 #include "local_damage.h"
-//#include "plasticity.h"
+#include "plasticity.h"
 #include "hypoelasticity.h"
 
 namespace py = pybind11;
@@ -49,11 +49,6 @@ PYBIND11_MODULE(cpp, m)
     m.def("compute_W", &compute_W);
     m.def("strain_increment", &strain_increment);
 
-    pybind11::class_<ObjectiveStressRate, std::shared_ptr<ObjectiveStressRate>> objective_stress_rate(m, "ObjectiveStressRate");
-    pybind11::class_<JaumannStressRate, std::shared_ptr<JaumannStressRate>, ObjectiveStressRate> jaumann_updater(m, "JaumannStressRate");
-    jaumann_updater.def(pybind11::init<int>(), py::arg("n"));
-    jaumann_updater.def("set", &JaumannStressRate::Set, py::arg("L"));
-    jaumann_updater.def("__call__", &JaumannStressRate::Rotate, py::arg("stress"), py::arg("stepsize"));
     
     /*************************************************************************
      **   IPLOOP AND MAIN INTERFACES
@@ -134,10 +129,31 @@ PYBIND11_MODULE(cpp, m)
     gdm.def(pybind11::init<double, double, Constraint, std::shared_ptr<DamageLawInterface>,
                            std ::shared_ptr<StrainNormInterface>>());
     gdm.def("kappa", &GradientDamage::Kappa);
-
+    
+    /************************************************************************
+     **   OBJECTIVE STRESS RATES
+     ************************************************************************/
+    pybind11::class_<ObjectiveStressRate, std::shared_ptr<ObjectiveStressRate>> objective_stress_rate(m, "ObjectiveStressRate");
+    pybind11::class_<JaumannStressRate, std::shared_ptr<JaumannStressRate>, ObjectiveStressRate> jaumann_updater(m, "JaumannStressRate");
+    jaumann_updater.def(pybind11::init<int>(), py::arg("n"));
+    jaumann_updater.def("set", &JaumannStressRate::Set, py::arg("L"));
+    jaumann_updater.def("__call__", &JaumannStressRate::Rotate, py::arg("stress"), py::arg("stepsize"));
+    
     /*************************************************************************
      **   PLASTICITY
      *************************************************************************/
+    
+    pybind11::class_<YieldFunction, std::shared_ptr<YieldFunction>> yield_function(m, "YieldFunction");
+    pybind11::class_<IsotropicHardeningLaw, std::shared_ptr<IsotropicHardeningLaw>> isotropic_hardening_law(m, "IsotropicHardeningLaw");
+    pybind11::class_<MisesYieldFunction, std::shared_ptr<MisesYieldFunction>, YieldFunction> mises_yield_function(m, "MisesYieldFunction");
+    mises_yield_function.def(pybind11::init<double, double>, py::arg("sig0"), py::arg("H"));
+    pybind11::class_<StrainHardening, std::shared_ptr<StrainHardening>, IsotropicHardeningLaw> strain_hardening(m, "StrainHardening");
+
+    pybind11::class_<IsotropicHardeningPlasticity, std::shared_ptr<IsotropicHardeningPlasticity>, LawInterface> isotropic_hardening_plasticity(m, "IsotropicHardeningPlasticity");
+    isotropic_hardening_plasticity.def(pybind11::init<Eigen::MatrixXd, std::shared_ptr<YieldFunction>, std::shared_ptr<IsotropicHardeningLaw>, bool, bool>(), py::arg("C"), py::arg("f"), py::arg("p"), py::arg("total_strains") = true, py::arg("tangent") = true);
+    
+    
+    //isotropic_hardening_plasticity.def_readonly("C", &HookesLaw::_C);
     //pybind11::class_<NormVM> normVM(m, "NormVM");
     //normVM.def(pybind11::init<Constraint>());
     //normVM.def("__call__", &NormVM::Call);
