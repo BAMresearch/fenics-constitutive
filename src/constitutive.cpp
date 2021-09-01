@@ -153,7 +153,7 @@ PYBIND11_MODULE(cpp, m)
     strain_hardening.def(pybind11::init<>());
 
     pybind11::class_<IsotropicHardeningPlasticity, std::shared_ptr<IsotropicHardeningPlasticity>, LawInterface> isotropic_hardening_plasticity(m, "IsotropicHardeningPlasticity");
-    isotropic_hardening_plasticity.def(pybind11::init<Eigen::MatrixXd&, std::shared_ptr<YieldFunction>&, std::shared_ptr<IsotropicHardeningLaw>&, bool, bool>(), py::arg("C"), py::arg("f"), py::arg("p"), py::arg("total_strains") = true, py::arg("tangent") = true);
+    isotropic_hardening_plasticity.def(pybind11::init<Eigen::MatrixXd&, std::shared_ptr<YieldFunction>, std::shared_ptr<IsotropicHardeningLaw>, bool, bool>(), py::arg("C"), py::arg("f"), py::arg("p"), py::arg("total_strains") = true, py::arg("tangent") = true);
     
     
 }

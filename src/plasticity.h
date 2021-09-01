@@ -30,12 +30,15 @@ public:
     bool _tangent;
     int _stress_dim;
     
-    IsotropicHardeningPlasticity(Eigen::MatrixXd& C, std::shared_ptr<YieldFunction>& f, std::shared_ptr<IsotropicHardeningLaw>& p, bool total_strains = true, bool tangent = true)
+    IsotropicHardeningPlasticity(Eigen::MatrixXd& C, std::shared_ptr<YieldFunction> f, std::shared_ptr<IsotropicHardeningLaw> p, bool total_strains = true, bool tangent = true)
     : _f(f),
     _p(p),
     _total_strains(total_strains),
     _tangent(tangent)
     {
+        _internal_vars_0.resize(Q::LAST);
+        _internal_vars_1.resize(Q::LAST);
+        
         _stress_dim = _C.rows();
 
         _internal_vars_0[KAPPA] = QValues(1);
