@@ -150,19 +150,10 @@ PYBIND11_MODULE(cpp, m)
     mises_yield_function.def(pybind11::init<double, double>(), py::arg("sig0"), py::arg("H"));
     
     pybind11::class_<StrainHardening, std::shared_ptr<StrainHardening>, IsotropicHardeningLaw> strain_hardening(m, "StrainHardening");
+    strain_hardening.def(pybind11::init<>());
 
     pybind11::class_<IsotropicHardeningPlasticity, std::shared_ptr<IsotropicHardeningPlasticity>, LawInterface> isotropic_hardening_plasticity(m, "IsotropicHardeningPlasticity");
     isotropic_hardening_plasticity.def(pybind11::init<Eigen::MatrixXd&, std::shared_ptr<YieldFunction>&, std::shared_ptr<IsotropicHardeningLaw>&, bool, bool>(), py::arg("C"), py::arg("f"), py::arg("p"), py::arg("total_strains") = true, py::arg("tangent") = true);
     
     
-    //isotropic_hardening_plasticity.def_readonly("C", &HookesLaw::_C);
-    //pybind11::class_<NormVM> normVM(m, "NormVM");
-    //normVM.def(pybind11::init<Constraint>());
-    //normVM.def("__call__", &NormVM::Call);
-    //normVM.def_readonly("P", &NormVM::_P);
-    
-    //pybind11::class_<RateIndependentHistory> RateIndependentHistory(m, "RateIndependentHistory");
-    //RateIndependentHistory.def(pybind11::init<>());
-    //RateIndependentHistory.def("__call__", &RateIndependentHistory::Call);
-//     RateIndependentHistory.def_readonly("P", &RateIndependentHistory::_p);
 }
