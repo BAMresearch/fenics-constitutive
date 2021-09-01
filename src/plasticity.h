@@ -74,6 +74,7 @@ public:
     
     void Evaluate(const std::vector<QValues>& input, std::vector<QValues>& output, int i) override
     {
+        auto maxit = 100;
         auto strain = input[EPS].Get(i);
         auto kappa = _internal_vars_0[KAPPA].Get(i);
 
@@ -89,10 +90,12 @@ public:
         auto [res,jacobian] = NewtonSystem(sigma_tr, sigma_tr, _internal_vars_0[KAPPA].GetScalar(i), 0., 0.);
         Eigen::VectorXd x(_stress_dim+2);
         x << sigma_tr, kappa, 0;
-
-        while (res.norm() > 1e-10) {
+        
+        int j = 0;
+        while (res.norm() > 1e-10 && j < maxit) {
             x = x - jacobian.lu().solve(res);
             std::tie(res, jacobian) = NewtonSystem(x.segment(0,_stress_dim), sigma_tr, x[_stress_dim], x[_stress_dim+1], 0);
+            j++;
         }
 
         output[SIGMA].Set(x.segment(0,_stress_dim),i);
@@ -142,7 +145,12 @@ public:
 
     void Update(const std::vector<QValues>& input, int i) override
     {
-        _internal_vars_0.Set(_internal_vars_1.Get(i), i);
+        _internal_vars_0[KAPPA].Set(_internal_vars_1[KAPPA].Get(i), i);
+        _internal_vars_0[LAMBDA].Set(_internal_vars_1[LAMBDA].Get(i), i);
+
+        if (_total_strains)
+            _internal_vars_0[EPS_P].Set(_internal_vars_1[EPS_P].Get(i), i);
+        
     }
     
     virtual void Resize(int n)
