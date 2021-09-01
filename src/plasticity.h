@@ -1,17 +1,18 @@
 #pragma once
 #include "interfaces.h"
 #include <tuple>
+#include <eigen3/Eigen/Dense>
 
 //Plasticity with isotropic hardening
 
 struct YieldFunction
 {
-    virtual std::tuple<double, Eigen::VectorXd, Eigen::VectorXd, Eigen::MatrixXd, double, Eigen::VectorXd> Evaluate(Eigen::VectorXd sigma, double kappa) = 0;
+    virtual std::tuple<double, Eigen::VectorXd, Eigen::VectorXd, Eigen::MatrixXd, double, Eigen::VectorXd> Evaluate(Eigen::VectorXd& sigma, double kappa) = 0;
 };
 
 struct IsotropicHardeningLaw
 {
-    virtual std::tuple<double, Eigen::VectorXd, double> Evaluate(Eigen::VectorXd sigma, double kappa) = 0;
+    virtual std::tuple<double, Eigen::VectorXd, double> Evaluate(Eigen::VectorXd& sigma, double kappa) = 0;
 };
 
 
@@ -26,7 +27,7 @@ public:
     bool _total_strains;
     bool _tangent;
     
-    IsotropicHardeningPlasticity(Eigen::MatrixXd& C, std::shared_ptr<YieldFunction> f, std::shared_ptr<IsotropicHardeningLaw> p, bool total_strains = true, bool tangent = true)
+    IsotropicHardeningPlasticity(Eigen::MatrixXd& C, std::shared_ptr<YieldFunction>& f, std::shared_ptr<IsotropicHardeningLaw>& p, bool total_strains = true, bool tangent = true)
     : _f(f),
     _p(p),
     _total_strains(total_strains),
@@ -73,13 +74,13 @@ public:
             sigma_tr = input[SIGMA].Get(i) + _C * strain;
         }
         //Eigen::VectorXd res(8);
-        //Eigen::MatrixXd jacobian(8,8);
+        //Eigen::MatrixXd jacobian(8,8);´
         auto [res,jacobian] = NewtonSystem(sigma_tr, sigma_tr, _internal_vars_0[KAPPA].GetScalar(i), 0., 0.);
         Eigen::VectorXd x(6+2);
         x << sigma_tr, kappa, 0;
 
         while (res.norm() > 1e-10) {
-            x = x - jacobian.partialPivLu().solve(res);
+            x = x - jacobian.lu().solve(res);
             std::tie(res, jacobian) = NewtonSystem(x.segment<6>(0), sigma_tr, x[6], x[7], 0);
         }
         out[SIGMA].Set(x.segment<6>(0),i);
@@ -92,7 +93,7 @@ public:
         }
     }
     
-    std::pair<Eigen::VectorXd, Eigen::MatrixXd> NewtonSystem(Eigen::VectorXd sigma, const Eigen::VectorXd sigma_tr, double kappa, double del_lam, double kappa_0)
+    std::pair<Eigen::VectorXd, Eigen::MatrixXd> NewtonSystem(Eigen::VectorXd sigma, Eigen::VectorXd sigma_tr, double kappa, double del_lam, double kappa_0)
     {
         //get yield function, flow rule and their derivatives from the yieldfuncion
         //get hardening rule and derivatives
@@ -178,7 +179,7 @@ public:
         T_vol << 1,1,1,0,0,0;
     }
 
-    std::tuple<double, Eigen::VectorXd, Eigen::VectorXd, Eigen::MatrixXd, double, Eigen::VectorXd> Evaluate(Eigen::VectorXd sigma, double kappa) override
+    std::tuple<double, Eigen::VectorXd, Eigen::VectorXd, Eigen::MatrixXd, double, Eigen::VectorXd> Evaluate(Eigen::VectorXd& sigma, double kappa) override
     {
         auto sig_dev = T_dev * sigma;
         auto sig_eq = std::sqrt(1.5 * sig_dev.dot(sig_dev));
@@ -203,7 +204,7 @@ public:
     
     }
 
-    std::tuple<double, Eigen::VectorXd, double> Evaluate(Eigen::VectorXd sigma, double kappa) override
+    std::tuple<double, Eigen::VectorXd, double> Evaluate(Eigen::VectorXd& sigma, double kappa) override
     {
         /*returns
          * double p(sig, kappa)
