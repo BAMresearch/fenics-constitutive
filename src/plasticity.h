@@ -57,6 +57,7 @@ public:
     {
         output[SIGMA] = QValues(_stress_dim);
         if (_tangent)
+            //return the consistent tangent if required by the user
             output[DSIGMA_DEPS] = QValues(_stress_dim,_stress_dim);
     }
     
@@ -141,7 +142,7 @@ public:
 
     void Update(const std::vector<QValues>& input, int i) override
     {
-        //_kappa_0.Set(_kappa_1.Get(i), i);
+        _internal_vars_0.Set(_internal_vars_1.Get(i), i);
     }
     
     virtual void Resize(int n)
@@ -160,7 +161,6 @@ public:
 class MisesYieldFunction : public YieldFunction
 {
 public:
-    int _n;
     double _sig_0;
     double _H;
     double _f;
