@@ -65,7 +65,9 @@ PYBIND11_MODULE(cpp, m)
                py::arg("eps"), py::arg("e") = Eigen::VectorXd());
     ipLoop.def("evaluate", py::overload_cast<>(&IpLoop::Evaluate));
     //ipLoop.def("evaluate", &IpLoop::Evaluate, py::arg("eps"), py::arg("e") = Eigen::VectorXd());
-    ipLoop.def("update", &IpLoop::Update, py::arg("eps"), py::arg("e") = Eigen::VectorXd());
+    ipLoop.def("update", py::overload_cast<const Eigen::VectorXd&, const Eigen::VectorXd&>(&IpLoop::Update),
+                py::arg("eps"), py::arg("e") = Eigen::VectorXd());
+    ipLoop.def("update", py::overload_cast<>(&IpLoop::Update));
     ipLoop.def("resize", &IpLoop::Resize);
     ipLoop.def("get", &IpLoop::Get);
     ipLoop.def("get_ips", &IpLoop::GetIPs);
@@ -154,6 +156,8 @@ PYBIND11_MODULE(cpp, m)
 
     pybind11::class_<IsotropicHardeningPlasticity, std::shared_ptr<IsotropicHardeningPlasticity>, LawInterface> isotropic_hardening_plasticity(m, "IsotropicHardeningPlasticity");
     isotropic_hardening_plasticity.def(pybind11::init<Eigen::MatrixXd&, std::shared_ptr<YieldFunction>, std::shared_ptr<IsotropicHardeningLaw>, bool, bool>(), py::arg("C"), py::arg("f"), py::arg("p"), py::arg("total_strains") = true, py::arg("tangent") = true);
+    isotropic_hardening_plasticity.def("get_internal_var", &IsotropicHardeningPlasticity::GetInternalVar);
+    isotropic_hardening_plasticity.def_readonly("C", &IsotropicHardeningPlasticity::_C);
     
     
 }

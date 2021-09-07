@@ -343,7 +343,14 @@ public:
             for (int ip : _ips[iLaw])
                 _laws[iLaw]->Update(_inputs, ip);
     }
+    virtual void Update()
+    {
+        for (unsigned iLaw = 0; iLaw < _laws.size(); iLaw++)
+            for (int ip : _ips[iLaw])
+                _laws[iLaw]->Update(_inputs, ip);
 
+
+    } 
     std::vector<std::shared_ptr<LawInterface>> _laws;
     std::vector<std::shared_ptr<ConverterInterface>> _converters;
     std::vector<std::vector<int>> _ips;
