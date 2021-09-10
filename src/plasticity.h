@@ -7,12 +7,13 @@
 
 struct YieldFunction
 {
-    virtual std::tuple<double, Eigen::VectorXd, Eigen::VectorXd, Eigen::MatrixXd, double, Eigen::VectorXd> Evaluate(Eigen::VectorXd& sigma, double kappa) = 0;
-    virtual double EvaluateYieldFunction(Eigen::VectorXd& sigma, double kappa) = 0;
+    virtual std::tuple<double, Eigen::VectorXd, Eigen::VectorXd, Eigen::MatrixXd, double, Eigen::VectorXd> Evaluate(Eigen::VectorXd sigma, double kappa) = 0;
+    virtual double EvaluateYieldFunction(Eigen::VectorXd sigma, double kappa) = 0;
+    //virtual void SetStressDim(int d);
 };
 struct IsotropicHardeningLaw
 {
-    virtual std::tuple<double, Eigen::VectorXd, double> Evaluate(Eigen::VectorXd& sigma, double kappa) = 0;
+    virtual std::tuple<double, Eigen::VectorXd, double> Evaluate(Eigen::VectorXd sigma, double kappa) = 0;
 };
 
 
@@ -42,7 +43,6 @@ public:
         _internal_vars_1.resize(Q::LAST);
         
         _stress_dim = _C.rows();
-        //cout << "stress_dim: " << _stress_dm;
 
         _internal_vars_0[KAPPA] = QValues(1);
         _internal_vars_0[LAMBDA] = QValues(1);
@@ -57,7 +57,6 @@ public:
             _internal_vars_0[EPS_P] = QValues(_stress_dim);
             _internal_vars_1[EPS_P] = QValues(_stress_dim);
         }
-        //std::cout << "Finished the init\n";
     }
     
     void DefineOutputs(std::vector<QValues>& output) const override
@@ -85,7 +84,6 @@ public:
 
     void Evaluate(const std::vector<QValues>& input, std::vector<QValues>& output, int i) override
     {
-        //cout << "We are in evaluate\n";
         auto maxit = 100;
         auto strain = input[EPS].Get(i);
         auto kappa = _internal_vars_0[KAPPA].GetScalar(i);
@@ -97,7 +95,6 @@ public:
         } else {
             sigma_tr = input[SIGMA].Get(i) + _C * strain;
         }
-        //cout << "Computed trial stress\n";
         //Eigen::VectorXd res(8);
         //Eigen::MatrixXd jacobian(8,8);
         if (_f->EvaluateYieldFunction(sigma_tr, kappa) <= 0)
@@ -109,16 +106,13 @@ public:
         } else {
             //inelastic case. Use stress return algorithm.
             auto [res,jacobian] = NewtonSystem(sigma_tr, sigma_tr, _internal_vars_0[KAPPA].GetScalar(i), 0., 0.);
-            //cout << "Constructed Newton System\n";
             Eigen::VectorXd x(_stress_dim+2);
             x << sigma_tr, kappa, 0;
             
             int j = 0;
             while (res.norm() > 1e-10 && j < maxit) {
-                x = x - jacobian.lu().solve(res);
-                //cout << "Solved at least one Newton iteration\n";
+                x = x - jacobian.fullPivLu().solve(res);
                 std::tie(res, jacobian) = NewtonSystem(x.segment(0,_stress_dim), sigma_tr, x[_stress_dim], x[_stress_dim+1], 0);
-                //cout << "Constructed at least one NewtonSystem in loop\n";
                 j++;
             }
 
@@ -127,20 +121,19 @@ public:
             _internal_vars_1[LAMBDA].Set(_internal_vars_0[LAMBDA].GetScalar(i)+x[_stress_dim+1], i);
             
             if (_tangent) {
-                //TODO
-                output[DSIGMA_DEPS].Set(_C, i);
+                auto inverse = jacobian.inverse();
+                auto Ct = inverse.block(0, 0, _stress_dim, _stress_dim) * _C;
+                output[DSIGMA_DEPS].Set(Ct, i);
             }
         }
     }
     
     std::pair<Eigen::VectorXd, Eigen::MatrixXd> NewtonSystem(Eigen::VectorXd sigma, Eigen::VectorXd sigma_tr, double kappa, double del_lam, double kappa_0)
     {
-        //cout << "Arrived inConstruction of Newton system\n";
         //get yield function, flow rule and their derivatives from the yieldfuncion
         //get hardening rule and derivatives
         auto [f, g, df_dsig, dg_dsig, df_dkappa, dg_dkappa] = _f->Evaluate(sigma, kappa);
         auto [p, dp_dsig, dp_dkappa] = _p->Evaluate(sigma, kappa);
-        //cout << "Evaluated yield function and hardening law\n";
         //set elements of residual vector
         auto r_sig = sigma - sigma_tr + del_lam * _C * g;
         auto r_kappa = kappa - kappa_0 - del_lam * p;
@@ -223,27 +216,24 @@ public:
         T_vol << 1,1,1,0,0,0;
     }
     
-    double EvaluateYieldFunction(Eigen::VectorXd& sigma, double kappa) override
+    double EvaluateYieldFunction(Eigen::VectorXd sigma, double kappa) override
     {
         auto sig_dev = T_dev * sigma;
         auto sig_eq = std::sqrt(1.5 * sig_dev.dot(sig_dev));
         return sig_eq - _sig_0 - _H*kappa;
     }
-    std::tuple<double, Eigen::VectorXd, Eigen::VectorXd, Eigen::MatrixXd, double, Eigen::VectorXd> Evaluate(Eigen::VectorXd& sigma, double kappa) override
+    std::tuple<double, Eigen::VectorXd, Eigen::VectorXd, Eigen::MatrixXd, double, Eigen::VectorXd> Evaluate(Eigen::VectorXd sigma, double kappa) override
     {
-        //cout << "Arrived in Yield function evaluate\n";
         auto sig_dev = T_dev * sigma;
-        //cout << "Calculated sig_dev:" << T_dev.rows() << " " << T_dev.cols()<<" "<< sigma.size();
         auto sig_eq = std::sqrt(1.5 * sig_dev.dot(sig_dev));
-        //cout << "Calculated sig_eq\n";
         _f = sig_eq - _sig_0 - _H*kappa;
         _df_dsig = (1.5 / sig_eq) * sig_dev; //actually a row vector. Use .transpose()
         _g = _df_dsig;
-        _dg_dsig =  1.5 * (T_dev /sig_eq - sig_dev * _g.transpose()/ (sig_eq*sig_eq));
+        _dg_dsig =  1.5 * (T_dev /sig_eq - sig_dev * _g.transpose()/ (2*sig_eq*sig_eq));
 
         _df_dkappa = - _H;
         _dg_dkappa = _g * 0;
-        return {_f, _g, _df_dsig, _dg_dsig, _df_dkappa, _dg_dkappa};//return {_f, _df_dsig, _ddf_dsig, _df_dkappa};
+        return {_f, _g, _df_dsig, _dg_dsig, _df_dkappa, _dg_dkappa};
     }
 
 };
@@ -257,7 +247,7 @@ public:
     
     }
 
-    std::tuple<double, Eigen::VectorXd, double> Evaluate(Eigen::VectorXd& sigma, double kappa) override
+    std::tuple<double, Eigen::VectorXd, double> Evaluate(Eigen::VectorXd sigma, double kappa) override
     {
         /*returns
          * double p(sig, kappa)

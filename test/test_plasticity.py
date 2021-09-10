@@ -2,15 +2,18 @@ import unittest
 import dolfin as df
 import numpy as np
 import constitutive as c
-
+np.set_printoptions(precision=4)
 """
 ######################################################
 ##             SJARD PLASTICITY MODEL BEGIN
 ######################################################
 """
 
-def mises_norm(x):
-    return np.sqrt()
+#def mises_norm(x):
+#    return np.sqrt()
+#def assert_relative_error_almost_zero(actual, desired, tol=1e-6, p=2):
+#    assert np.linalg.norm(actual-desired,p) / max(np.linalg.norm(desired, p),np.finfo(float).eps) < tol
+    
 class VonMisesAnalytical:
     def __init__(self,  E, nu,  sig0, H):
         self.lam = E * nu / (1 + nu) / (1 - 2 * nu)
@@ -32,7 +35,7 @@ class VonMisesAnalytical:
                 [0., 0., 0., 0., 1., 0.], 
                 [0., 0., 0., 0., 0., 1.]])
         # Initialize state variables
-        self.Ct = self.Ce
+        #self.Ct = self.Ce
         self.σn = np.zeros(6)
         self.pn = 0.0
         self.εn = np.zeros(6)
@@ -57,44 +60,45 @@ class VonMisesAnalytical:
         σ_tr = self.σn + self.Ce @ Δε
         σ_dev = self.dev @ σ_tr
 
-        σ_eq = np.sqrt((3 / 2) * np.sum(σ_dev ** 2))
+        σ_eq = np.sqrt((3 / 2) * np.inner(σ_dev, σ_dev))
 
         f = σ_eq - self.sig0 - self.H * self.pn
 
         if f <= 0:
             # elastic strain
-            self.Ct = self.Ce
+            #self.Ct = self.Ce
             self.σn1 = σ_tr
             self.pn1 = self.pn
         else:
             # stress return
             Δp = f / (3 * self.mu + self.H)
             self.pn1 = self.pn + Δp
-            n_elas = σ_dev / σ_eq
+            #n_elas = σ_dev / σ_eq
             β = (3 * self.mu * Δp) / σ_eq
             self.σn1 = σ_tr - β * σ_dev
-            nxn = np.outer(n_elas, n_elas)
-            self.Ct = (
-                self.Ce
-                - 3 * self.mu * (3 * self.mu / (3 * self.mu + self.H) - β) * nxn
-                - 2 * self.mu * β * self.dev
-            )
+            #nxn = np.outer(n_elas, n_elas)
+            #self.Ct = (
+            #    self.Ce
+            #    - 3 * self.mu * (3 * self.mu / (3 * self.mu + self.H) - β) * nxn
+            #    - 2 * self.mu * β * self.dev
+            #)
 
     def update(self):
         self.σn = self.σn1
         self.pn = self.pn1
         self.εn = self.εn1
 
-class MisesTest(unittest.TestCase):
+class MisesTestIntegrationPoint(unittest.TestCase):
     def test_total_strains_no_tangent(self):
-        E = 42.
+        E = 420.
         nu = 0.3
         sig0 = 2
         H = 4
 
         law = c.HookesLaw(E, nu, False, False)
-        mises_analytical = VonMisesAnalytical(E, nu, sig0, H)
 
+        mises_analytical = VonMisesAnalytical(E, nu, sig0, H)
+        np.testing.assert_allclose(law.C, mises_analytical.Ce)
         mises_function = c.MisesYieldFunction(sig0, H)
         hardening = c.StrainHardening()
         loop = c.IpLoop()
@@ -104,6 +108,37 @@ class MisesTest(unittest.TestCase):
         
         loop.add_law(mises_newton, np.array([0]))
         loop.resize(1)
+        eps = np.array([1.,0.,0.,0.,0.,0.])
+        eps = eps /np.linalg.norm(eps)
+        s = np.linspace(0,0.01,42)
+        eps_eq = np.zeros_like(s)
+        sig_eq = np.zeros_like(s)
+        for si in s:
+            loop.set(c.Q.EPS, eps*si)
+            loop.evaluate()
+            mises_analytical.evaluate(eps*si)
+            np.testing.assert_array_almost_equal(loop.get(c.Q.SIGMA), mises_analytical.σn1,decimal = 10)
+            mises_analytical.update()
+            loop.update()
+
+    def test_total_strains_tangent(self):
+        E = 420.
+        nu = 0.3
+        sig0 = 2
+        H = 0
+
+        mises_analytical = VonMisesAnalytical(E, nu, sig0, H)
+
+        mises_function = c.MisesYieldFunction(sig0, H)
+        hardening = c.StrainHardening()
+        loop = c.IpLoop()
+
+
+        mises_newton = c.IsotropicHardeningPlasticity(mises_analytical.Ce, mises_function, hardening, total_strains=True, tangent=True)
+        
+        loop.add_law(mises_newton, np.array([0]))
+        loop.resize(1)
+        eps = np.array([1.,0.,0.,0.,0.,0.])
         eps = np.random.random(6)
         eps = eps /np.linalg.norm(eps)
         s = np.linspace(0,0.1,42)
@@ -112,11 +147,21 @@ class MisesTest(unittest.TestCase):
         for si in s:
             loop.set(c.Q.EPS, eps*si)
             loop.evaluate()
-            mises_analytical.evaluate(eps*si)
-            np.testing.assert_allclose(loop.get(c.Q.SIGMA), mises_analytical.σn1)
-            mises_analytical.update()
+            sig_exact = loop.get(c.Q.SIGMA)
+            C_fd = np.zeros((6,6))
+            Ct = loop.get(c.Q.DSIGMA_DEPS)
+            distortion = np.zeros(6)
+            h = 1e-7
+            for i in range(6):
+                for j in range(6):
+                    distortion[j] = h
+                    loop.set(c.Q.EPS, eps*si + distortion)
+                    distortion[j] = 0
+                    loop.evaluate()
+                    C_fd[i,j] = (loop.get(c.Q.SIGMA)-sig_exact)[i] / h
+            
+            self.assertAlmostEqual(np.linalg.norm(C_fd.flatten()- Ct)/np.linalg.norm(C_fd.flatten()), 0., delta =1e-4)
             loop.update()
-
 
 if __name__ == "__main__":
     unittest.main()
