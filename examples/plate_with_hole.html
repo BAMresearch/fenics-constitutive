@@ -1,71 +1,35 @@
-
-
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" />
-  
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  
   <title>Plate with hole &mdash; FEniCS Constitutive 2020 documentation</title>
-  
-
-  
-  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
-  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
-
-  
-  
-
-  
-  
-
-  
-
-  
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
   <!--[if lt IE 9]>
     <script src="../_static/js/html5shiv.min.js"></script>
   <![endif]-->
   
-    
-      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
         <script src="../_static/jquery.js"></script>
         <script src="../_static/underscore.js"></script>
         <script src="../_static/doctools.js"></script>
-        <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
-    
-    <script type="text/javascript" src="../_static/js/theme.js"></script>
-
-    
+        <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="Ramberg Osgood material law" href="ramberg_osgood.html" />
     <link rel="prev" title="Helper classes and functions" href="helper.html" /> 
 </head>
 
-<body class="wy-body-for-nav">
-
-   
+<body class="wy-body-for-nav"> 
   <div class="wy-grid-for-nav">
-    
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-          
-
-          
             <a href="../index.html" class="icon icon-home"> FEniCS Constitutive
-          
-
-          
           </a>
-
-          
-            
-            
-          
-
-          
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
     <input type="text" name="q" placeholder="Search docs" />
@@ -73,18 +37,7 @@
     <input type="hidden" name="area" value="default" />
   </form>
 </div>
-
-          
-        </div>
-
-        
-        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
-          
-            
-            
-              
-            
-            
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
               <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="basics.html">Basic principle</a></li>
 <li class="toctree-l1"><a class="reference internal" href="example.html">Material models</a></li>
@@ -101,73 +54,32 @@
 <li class="toctree-l1"><a class="reference internal" href="../src/README.html">Thoughts/design</a></li>
 </ul>
 
-            
-          
         </div>
-        
       </div>
     </nav>
 
-    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
-
-      
-      <nav class="wy-nav-top" aria-label="top navigation">
-        
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
           <a href="../index.html">FEniCS Constitutive</a>
-        
       </nav>
 
-
       <div class="wy-nav-content">
-        
         <div class="rst-content">
-        
-          
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-<div role="navigation" aria-label="breadcrumbs navigation">
-
+          <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-    
       <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
-        
       <li>Plate with hole</li>
-    
-    
       <li class="wy-breadcrumbs-aside">
-        
-          
             <a href="../_sources/examples/plate_with_hole.rst.txt" rel="nofollow"> View page source</a>
-          
-        
       </li>
-    
   </ul>
-
-  
   <hr/>
 </div>
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
-            
-  <div class="section" id="plate-with-hole">
-<h1>Plate with hole<a class="headerlink" href="#plate-with-hole" title="Permalink to this headline">¶</a></h1>
+             
+  <section id="plate-with-hole">
+<h1>Plate with hole<a class="headerlink" href="#plate-with-hole" title="Permalink to this headline"></a></h1>
 <p>The analytic solution to the
 <a class="reference external" href="https://en.wikiversity.org/wiki/Introduction_to_Elasticity/Plate_with_hole_in_tension">infinite plate with hole in 2D plane stress</a>
 provides a solution for the stress and the displacement field. The stress
@@ -340,8 +252,8 @@ type of norm you need to calculate.</p>
 <span class="n">C33</span> <span class="o">=</span> <span class="n">C11</span> <span class="o">*</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="n">nu</span><span class="p">)</span>
 </pre></div>
 </div>
-<div class="section" id="voigt-notation">
-<h2>Voigt notation<a class="headerlink" href="#voigt-notation" title="Permalink to this headline">¶</a></h2>
+<section id="voigt-notation">
+<h2>Voigt notation<a class="headerlink" href="#voigt-notation" title="Permalink to this headline"></a></h2>
 <p>The classic Voigt notation is totally fine if you need to define a strain
 norm.</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">eps_voigt</span><span class="p">(</span><span class="n">u</span><span class="p">):</span>
@@ -353,9 +265,9 @@ norm.</p>
 <span class="n">formulations</span><span class="p">[</span><span class="s2">&quot;Voigt&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">eps_voigt</span><span class="p">,</span> <span class="n">C_voigt</span><span class="p">)</span>
 </pre></div>
 </div>
-</div>
-<div class="section" id="mandel-notation">
-<h2>Mandel notation<a class="headerlink" href="#mandel-notation" title="Permalink to this headline">¶</a></h2>
+</section>
+<section id="mandel-notation">
+<h2>Mandel notation<a class="headerlink" href="#mandel-notation" title="Permalink to this headline"></a></h2>
 <p>The mandel notation keeps the property that of</p>
 <div class="math notranslate nohighlight">
 \[\boldsymbol \sigma : \boldsymbol \sigma \equiv \sigma_\text{mandel} . \sigma_\text{mandel}\]</div>
@@ -412,55 +324,38 @@ to conveniently deal with the nonzero <span class="math notranslate nohighlight"
 <span class="n">Mandel4</span>    <span class="o">||</span> <span class="n">u_fem</span> <span class="o">-</span> <span class="n">u_analytic</span> <span class="o">||</span> <span class="o">=</span> <span class="mf">2.8253172614263883e-08</span>
 </pre></div>
 </div>
-</div>
-</div>
+</section>
+</section>
 
 
            </div>
-           
           </div>
-          <footer>
-    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
-        <a href="ramberg_osgood.html" class="btn btn-neutral float-right" title="Ramberg Osgood material law" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="helper.html" class="btn btn-neutral float-left" title="Helper classes and functions" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="ramberg_osgood.html" class="btn btn-neutral float-right" title="Ramberg Osgood material law" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>
 
   <div role="contentinfo">
-    <p>
-        &#169; Copyright 2020, Thomas Titscher, Sjard Mathis Rosenbusch, Philipp Diercks.
-
-    </p>
+    <p>&#169; Copyright 2020, Thomas Titscher, Sjard Mathis Rosenbusch, Philipp Diercks.</p>
   </div>
-    
-    
-    
-    Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
-    
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
     <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
-    
-    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
 
 </footer>
         </div>
       </div>
-
     </section>
-
   </div>
-  
-
-  <script type="text/javascript">
+  <script>
       jQuery(function () {
           SphinxRtdTheme.Navigation.enable(true);
       });
-  </script>
-
-  
-  
-    
-   
+  </script> 
 
 </body>
 </html>
