@@ -219,7 +219,6 @@ class GDMProblem(c.MechanicsProblem):
 
 
 def test_tensile_meso():
-    import matplotlib.pyplot as plt
 
     mesh = df.Mesh()
     mvc = df.MeshValueCollection("size_t", mesh, 1)
@@ -231,8 +230,10 @@ def test_tensile_meso():
 
     subdomains = df.MeshFunction("size_t", mesh, mvc)
 
-    # df.plot(subdomains)
-    # plt.show()
+    if not TEST:
+        import matplotlib.pyplot as plt
+        df.plot(subdomains)
+        plt.show()
 
     mat_l = 2.0
     Q = c.Q
