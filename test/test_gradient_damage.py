@@ -5,6 +5,7 @@ from fenics_helpers import boundary
 from fenics_helpers.timestepping import TimeStepper
 import constitutive as c
 
+TEST = True
 
 class MechanicsSpaces:
     def __init__(self, mesh, constraint, mesh_function=None):
@@ -63,7 +64,7 @@ class GDMSpaces(MechanicsSpaces):
         self.q_in = OrderedDict()
         self.q_in[Q.EPS] = df.Function(VQV, name="current strains")
         self.q_in[Q.E] = df.Function(VQF, name="current nonlocal equivalent strains")
-    
+
         self.q_in_calc = {}
         self.q_in_calc[Q.EPS] = c.helper.LocalProjector(self.eps(self.d), VQV, self.dxm)
         self.q_in_calc[Q.E] = c.helper.LocalProjector(self.e, VQF, self.dxm)
@@ -234,26 +235,27 @@ def tensile_meso():
     # plt.show()
 
     mat_l = 2.0
+    Q = c.Q
 
-    s = GDMSpaces(c.Constraint.PLANE_STRAIN)
-    s.create(mesh, subdomains)
-    R = df.inner(s.eps(s.d_), s.q_sigma) * s.dxm(1)
-    dR = df.inner(s.eps(s.dd), s.q_dsigma_deps * s.eps(s.d_)) * s.dxm(1)
+    s = GDMSpaces(mesh, c.Constraint.PLANE_STRAIN, subdomains)
+    s.create()
+    R = df.inner(s.eps(s.d_), s.q[Q.SIGMA]) * s.dxm(1)
+    dR = df.inner(s.eps(s.dd), s.q[Q.DSIGMA_DEPS] * s.eps(s.d_)) * s.dxm(1)
 
-    R += s.e_ * (s.e - s.q_eeq) * s.dxm(1)
+    R += s.e_ * (s.e - s.q[Q.EEQ]) * s.dxm(1)
     R += df.dot(df.grad(s.e_), mat_l ** 2 * df.grad(s.e)) * s.dxm(1)
 
-    dR += s.de * df.dot(s.q_dsigma_de, s.eps(s.d_)) * s.dxm(1)
-    dR += df.inner(s.eps(s.dd), -s.q_deeq_deps * s.e_) * s.dxm(1)
+    dR += s.de * df.dot(s.q[Q.DSIGMA_DE], s.eps(s.d_)) * s.dxm(1)
+    dR += df.inner(s.eps(s.dd), -s.q[Q.DEEQ] * s.e_) * s.dxm(1)
     dR += s.de * s.e_ * s.dxm(1)
     dR += df.dot(df.grad(s.de), mat_l ** 2 * df.grad(s.e_)) * s.dxm(1)
 
-    R += df.inner(s.eps(s.d_), s.q_sigma) * s.dxm(2)
-    dR += df.inner(s.eps(s.dd), s.q_dsigma_deps * s.eps(s.d_)) * s.dxm(2)
+    R += df.inner(s.eps(s.d_), s.q[Q.SIGMA]) * s.dxm(2)
+    dR += df.inner(s.eps(s.dd), s.q[Q.DSIGMA_DEPS] * s.eps(s.d_)) * s.dxm(2)
     dR += s.de * s.e_ * s.dxm(2)
 
-    R += df.inner(s.eps(s.d_), s.q_sigma) * s.dxm(3)
-    dR += df.inner(s.eps(s.dd), s.q_dsigma_deps * s.eps(s.d_)) * s.dxm(3)
+    R += df.inner(s.eps(s.d_), s.q[Q.SIGMA]) * s.dxm(3)
+    dR += df.inner(s.eps(s.dd), s.q[Q.DSIGMA_DEPS] * s.eps(s.d_)) * s.dxm(3)
     dR += s.de * s.e_ * s.dxm(3)
 
     VQF, VQV, VQT = c.helper.spaces(s.mesh, s.deg_q, c.q_dim(s.constraint))
@@ -264,10 +266,23 @@ def tensile_meso():
     t = 0.5  # interface thickness
     lawAggreg = c.LinearElastic(2 * 26738, 0.18, s.constraint)
     lawInterf = c.LocalDamage(
-        26738, 0.18, s.constraint, F * 3.4, 0.99, F / t * 0.12, 10.0
+        26738,
+        0.18,
+        s.constraint,
+        c.DamageLawExponential(
+            k0=F * 3.4 / 26738.0, alpha=0.99, beta=3.4 / 26738.0 / (0.12 * F / t)
+        ),
+        c.ModMisesEeq(k=10, nu=0.18, constraint=s.constraint),
     )
-    lawMatrix = c.GradientDamage(26738, 0.18, s.constraint, 3.4, 0.99, 0.0216, 10.0)
-
+    lawMatrix = c.GradientDamage(
+        26738.0,
+        0.18,
+        s.constraint,
+        c.DamageLawExponential(
+            k0=3.4 / 26738.0, alpha=0.99, beta=3.4 / 26738.0 / 0.0216
+        ),
+        c.ModMisesEeq(k=10, nu=0.18, constraint=s.constraint),
+    )
     loop = c.IpLoop()
     loop.add_law(lawMatrix, np.where(s.ip_flags == 1)[0])
     loop.add_law(lawAggreg, np.where(s.ip_flags == 2)[0])
@@ -290,16 +305,16 @@ def tensile_meso():
 
     class SolveMe(df.NonlinearProblem):
         def F(self, b, x):
-            calculate_eps(s.q_eps)
-            calculate_e(s.q_e)
-            loop.evaluate(s.q_eps.vector().get_local(), s.q_e.vector().get_local())
+            calculate_eps(s.q_in[Q.EPS])
+            calculate_e(s.q_in[Q.E])
+            loop.evaluate(s.q_in[Q.EPS].vector().get_local(), s.q_in[Q.E].vector().get_local())
 
             # ... and write the calculated values into their quadrature spaces.
-            c.helper.set_q(s.q_sigma, loop.get(c.Q.SIGMA))
-            c.helper.set_q(s.q_dsigma_deps, loop.get(c.Q.DSIGMA_DEPS))
-            c.helper.set_q(s.q_deeq_deps, loop.get(c.Q.DEEQ))
-            c.helper.set_q(s.q_dsigma_de, loop.get(c.Q.DSIGMA_DE))
-            c.helper.set_q(s.q_eeq, loop.get(c.Q.EEQ))
+            c.helper.set_q(s.q[Q.SIGMA], loop.get(c.Q.SIGMA))
+            c.helper.set_q(s.q[Q.DSIGMA_DEPS], loop.get(c.Q.DSIGMA_DEPS))
+            c.helper.set_q(s.q[Q.DEEQ], loop.get(c.Q.DEEQ))
+            c.helper.set_q(s.q[Q.DSIGMA_DE], loop.get(c.Q.DSIGMA_DE))
+            c.helper.set_q(s.q[Q.EEQ], loop.get(c.Q.EEQ))
 
             assembler.assemble(b, x)
 
@@ -325,7 +340,8 @@ def tensile_meso():
         # return -1, False
 
     ld = c.helper.LoadDisplacementCurve(bcs[0])
-    ld.show()
+    if not TEST:
+        ld.show()
     if not ld.is_root:
         df.set_log_level(df.LogLevel.ERROR)
 
@@ -337,9 +353,9 @@ def tensile_meso():
     k = df.Function(plot_space, name="kappa")
 
     def pp(t):
-        calculate_eps(s.q_eps)
-        calculate_e(s.q_e)
-        loop.update(s.q_eps.vector().get_local(), s.q_e.vector().get_local())
+        calculate_eps(s.q_in[Q.EPS])
+        calculate_e(s.q_in[Q.E])
+        loop.update(s.q_in[Q.EPS].vector().get_local(), s.q_in[Q.E].vector().get_local())
 
         # this fixes XDMF time stamps
         import locale
@@ -358,9 +374,10 @@ def tensile_meso():
 
         ld(t, df.assemble(R))
 
-    TimeStepper(solve, pp, s.u).adaptive(1.0, dt=0.02)
-
-    pass
+    t_end = 1.
+    if TEST:
+        t_end = 0.02
+    TimeStepper(solve, pp, s.u).adaptive(t_end, dt=0.02)
 
 
 def bending():
@@ -381,8 +398,6 @@ def bending():
     problem = Problem(spaces)
     problem.loop.add_law(law)
     problem.evaluate()
-
-    return
 
     prm = c.Parameters(c.Constraint.PLANE_STRAIN)
     prm.E = 20000.0
@@ -438,7 +453,9 @@ def bending():
         # return -1, False
 
     ld = c.helper.LoadDisplacementCurve(bcs[0])
-    ld.show()
+    if not TEST:
+        ld.show()
+
     if not ld.is_root:
         set_log_level(LogLevel.ERROR)
 
@@ -457,9 +474,12 @@ def bending():
 
         ld(t, df.assemble(problem.R))
 
-    TimeStepper(solve, pp, problem.u).adaptive(1.0, dt=0.1)
+    t_end = 1.
+    if TEST:
+        t_end = 0.1
+    TimeStepper(solve, pp, problem.u).adaptive(t_end, dt=0.1)
 
 
 if __name__ == "__main__":
     bending()
-    # tensile_meso()
+    tensile_meso()
