@@ -218,7 +218,7 @@ class GDMProblem(c.MechanicsProblem):
         )
 
 
-def tensile_meso():
+def test_tensile_meso():
     import matplotlib.pyplot as plt
 
     mesh = df.Mesh()
@@ -380,7 +380,7 @@ def tensile_meso():
     TimeStepper(solve, pp, s.u).adaptive(t_end, dt=0.02)
 
 
-def bending():
+def test_bending():
     LX = 2000
     LY = 300
     LX_load = 100
@@ -481,5 +481,5 @@ def bending():
 
 
 if __name__ == "__main__":
-    bending()
-    tensile_meso()
+    test_bending()
+    test_tensile_meso()
