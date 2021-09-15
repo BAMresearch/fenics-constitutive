@@ -1,5 +1,6 @@
 from collections import OrderedDict
 import dolfin as df
+from pathlib import Path
 import numpy as np
 from fenics_helpers import boundary
 from fenics_helpers.timestepping import TimeStepper
@@ -224,7 +225,8 @@ def test_tensile_meso():
     mvc = df.MeshValueCollection("size_t", mesh, 1)
     LX, LY = 80.0, 80.0  # magic!
 
-    with df.XDMFFile("mesh.xdmf") as f:
+    mesh_file = Path(__file__).parent / "mesh.xdmf"
+    with df.XDMFFile(str(mesh_file)) as f:
         f.read(mesh)
         f.read(mvc, "gmsh:physical")
 
