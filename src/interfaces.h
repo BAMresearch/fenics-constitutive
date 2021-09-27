@@ -270,6 +270,9 @@ public:
         for (auto& qvalues : _outputs)
             qvalues.Resize(n);
 
+        for (auto& qvalues : _inputs)
+            qvalues.Resize(n);
+
         for (auto& law : _laws)
             law->Resize(_n);
     }
@@ -286,9 +289,18 @@ public:
 
     void Set(Q what, const Eigen::VectorXd& input)
     {
-        //if (input.size() != _inputs.at(what).data.size())
-            //throw std::runtime_error("The IPs numbers don't match! Expected " + to_string(_inputs.at(what).data.size()) + " but found " + to_string(input.size()));
-        _inputs.at(what).data = input;
+      auto found_input = false;
+      for (const auto &item : RequiredInputs())
+      {
+        if (item == what)
+          found_input = true;
+      }
+      if (!found_input) {
+        throw std::runtime_error("QValue type was not found in required inputs of the model.");
+      } else if (found_input && input.size() != _inputs.at(what).data.size()){
+        throw std::runtime_error("The array sizes don't match! Expected " + to_string(_inputs.at(what).data.size()) + " but found " + to_string(input.size()));
+      }
+      _inputs.at(what).data = input;
     }
 
     std::vector<Q> RequiredInputs() const
