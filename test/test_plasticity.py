@@ -9,11 +9,7 @@ np.set_printoptions(precision=4)
 ######################################################
 """
 
-#def mises_norm(x):
-#    return np.sqrt()
-#def assert_relative_error_almost_zero(actual, desired, tol=1e-6, p=2):
-#    assert np.linalg.norm(actual-desired,p) / max(np.linalg.norm(desired, p),np.finfo(float).eps) < tol
-    
+
 class VonMisesAnalytical:
     def __init__(self,  E, nu,  sig0, H):
         self.lam = E * nu / (1 + nu) / (1 - 2 * nu)
@@ -31,11 +27,10 @@ class VonMisesAnalytical:
             [[2./3., -1./3., -1./3., 0., 0., 0.],
                 [-1./3., 2./3., -1./3., 0., 0., 0.],
                 [-1./3., -1./3., 2./3., 0., 0., 0.],
-                [0., 0., 0., 1., 0., 0.], 
+                [0., 0., 0., 1., 0., 0.],
                 [0., 0., 0., 0., 1., 0.], 
                 [0., 0., 0., 0., 0., 1.]])
         # Initialize state variables
-        #self.Ct = self.Ce
         self.σn = np.zeros(6)
         self.pn = 0.0
         self.εn = np.zeros(6)
@@ -45,15 +40,6 @@ class VonMisesAnalytical:
         self.εn1 = np.zeros(6)
 
     def evaluate(self, ε):
-        """
-        
-        Parameters
-        ----------
-        Δε : ndarray
-            Array containing the strain-increment
-        Returns
-        -------
-        """
         Δε = ε - self.εn
         self.εn1 = ε
 
@@ -66,22 +52,14 @@ class VonMisesAnalytical:
 
         if f <= 0:
             # elastic strain
-            #self.Ct = self.Ce
             self.σn1 = σ_tr
             self.pn1 = self.pn
         else:
             # stress return
             Δp = f / (3 * self.mu + self.H)
             self.pn1 = self.pn + Δp
-            #n_elas = σ_dev / σ_eq
             β = (3 * self.mu * Δp) / σ_eq
             self.σn1 = σ_tr - β * σ_dev
-            #nxn = np.outer(n_elas, n_elas)
-            #self.Ct = (
-            #    self.Ce
-            #    - 3 * self.mu * (3 * self.mu / (3 * self.mu + self.H) - β) * nxn
-            #    - 2 * self.mu * β * self.dev
-            #)
 
     def update(self):
         self.σn = self.σn1
@@ -89,11 +67,11 @@ class VonMisesAnalytical:
         self.εn = self.εn1
 
 class MisesTestIntegrationPoint(unittest.TestCase):
-    def test_total_strains_no_tangent(self):
+    def test_sigma_no_hardening(self):
         E = 420.
         nu = 0.3
         sig0 = 2
-        H = 4
+        H = 0
 
         law = c.HookesLaw(E, nu, False, False)
 
@@ -110,17 +88,22 @@ class MisesTestIntegrationPoint(unittest.TestCase):
         loop.resize(1)
         eps = np.array([1.,0.,0.,0.,0.,0.])
         eps = eps /np.linalg.norm(eps)
-        s = np.linspace(0,0.01,42)
+        s = np.linspace(0,0.1,10)
         eps_eq = np.zeros_like(s)
         sig_eq = np.zeros_like(s)
         for si in s:
+            #print(si)
             loop.set(c.Q.EPS, eps*si)
             loop.evaluate()
             mises_analytical.evaluate(eps*si)
             np.testing.assert_array_almost_equal(loop.get(c.Q.SIGMA), mises_analytical.σn1,decimal = 10)
+            #print(np.linalg.norm(loop.get(c.Q.SIGMA)- mises_analytical.σn1))
             mises_analytical.update()
             loop.update()
 
+            # print(np.linalg.norm(loop.get(c.Q.SIGMA)- mises_analytical.σn1)/np.linalg.norm(loop.get(c.Q.SIGMA)))
+            # print(loop.get(c.Q.SIGMA))
+            # print(mises_analytical.σn1)
     def test_total_strains_tangent(self):
         E = 420.
         nu = 0.3
@@ -159,7 +142,7 @@ class MisesTestIntegrationPoint(unittest.TestCase):
                     distortion[j] = 0
                     loop.evaluate()
                     C_fd[i,j] = (loop.get(c.Q.SIGMA)-sig_exact)[i] / h
-            
+            #np.testing.assert_allclose(C_fd.flatten(), Ct, atol = 1e-4, rtol = 1e-4)
             self.assertAlmostEqual(np.linalg.norm(C_fd.flatten()- Ct)/np.linalg.norm(C_fd.flatten()), 0., delta =1e-4)
             loop.update()
 

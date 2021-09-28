@@ -7,13 +7,14 @@
 
 struct YieldFunction
 {
-    virtual std::tuple<double, Eigen::VectorXd, Eigen::VectorXd, Eigen::MatrixXd, double, Eigen::VectorXd> Evaluate(Eigen::VectorXd sigma, double kappa) = 0;
-    virtual double EvaluateYieldFunction(Eigen::VectorXd sigma, double kappa) = 0;
-    //virtual void SetStressDim(int d);
+    virtual std::tuple<double, Eigen::VectorXd, Eigen::VectorXd, Eigen::MatrixXd, double, Eigen::VectorXd> Evaluate(const Eigen::VectorXd& sigma, double kappa) = 0;
+    virtual double EvaluateYieldFunction(const Eigen::VectorXd& sigma, double kappa) = 0;
+    virtual Eigen::VectorXd GetFlowVector() = 0;
+  //virtual void SetStressDim(int d);
 };
 struct IsotropicHardeningLaw
 {
-    virtual std::tuple<double, Eigen::VectorXd, double> Evaluate(Eigen::VectorXd sigma, double kappa) = 0;
+    virtual std::tuple<double, Eigen::VectorXd, double> Evaluate(const Eigen::VectorXd& sigma, double kappa) = 0;
 };
 
 
@@ -27,7 +28,7 @@ public:
     std::vector<QValues> _internal_vars_1;
     
     Eigen::MatrixXd _C;
-    
+    Eigen::MatrixXd _C_inv;
     bool _total_strains;
     bool _tangent;
     int _stress_dim;
@@ -39,6 +40,7 @@ public:
     _tangent(tangent),
     _C(C)
     {
+      _C_inv = _C.inverse();
         _internal_vars_0.resize(Q::LAST);
         _internal_vars_1.resize(Q::LAST);
         
@@ -85,10 +87,11 @@ public:
     void Evaluate(const std::vector<QValues>& input, std::vector<QValues>& output, int i) override
     {
         auto maxit = 100;
+
         auto strain = input[EPS].Get(i);
         auto kappa = _internal_vars_0[KAPPA].GetScalar(i);
-
-        Eigen::VectorXd sigma_tr(_stress_dim,1);
+        //cout << lam << "\n";
+        Eigen::VectorXd sigma_tr(_stress_dim);
         if (_total_strains) {
             auto plastic_strain = _internal_vars_0[EPS_P].Get(i);
             sigma_tr = _C * (strain - plastic_strain);
@@ -111,7 +114,7 @@ public:
             
             int j = 0;
             while (res.norm() > 1e-10 && j < maxit) {
-                x = x - jacobian.fullPivLu().solve(res);
+                x = x - jacobian.lu().solve(res);
                 std::tie(res, jacobian) = NewtonSystem(x.segment(0,_stress_dim), sigma_tr, x[_stress_dim], x[_stress_dim+1], 0);
                 j++;
             }
@@ -119,7 +122,8 @@ public:
             output[SIGMA].Set(x.segment(0,_stress_dim),i);
             _internal_vars_1[KAPPA].Set(x[_stress_dim],i);
             _internal_vars_1[LAMBDA].Set(_internal_vars_0[LAMBDA].GetScalar(i)+x[_stress_dim+1], i);
-            
+            if (_total_strains)
+              _internal_vars_1[EPS_P].Set(_internal_vars_0[EPS_P].Get(i) + x[_stress_dim+1] * _f->GetFlowVector(), i);
             if (_tangent) {
                 auto inverse = jacobian.inverse();
                 auto Ct = inverse.block(0, 0, _stress_dim, _stress_dim) * _C;
@@ -164,12 +168,12 @@ public:
 
     void Update(const std::vector<QValues>& input, int i) override
     {
-        _internal_vars_0[KAPPA].Set(_internal_vars_1[KAPPA].Get(i), i);
-        _internal_vars_0[LAMBDA].Set(_internal_vars_1[LAMBDA].Get(i), i);
+        _internal_vars_0[KAPPA].Set(_internal_vars_1[KAPPA].GetScalar(i), i);
+        _internal_vars_0[LAMBDA].Set(_internal_vars_1[LAMBDA].GetScalar(i), i);
 
         if (_total_strains)
             _internal_vars_0[EPS_P].Set(_internal_vars_1[EPS_P].Get(i), i);
-        
+
     }
     
     void Resize(int n) override
@@ -179,6 +183,8 @@ public:
 
         for (auto& qvalues : _internal_vars_1)
             qvalues.Resize(n);
+      // _internal_vars_0[LAMBDA].Resize(n);
+      // _internal_vars_1[LAMBDA].Resize(n);
     }
 
 };
@@ -216,14 +222,24 @@ public:
         T_vol << 1,1,1,0,0,0;
     }
     
-    double EvaluateYieldFunction(Eigen::VectorXd sigma, double kappa) override
+    double EvaluateYieldFunction(const Eigen::VectorXd& sigma, double kappa) override
     {
         auto sig_dev = T_dev * sigma;
         auto sig_eq = std::sqrt(1.5 * sig_dev.dot(sig_dev));
         return sig_eq - _sig_0 - _H*kappa;
     }
-    std::tuple<double, Eigen::VectorXd, Eigen::VectorXd, Eigen::MatrixXd, double, Eigen::VectorXd> Evaluate(Eigen::VectorXd sigma, double kappa) override
+    std::tuple<double, Eigen::VectorXd, Eigen::VectorXd, Eigen::MatrixXd, double, Eigen::VectorXd> Evaluate(const Eigen::VectorXd& sigma, double kappa) override
     {
+        // auto sig_dev = T_dev * sigma;
+        // auto sig_eq = std::sqrt(1.5 * sig_dev.dot(sig_dev));
+        // auto f = sig_eq - _sig_0 - _H*kappa;
+        // auto df_dsig = (1.5 / sig_eq) * sig_dev; //actually a row vector. Use .transpose()
+        // auto g = df_dsig;
+        // auto dg_dsig =  1.5 * (T_dev /sig_eq - sig_dev * g.transpose()/ (2*sig_eq*sig_eq));
+
+        // auto df_dkappa = - _H;
+        // auto dg_dkappa = g * 0;
+        // return {f, g, df_dsig, dg_dsig, df_dkappa, dg_dkappa};
         auto sig_dev = T_dev * sigma;
         auto sig_eq = std::sqrt(1.5 * sig_dev.dot(sig_dev));
         _f = sig_eq - _sig_0 - _H*kappa;
@@ -234,6 +250,11 @@ public:
         _df_dkappa = - _H;
         _dg_dkappa = _g * 0;
         return {_f, _g, _df_dsig, _dg_dsig, _df_dkappa, _dg_dkappa};
+    }
+
+    Eigen::VectorXd GetFlowVector() override
+    {
+      return _g;
     }
 
 };
@@ -247,7 +268,7 @@ public:
     
     }
 
-    std::tuple<double, Eigen::VectorXd, double> Evaluate(Eigen::VectorXd sigma, double kappa) override
+    std::tuple<double, Eigen::VectorXd, double> Evaluate(const Eigen::VectorXd& sigma, double kappa) override
     {
         /*returns
          * double p(sig, kappa)
@@ -257,6 +278,4 @@ public:
         return {1., Eigen::MatrixXd::Zero(6,1), 0.};
     }
 };
-
-
 

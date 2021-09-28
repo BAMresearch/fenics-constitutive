@@ -5,6 +5,7 @@
 #include "linear_elastic.h"
 #include "local_damage.h"
 #include "plasticity.h"
+#include "radial_plasticity.h"
 #include "hypoelasticity.h"
 
 namespace py = pybind11;
@@ -32,14 +33,17 @@ PYBIND11_MODULE(cpp, m)
     pybind11::enum_<Q>(m, "Q")
             .value("SIGMA", Q::SIGMA)
             .value("DSIGMA_DEPS", Q::DSIGMA_DEPS)
+            .value("EPS_P", Q::EPS_P)
             .value("EEQ", Q::EEQ)
             .value("EPS", Q::EPS)
             .value("E", Q::E)
             .value("L", Q::L)
             .value("TIME_STEP", Q::TIME_STEP)
             .value("KAPPA", Q::KAPPA)
+            .value("LAMBDA", Q::LAMBDA)
             .value("DEEQ", Q::DEEQ)
             .value("DSIGMA_DE", Q::DSIGMA_DE);
+
 
     m.def("g_dim", &Dim::G);
     m.def("q_dim", &Dim::Q);
@@ -159,5 +163,10 @@ PYBIND11_MODULE(cpp, m)
     isotropic_hardening_plasticity.def("get_internal_var", &IsotropicHardeningPlasticity::GetInternalVar);
     isotropic_hardening_plasticity.def_readonly("C", &IsotropicHardeningPlasticity::_C);
     
-    
+    pybind11::class_<AnalyticMisesPlasticity, std::shared_ptr<AnalyticMisesPlasticity>, LawInterface> analytic_mises_plasticity(m, "AnalyticMisesPlasticity");
+    analytic_mises_plasticity.def(pybind11::init<double, double, double, double, bool, bool>(), py::arg("E"), py::arg("nu"), py::arg("sig0"), py::arg("H"),py::arg("total_strains") = true, py::arg("tangent") = true);
+    analytic_mises_plasticity.def("get_internal_var", &AnalyticMisesPlasticity::GetInternalVar);
+    analytic_mises_plasticity.def_readonly("C", &AnalyticMisesPlasticity::_C);
+
+
 }
