@@ -114,6 +114,8 @@ class MechanicsProblem(df.NonlinearProblem):
         self.calculate_eps(self.q_eps)
         self.iploop.update(self.q_eps.vector().get_local())
 
+    def updateTime(self,timePrev,time):
+        self.iploop.updateTime(timePrev,time)
 
     def set_bcs(self, bcs):
         # Only now (with the bcs) can we initialize the _assembler

@@ -5,11 +5,14 @@ set(CMAKE_CXX_STANDARD 14)
 
 find_package(Eigen3 3.2 REQUIRED NO_MODULE)
 
-set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -Wall -fPIC")
+set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -Wall -fPIC -L/opt/intel/compilers_and_libraries_2020.2.254/linux/compiler/lib/intel64 -lifcore -limf -lintlc -Wl,--no-as-needed -ldl -lirc")
 
 include_directories(src)
 add_subdirectory(src)
 
+add_library(umatLib STATIC IMPORTED)
+set_target_properties(umatLib PROPERTIES IMPORTED_LOCATION /home/zit.bam.de/vkindrac/labtools/lib/libumat.a)
+
 find_package(pybind11 REQUIRED)
 pybind11_add_module(cpp src/constitutive.cpp)
-target_link_libraries(cpp PRIVATE pybind11::module Eigen3::Eigen)
+target_link_libraries(cpp PRIVATE pybind11::module Eigen3::Eigen umatLib)

@@ -5,6 +5,7 @@
 #include "linear_elastic.h"
 #include "local_damage.h"
 #include "plasticity.h"
+#include "umat.h"
 
 namespace py = pybind11;
 
@@ -63,6 +64,7 @@ PYBIND11_MODULE(cpp, m)
     mechanicsLaw.def("evaluate", &MechanicsLaw::Evaluate, py::arg("strain"), py::arg("i") = 0);
     mechanicsLaw.def("update", &MechanicsLaw::Update, py::arg("strain"), py::arg("i") = 0);
     mechanicsLaw.def("resize", &MechanicsLaw::Resize, py::arg("n"));
+    mechanicsLaw.def("updateTime", &MechanicsLaw::UpdateTime, py::arg("timePrev"), py::arg("time"));
 
     /*************************************************************************
      **   DAMAGE LAWS
@@ -120,4 +122,10 @@ PYBIND11_MODULE(cpp, m)
     RateIndependentHistory.def(pybind11::init<>());
     RateIndependentHistory.def("__call__", &RateIndependentHistory::Call);
 //     RateIndependentHistory.def_readonly("P", &RateIndependentHistory::_p);
+
+    /*************************************************************************
+     **   UMAT
+     *************************************************************************/
+    pybind11::class_<Umat, std::shared_ptr<Umat>, MechanicsLaw> umat(m, "Umat");
+    umat.def(pybind11::init<Constraint>());
 }

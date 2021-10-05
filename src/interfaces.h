@@ -137,6 +137,10 @@ struct LawInterface
     virtual void Resize(int n)
     {
     }
+    virtual void UpdateTime(double timePrev, double time)
+    {
+    }
+
 };
 
 class MechanicsLaw
@@ -145,6 +149,8 @@ public:
     MechanicsLaw(Constraint constraint)
         : _constraint(constraint)
     {
+      _timePrev = 0.;
+      _time = 0.;
     }
 
     virtual std::pair<Eigen::VectorXd, Eigen::MatrixXd> Evaluate(const Eigen::VectorXd& strain, int i = 0) = 0;
@@ -157,7 +163,19 @@ public:
     {
     }
 
+    void UpdateTime(double timePrev, double time)
+    {
+      _timePrev = timePrev;
+      _time = time;
+    }
+
+    std::pair<double, double> GetTime()
+    {
+      return {_timePrev, _time};
+    }
+
     const Constraint _constraint;
+    double _timePrev, _time; 
 };
 
 class MechanicsLawAdapter : public LawInterface
@@ -189,6 +207,10 @@ public:
     void Update(const std::vector<QValues>& input, int i) override
     {
         _law->Update(input[EPS].Get(i), i);
+    }
+    void UpdateTime(double timePrev, double time) override
+    {
+      _law->UpdateTime(timePrev, time);
     }
     void Resize(int n) override
     {
@@ -272,6 +294,12 @@ public:
             for (int ip : _ips[iLaw])
                 _laws[iLaw]->Update(_inputs, ip);
     }
+
+     void UpdateTime(double timePrev, double time)
+     {
+        for (unsigned iLaw = 0; iLaw < _laws.size(); ++iLaw)
+ 	   _laws[iLaw]->UpdateTime(timePrev, time);
+     }
 
     std::vector<std::shared_ptr<LawInterface>> _laws;
     std::vector<std::vector<int>> _ips;

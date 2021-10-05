@@ -230,8 +230,8 @@ def tensile_meso():
 
     subdomains = df.MeshFunction("size_t", mesh, mvc)
 
-    # df.plot(subdomains)
-    # plt.show()
+    df.plot(subdomains)
+    plt.show()
 
     mat_l = 2.0
 
