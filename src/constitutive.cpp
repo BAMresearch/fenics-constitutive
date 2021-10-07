@@ -168,5 +168,9 @@ PYBIND11_MODULE(cpp, m)
     analytic_mises_plasticity.def("get_internal_var", &AnalyticMisesPlasticity::GetInternalVar);
     analytic_mises_plasticity.def_readonly("C", &AnalyticMisesPlasticity::_C);
 
+    pybind11::class_<RadialReturnMisesPlasticity, std::shared_ptr<RadialReturnMisesPlasticity>, LawInterface> radial_return_mises_plasticity(m, "RadialReturnMisesPlasticity");
+    radial_return_mises_plasticity.def(pybind11::init<double, double, double, double>(), py::arg("E"), py::arg("nu"), py::arg("sig0"), py::arg("H"));
+    radial_return_mises_plasticity.def("get_internal_var", &RadialReturnMisesPlasticity::GetInternalVar);
+    radial_return_mises_plasticity.def_readonly("C", &RadialReturnMisesPlasticity::_C);
 
 }
