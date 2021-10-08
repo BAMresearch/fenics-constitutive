@@ -173,4 +173,13 @@ PYBIND11_MODULE(cpp, m)
     radial_return_mises_plasticity.def("get_internal_var", &RadialReturnMisesPlasticity::GetInternalVar);
     radial_return_mises_plasticity.def_readonly("C", &RadialReturnMisesPlasticity::_C);
 
+    pybind11::class_<RadialReturnPlasticity, std::shared_ptr<RadialReturnPlasticity>, LawInterface> radial_return_plasticity(m, "RadialReturnPlasticity");
+    radial_return_plasticity.def(pybind11::init<double, double, std::shared_ptr<RadialYieldSurface>>(), py::arg("E"), py::arg("nu"), py::arg("Y"));
+    radial_return_plasticity.def("get_internal_var", &RadialReturnPlasticity::GetInternalVar);
+    radial_return_plasticity.def_readonly("C", &RadialReturnPlasticity::_C);
+
+    pybind11::class_<RadialYieldSurface, std::shared_ptr<RadialYieldSurface>> radial_yield_surface(m, "RadialYieldSurface");
+
+    pybind11::class_<RadialMisesYieldSurface, std::shared_ptr<RadialMisesYieldSurface>, RadialYieldSurface> radial_mises_yield_surface(m, "RadialMisesYieldSurface");
+    radial_mises_yield_surface.def(pybind11::init<double, double>(), py::arg("sig0"), py::arg("H"));
 }

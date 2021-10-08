@@ -153,11 +153,6 @@ public:
     }
 };
 
-struct RadialYieldSurface
-{
-    // returns the yield SURFACE (not the yield function) and its derivative with respect ro del_lambda
-    virtual std::tuple<double, double> Evaluate(double p, double theta, double lambda, double del_lambda, const Qvalues& kappa) = 0;
-};
 
 class RadialReturnMisesPlasticity : public LawInterface
 {
@@ -284,3 +279,147 @@ public:
 
 };
 
+struct RadialYieldSurface
+{
+    // returns the yield SURFACE (not the yield function) and its derivative with respect ro del_lambda
+    virtual std::tuple<double, double> Evaluate(Eigen::VectorXd sigma, double lambda, double del_lambda) = 0;
+};
+class RadialMisesYieldSurface : public RadialYieldSurface
+{
+public:
+  double _sig0;
+  double _H;
+
+  RadialMisesYieldSurface(double sig0, double H)
+  : _sig0(sig0),
+  _H(H)
+  {
+
+  }
+  std::tuple<double,double> Evaluate(Eigen::VectorXd sigma, double lambda, double del_lambda) override
+  {
+    return {_sig0 + _H*(lambda+del_lambda), _H};
+  }
+};
+
+class RadialReturnPlasticity : public LawInterface
+{
+public:
+    std::shared_ptr<RadialYieldSurface> _Y;
+    std::vector<QValues> _internal_vars_0;
+    std::vector<QValues> _internal_vars_1;
+    Eigen::MatrixXd _C;
+    Eigen::VectorXd T_vol;
+    Eigen::MatrixXd T_dev;
+    double _mu;
+
+    RadialReturnPlasticity(double E_, double nu, std::shared_ptr<RadialYieldSurface> Y)
+    {
+        _internal_vars_0.resize(Q::LAST);
+        _internal_vars_1.resize(Q::LAST);
+
+        _internal_vars_0[LAMBDA] = QValues(1);
+        _internal_vars_1[LAMBDA] = QValues(1);
+
+        _internal_vars_0[SIGMA] = QValues(6);
+        _internal_vars_1[SIGMA] = QValues(6);
+        _internal_vars_0[EPS] = QValues(6);
+
+        const double l = E_ * nu / (1 + nu) / (1 - 2 * nu);
+        _mu = E_ / (2.0 * (1 + nu));
+        _Y = Y;
+        _C.setZero(6,6);
+
+        _C << 2*_mu+l, l, l, 0., 0., 0.,
+             l, 2*_mu+l, l, 0., 0., 0.,
+             l, l, 2*_mu+l, 0., 0., 0.,
+             0., 0., 0., 2*_mu, 0., 0.,
+             0., 0., 0., 0., 2*_mu, 0.,
+             0., 0., 0., 0., 0., 2*_mu;
+
+        T_dev.resize(6,6);
+        T_vol.resize(6);
+        T_dev <<
+                2./3., -1./3., -1./3., 0., 0., 0.,
+                -1./3., 2./3., -1./3., 0., 0., 0.,
+                -1./3., -1./3., 2./3., 0., 0., 0.,
+                0., 0., 0., 1., 0., 0.,
+                0., 0., 0., 0., 1., 0.,
+                0., 0., 0., 0., 0., 1.;
+        T_vol << 1.,1.,1.,0.,0.,0.;
+
+
+    }
+
+    void DefineOutputs(std::vector<QValues>& output) const override
+    {
+        output[SIGMA] = QValues(6);
+    }
+
+    void DefineInputs(std::vector<QValues>& input) const override
+    {
+        input[EPS] = QValues(6);
+    }
+    Eigen::VectorXd GetInternalVar(Q which)
+    {
+        return _internal_vars_0.at(which).data;
+    }
+
+    void Evaluate(const std::vector<QValues>& input, std::vector<QValues>& output, int i) override
+    {
+        auto maxit = 100;
+
+        auto strain = input[EPS].Get(i);
+        auto lambda = _internal_vars_0[LAMBDA].GetScalar(i);
+        Eigen::VectorXd sigma_tr(6);
+        sigma_tr = _internal_vars_0[SIGMA].Get(i) + _C * (strain - _internal_vars_0[EPS].Get(i));
+        auto s_tr = T_dev * sigma_tr;
+        const double p = (1./3.) * T_vol.dot(sigma_tr);
+
+        auto [Y, dY] = _Y->Evaluate(sigma_tr, lambda, 0.0);
+        double s_tr_eq = std::sqrt(3. / 2.) * s_tr.norm();
+
+        if (s_tr_eq - Y <= 0)
+        {
+            //Elastic case. Use trial stress.
+            output[SIGMA].Set(sigma_tr, i);
+            _internal_vars_1[SIGMA].Set(sigma_tr,i);
+        } else {
+            //inelastic case. Use stress return algorithm.
+            double del_lambda = 0.0;
+            int j = 0;
+            do  {
+                del_lambda += del_lambda - (s_tr_eq - 3*_mu*del_lambda - Y)/(-3*_mu-dY);
+                std::tie(Y, dY) = _Y->Evaluate(sigma_tr, lambda, del_lambda);
+                j++;
+            } while (std::abs(s_tr_eq - 3 * _mu * del_lambda - Y)> 1e-10 && j < maxit);
+
+            auto alpha = (1 - 3*_mu *del_lambda / s_tr_eq);
+            auto s = alpha * s_tr;
+            auto sigma = s + T_vol * p;
+            output[SIGMA].Set(sigma,i);
+            _internal_vars_1[SIGMA].Set(sigma,i);
+            _internal_vars_1[LAMBDA].Set(_internal_vars_0[LAMBDA].GetScalar(i)+del_lambda, i);
+        }
+    }
+
+
+    void Update(const std::vector<QValues>& input, int i) override
+    {
+        _internal_vars_0[EPS].Set(input[EPS].Get(i),i);
+
+        _internal_vars_0[LAMBDA].Set(_internal_vars_1[LAMBDA].GetScalar(i), i);
+
+        _internal_vars_0[SIGMA].Set(_internal_vars_1[SIGMA].Get(i), i);
+    }
+
+    void Resize(int n) override
+    {
+        for (auto& qvalues : _internal_vars_0)
+            qvalues.Resize(n);
+
+        for (auto& qvalues : _internal_vars_1)
+            qvalues.Resize(n);
+    }
+
+};
