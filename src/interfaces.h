@@ -65,7 +65,7 @@ public:
     {
         assert(value.rows() == _rows);
         assert(value.cols() == _cols);
-        data.segment(_rows * _cols * i, _rows * _cols) = Eigen::Map<Eigen::VectorXd>(value.data(), value.size());
+        data.segment(_rows * _cols * i, _rows * _cols) = Eigen::Map<Eigen::VectorXd>(value.transpose().data(), value.size());
     }
 
     double GetScalar(int i) const
