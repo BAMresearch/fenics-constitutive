@@ -33,6 +33,7 @@ class TestQValues(unittest.TestCase):
             self.assertEqual(self.scalars.get_scalar(i), scalar)
 
     def test_internal_data(self):
+        #Test if the internal data vector is in the correct layout
         matrix = np.arange(15).reshape((5,3))
         for i in range(self.n):
             self.matrices.set(matrix, i)

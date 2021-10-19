@@ -54,7 +54,7 @@ class CDM:
         self.x = df.interpolate(df.Expression(("x[0]", "x[1]", "x[2]"), degree=1), V)
         self.damping_factor = damping_factor
 
-    def stress_update(self):
+    def stress_update(self, h):
 
         helper.local_project(
             df.nabla_grad(self.v),
@@ -116,7 +116,7 @@ class CDM:
 
         df.set_coordinates(self.mesh.geometry(), self.x)
         
-        self.stress_update()
+        self.stress_update(h)
         
         helper.function_add(self.u, du)
         helper.function_add(self.x, du * 0.5)
