@@ -296,8 +296,6 @@ public:
 
     void Set(Q what, const Eigen::VectorXd& input)
     {
-        //if (input.size() != _inputs.at(what).data.size())
-            //throw std::runtime_error("The IPs numbers don't match! Expected " + to_string(_inputs.at(what).data.size()) + " but found " + to_string(input.size()));
         _inputs.at(what).data = input;
     }
 

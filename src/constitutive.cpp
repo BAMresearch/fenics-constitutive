@@ -44,9 +44,6 @@ PYBIND11_MODULE(cpp, m)
     m.def("g_dim", &Dim::G);
     m.def("q_dim", &Dim::Q);
     
-    m.def("jaumann_rotate_W", &jaumann_rotate_W);
-    m.def("jaumann_rotate_L", &jaumann_rotate_L);
-    m.def("compute_W", &compute_W);
     m.def("strain_increment", &strain_increment);
 
     pybind11::class_<ObjectiveStressRate, std::shared_ptr<ObjectiveStressRate>> objective_stress_rate(m, "ObjectiveStressRate");
