@@ -2,16 +2,17 @@
 #include <Eigen/Dense>
 
 typedef Eigen::Matrix<double, 9,1> Vector9d;
+typedef Eigen::Matrix<double, 6,1> Vector6d;
 
-Eigen::VectorXd matrix_to_mandel(Eigen::MatrixXd M){
-    Eigen::VectorXd v(6);
-    double s = sqrt(2);
+Vector6d matrix_to_mandel(Eigen::Matrix3d M){
+    Vector6d v;
+    double s = sqrt(2.0);
     v << M(0,0), M(1,1), M(2,2), s * M(1,2), s * M(0,2), s * M(0,1);
     return v;
 }
 
-Eigen::MatrixXd mandel_to_matrix(Eigen::VectorXd v){
-    Eigen::MatrixXd M(3,3);
+Eigen::Matrix3d mandel_to_matrix(Vector6d v){
+    Eigen::Matrix3d M;
     double s = 1.0 / sqrt(2);
     M << 
         v(0), s * v(5), s * v(4),
@@ -28,35 +29,36 @@ struct ObjectiveStressRate
 class JaumannStressRate : public ObjectiveStressRate
 {
 public:
-    Eigen::VectorXd _W;
+    //Eigen::VectorXd _W;
+    QValues _W;
     JaumannStressRate(int n)
     {
-        _W.resize(n*9);
+        _W = QValues(3,3);
+        _W.Resize(n);
     }
     void Set(Eigen::VectorXd& L_)
     {
-        Eigen::MatrixXd L_temp(3,3);
-        Eigen::MatrixXd W_temp(3,3);
+        _W.data = L_;
+        //Eigen::Matrix3d L_temp;
+        //Eigen::Matrix3d W_temp;
 
-        for(int i = 0;i < _W.size()/9;i++)
+        for(int i = 0;i < _W.data.size()/9;i++)
         {
-            auto Lsegment = L_.segment<9>(i * 9);
-            L_temp = Eigen::Map<Eigen::Matrix3d>(Lsegment.data());
-            W_temp = 0.5 * (L_temp - L_temp.transpose());
+            auto L_temp = _W.Get(i);
+            auto W_temp = 0.5 * (L_temp - L_temp.transpose());
 
-            _W.segment<9>(i*9) =  Eigen::Map<Vector9d>(W_temp.data());
+            _W.Set(W_temp, i);
         }
     }
 
     Eigen::VectorXd Rotate(Eigen::VectorXd& sigma, double h) override
     {
         
-        const int n = _W.size() / 9;
-            
+        const int n = _W.data.size() / 9;
+
         for(int i = 0;i < n;i++)
         {
-            auto Wsegment = _W.segment<9>(i * 9);
-            const auto W_temp = Eigen::Map<Eigen::Matrix3d>(Wsegment.data());
+            auto W_temp = _W.Get(i);
 
             auto stress = mandel_to_matrix(sigma.segment<6>(i*6));
             stress += h * (stress * W_temp.transpose() + W_temp * stress);
@@ -185,56 +187,3 @@ public:
         out[SIGMA].Set(matrix_to_mandel(stress), i);
     }
 };
-Eigen::VectorXd jaumann_rotate_W(Eigen::VectorXd& W, Eigen::VectorXd& sigma, double h)
-{
-    const int n = W.size() / 9;
-        
-        for(int i = 0;i < n;i++)
-        {
-            auto Wsegment = W.segment<9>(i * 9);
-            const auto W = Eigen::Map<Eigen::Matrix3d>(Wsegment.data());
-
-            auto stress = mandel_to_matrix(sigma.segment<6>(i*6));
-            stress += h * (stress * W.transpose() + W * stress);
-            sigma.segment<6>(i*6) = matrix_to_mandel(stress);
-
-        
-        }
-        return sigma;
-}
-
-Eigen::VectorXd jaumann_rotate_L(Eigen::VectorXd& L_, Eigen::VectorXd& sigma, double h)
-{
-    const int n = L_.size() / 9;
-        
-    for(int i = 0;i < n;i++)
-    {
-        auto Lsegment = L_.segment<9>(i * 9);
-        const auto L_temp = Eigen::Map<Eigen::Matrix3d>(Lsegment.data());
-        const auto W = 0.5 * (L_temp - L_temp.transpose());
-
-        auto stress = mandel_to_matrix(sigma.segment<6>(i*6));
-        stress += h * (stress * W.transpose() + W * stress);
-        sigma.segment<6>(i*6) = matrix_to_mandel(stress);
-
-    
-    }
-    return sigma;
-}
-Eigen::VectorXd compute_W(Eigen::VectorXd& L_)
-{
-    const int n = L_.size();
-    Eigen::VectorXd W(n);
-    Eigen::MatrixXd L_temp(3,3);
-    Eigen::MatrixXd W_temp(3,3);
-
-    for(int i = 0;i < n/9;i++)
-    {
-        auto Lsegment = L_.segment<9>(i * 9);
-        L_temp = Eigen::Map<Eigen::Matrix3d>(Lsegment.data());
-        W_temp = 0.5 * (L_temp - L_temp.transpose());
-
-        W.segment<9>(i*9) =  Eigen::Map<Vector9d>(W_temp.data());
-    }
-    return W;
-}

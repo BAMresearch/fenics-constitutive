@@ -63,8 +63,17 @@ public:
 
     void Set(Eigen::MatrixXd value, int i)
     {
+      /*TODO
+       * Problem: Eigen has Column major matrices, but from Fenics we receive row major.
+       * Therefore we need the data field to save matrices in row major style.
+       * We can either work completely on row major matrices (not recommended by Eigen)
+       * or we do sth with map Strides, map to one row major matrix, or transpose the input.
+       * Currently the input is just transposed in place, but I don't know how efficient this is.
+       *
+       * */
         assert(value.rows() == _rows);
         assert(value.cols() == _cols);
+        value.transposeInPlace();
         data.segment(_rows * _cols * i, _rows * _cols) = Eigen::Map<Eigen::VectorXd>(value.data(), value.size());
     }
 
@@ -77,8 +86,11 @@ public:
 
     Eigen::MatrixXd Get(int i) const
     {
+      /*TODO: Same as in Set.
+       *
+       * */
         Eigen::VectorXd ip_values = data.segment(_rows * _cols * i, _rows * _cols);
-        return Eigen::Map<Eigen::MatrixXd>(ip_values.data(), _rows, _cols);
+        return Eigen::Map<Eigen::MatrixXd>(ip_values.data(), _cols, _rows).transpose();
     }
 
     bool IsUsed() const

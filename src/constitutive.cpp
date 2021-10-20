@@ -48,15 +48,20 @@ PYBIND11_MODULE(cpp, m)
     m.def("g_dim", &Dim::G);
     m.def("q_dim", &Dim::Q);
     
-    m.def("jaumann_rotate_W", &jaumann_rotate_W);
-    m.def("jaumann_rotate_L", &jaumann_rotate_L);
-    m.def("compute_W", &compute_W);
     m.def("strain_increment", &strain_increment);
 
     
     /*************************************************************************
      **   IPLOOP AND MAIN INTERFACES
      *************************************************************************/
+    pybind11::class_<QValues, std::shared_ptr<QValues>> q_values(m, "QValues");
+    q_values.def(pybind11::init<int,int>(), py::arg("rows"), py::arg("cols")=1);
+    q_values.def("resize", &QValues::Resize);
+    q_values.def("set", py::overload_cast<double,int>(&QValues::Set));
+    q_values.def("set", py::overload_cast<Eigen::MatrixXd,int>(&QValues::Set));
+    q_values.def("get_scalar", &QValues::GetScalar);
+    q_values.def("get", &QValues::Get);
+    q_values.def_readonly("data", &QValues::data);
 
     pybind11::class_<IpLoop> ipLoop(m, "IpLoop");
     ipLoop.def(pybind11::init<>());
