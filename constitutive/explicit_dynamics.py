@@ -18,6 +18,43 @@ def sym_grad_vector(u):
             2 ** 0.5 * e[0, 1],
         ]
     )
+class CDMInterface:
+
+    def __init__(
+        self, V, u0, v0, t0, f_ext, bcs, M, damping_factor=None, calculate_F = False, bc_mesh = "current"
+    ):
+        self.QT = helper.quadrature_tensor_space(V, shape=(3, 3))
+        self.QV = helper.quadrature_vector_space(V, dim=6)
+
+        self.stress = df.Function(self.QV)
+        self.mesh = V.mesh()
+        self.v = v0
+        self.u = u0
+        self.a = np.zeros_like(self.u.vector().get_local())
+        self.L = df.Function(self.QT)
+        self.F = df.Function(self.QT) if calculate_F else None
+        self.t = np.ones(self.QT.dim()//9) * t0
+
+        self.ip_loop = cpp.IpLoop()
+        self.ip_loop.add_law(law, np.arange(self.QT.dim()//9))
+        self.ip_loop.resize(self.QT.dim()//9)
+
+        self.f_ext = f_ext
+        self.test_function = df.TestFunction(V)
+        self.f_int_form = df.inner(
+            sym_grad_vector(self.test_function), self.stress
+        ) * df.dx(
+            metadata={
+                "quadrature_degree": self.stress.ufl_element().degree(),
+                "quadrature_scheme": "default",
+            }
+        )
+
+        self.bcs = bcs
+        self.M_inv = 1 / M
+        self.x = df.interpolate(df.Expression(("x[0]", "x[1]", "x[2]"), degree=1), V)
+        self.damping_factor = damping_factor
+
 class CDM:
     def __init__(
         self, V, u0, v0, t0, f_ext, bcs, M, law, damping_factor=None, calculate_F = False, bc_mesh = "current"

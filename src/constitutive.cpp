@@ -7,6 +7,7 @@
 #include "plasticity.h"
 #include "radial_plasticity.h"
 #include "hypoelasticity.h"
+#include "rht.h"
 
 namespace py = pybind11;
 
@@ -187,4 +188,8 @@ PYBIND11_MODULE(cpp, m)
 
     pybind11::class_<RadialMisesYieldSurface, std::shared_ptr<RadialMisesYieldSurface>, RadialYieldSurface> radial_mises_yield_surface(m, "RadialMisesYieldSurface");
     radial_mises_yield_surface.def(pybind11::init<double, double>(), py::arg("sig0"), py::arg("H"));
+    
+    /*************************************************************************
+     ** RHT Concrete model
+     *************************************************************************/
 }
