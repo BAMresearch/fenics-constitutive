@@ -24,6 +24,8 @@ Eigen::Matrix3d mandel_to_matrix(Vector6d v){
 struct ObjectiveStressRate
 {
     virtual Eigen::VectorXd Rotate(Eigen::VectorXd& sigma, double h) = 0;
+    virtual void Resize(int n) = 0;
+    virtual void Set(Eigen::VectorXd& L_) = 0;
 };
 
 class JaumannStressRate : public ObjectiveStressRate
@@ -31,12 +33,15 @@ class JaumannStressRate : public ObjectiveStressRate
 public:
     //Eigen::VectorXd _W;
     QValues _W;
-    JaumannStressRate(int n)
+    JaumannStressRate()
     {
         _W = QValues(3,3);
+    }
+    void Resize(int n) override
+    { 
         _W.Resize(n);
     }
-    void Set(Eigen::VectorXd& L_)
+    void Set(Eigen::VectorXd& L_) override
     {
         _W.data = L_;
         //Eigen::Matrix3d L_temp;

@@ -9,9 +9,9 @@ The whole quadrature space is half deprecated, half not. We roll with it
 and just ignore the warnings.
 """
 
-import numpy as np
-
 import dolfin as df
+import numpy as np
+from scipy.linalg import eigvals
 
 
 def setup(module):
@@ -151,7 +151,7 @@ class LocalProjector:
         self.solver.solve_local_rhs(u)
 
 
-def local_project(v, V, dx, u=None ):
+def local_project(v, V, dx, u=None):
     dv = df.TrialFunction(V)
     v_ = df.TestFunction(V)
     a_proj = df.inner(dv, v_) * dx
@@ -164,6 +164,39 @@ def local_project(v, V, dx, u=None ):
         return u
     else:
         solver.solve_local_rhs(u)
+
+
+def as_mandel(T):
+    """
+    T: 
+        Symmetric 3x3 tensor
+    Returns:
+        Vector representation of T with factor sqrt(2) for shear components
+    """
+    factor = 2 ** 0.5
+    return df.as_vector(
+        [
+            T[0, 0],
+            T[1, 1],
+            T[2, 2],
+            factor * T[1, 2],
+            factor * T[0, 2],
+            factor * T[0, 1],
+        ]
+    )
+
+
+def critical_timestep(K_form, M_form, mesh):
+    eig = 0.0
+    for cell in df.cells(mesh):
+        # get total element mass
+        Me = df.assemble_local(M_form, cell)
+        Ke = df.assemble_local(K_form, cell)
+        eig = max(np.linalg.norm(eigvals(Ke, Me), np.inf), eig)
+
+    h = 2.0 / eig ** 0.5
+    return h
+
 
 """
 Setting values for the quadrature space
@@ -236,6 +269,7 @@ def quadrature_tensor_space(V, shape=None):
     )
     return df.FunctionSpace(V.mesh(), Qe)
 
+
 def function_set(f, values):
     """
     f:
@@ -248,6 +282,7 @@ def function_set(f, values):
     v.add_local(values.flatten())
     v.apply("insert")
 
+
 def function_add(f, values):
     """
     f:
@@ -258,6 +293,7 @@ def function_add(f, values):
     v = f.vector()
     v.add_local(values.flatten())
     v.apply("insert")
+
 
 def function_get(f):
     """

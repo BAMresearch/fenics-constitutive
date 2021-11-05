@@ -1,5 +1,6 @@
-import sys
 import re
+import sys
+
 
 """
 Assumption: 
@@ -9,6 +10,7 @@ Assumption:
     
     To ensure 2), we use the variable "in_codeblock".
 """
+
 
 def fix_inline_math(f):
     """
@@ -23,10 +25,11 @@ def fix_inline_math(f):
     f = re.sub(r"(\$[^\$]*)\$", r"\1`", f)
     return re.sub(r"\$", r":math:`", f)
 
+
 f = open(sys.argv[1], "r").read()
 f = fix_inline_math(f)
 lines = f.split("\n")
-   
+
 
 in_commentblock = False
 in_codeblock = False
@@ -36,25 +39,23 @@ for line in lines:
         in_codeblock = False
         print(line[2:].rstrip())
         continue
-    
-    if line.startswith("\"\"\""):
+
+    if line.startswith('"""'):
         if not in_commentblock:
             in_commentblock = True
             in_codeblock = False
         else:
             in_commentblock = False
 
-        print(line.replace("\"", ""))
+        print(line.replace('"', ""))
         continue
 
     if in_commentblock:
         print(line)
         continue
 
-
     if not in_codeblock:
         in_codeblock = True
         print("\n::\n")
 
-    print("  "+line)
-
+    print("  " + line)

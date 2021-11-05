@@ -7,7 +7,7 @@
 #include "plasticity.h"
 #include "radial_plasticity.h"
 #include "hypoelasticity.h"
-#include "rht.h"
+#include "mises_eos.h"
 
 namespace py = pybind11;
 
@@ -147,8 +147,9 @@ PYBIND11_MODULE(cpp, m)
      ************************************************************************/
     pybind11::class_<ObjectiveStressRate, std::shared_ptr<ObjectiveStressRate>> objective_stress_rate(m, "ObjectiveStressRate");
     pybind11::class_<JaumannStressRate, std::shared_ptr<JaumannStressRate>, ObjectiveStressRate> jaumann_updater(m, "JaumannStressRate");
-    jaumann_updater.def(pybind11::init<int>(), py::arg("n"));
+    jaumann_updater.def(pybind11::init<>());
     jaumann_updater.def("set", &JaumannStressRate::Set, py::arg("L"));
+    jaumann_updater.def("resize", &JaumannStressRate::Resize, py::arg("n"));
     jaumann_updater.def("__call__", &JaumannStressRate::Rotate, py::arg("stress"), py::arg("stepsize"));
     
     /*************************************************************************

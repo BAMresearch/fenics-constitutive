@@ -3,23 +3,11 @@ import unittest
 import dolfin as df
 import numpy as np
 from ffc.quadrature.deprecation import QuadratureRepresentationDeprecationWarning
-from scipy.linalg import eigvals
 import constitutive as c
 
 df.parameters["form_compiler"]["representation"] = "quadrature"
 warnings.simplefilter("ignore", QuadratureRepresentationDeprecationWarning)
 
-
-def critical_timestep(K_form, M_form, mesh):
-    eig = 0.0
-    for cell in df.cells(mesh):
-        # get total element mass
-        Me = df.assemble_local(M_form, cell)
-        Ke = df.assemble_local(K_form, cell)
-        eig = max(np.linalg.norm(eigvals(Ke, Me), np.inf), eig)
-
-    h = 2.0 / eig ** 0.5
-    return h
 
 class PullTest(unittest.TestCase):
     def setUp(self):
@@ -46,6 +34,7 @@ class PullTest(unittest.TestCase):
         rho = 1e-1
         t_end = 150
         law = c.HookesLaw(E, nu, False, False)
+        stress_rate = c.JaumannStressRate()
         expr_right.u = expr_right.u / t_end
         print("here 1")
         bcl = df.DirichletBC(V0.sub(0), expr_left, left)
@@ -53,27 +42,15 @@ class PullTest(unittest.TestCase):
         bcf = df.DirichletBC(V.sub(1), expr_front, front)
         bcb = df.DirichletBC(V.sub(2), expr_back, back)
         bcs = [bcl, bcr, bcf, bcb]
-        def sym_grad_vector(u):
-            e = df.sym(df.grad(u))
-            return df.as_vector(
-                [
-                    e[0, 0],
-                    e[1, 1],
-                    e[2, 2],
-                    2 ** 0.5 * e[1, 2],
-                    2 ** 0.5 * e[0, 2],
-                    2 ** 0.5 * e[0, 1],
-                ]
-            )
         v_ = df.TestFunction(V)
         u_ = df.TrialFunction(V)
         print(law.C)
 
         D = df.as_matrix(law.C.tolist())
-        K_form = df.inner(sym_grad_vector(u_), df.dot(D, sym_grad_vector(v_))) * df.dx
+        K_form = df.inner(c.as_mandel(df.sym(df.grad(u_))), df.dot(D, c.as_mandel(df.sym(df.grad(v_))))) * df.dx
         M_form = rho * df.inner(u_, v_) * df.dx
 
-        h = critical_timestep(K_form, M_form, mesh)
+        h = c.critical_timestep(K_form, M_form, mesh)
 
 
         v = df.Function(V)
@@ -82,8 +59,8 @@ class PullTest(unittest.TestCase):
         mass_form = df.action(df.inner(u_, v_) * rho * df.dx, df.Constant((1.0, 1.0, 1.0)))
         M = df.assemble(mass_form).get_local()
 
-        solver = c.CDM2(
-            V, u, v, 0, None, bcs, M, law,  None
+        solver = c.CDM(
+            V, u, v, 0, None, bcs, M, law, stress_rate
         )
 
         u_ = []

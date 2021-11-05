@@ -1,6 +1,8 @@
 import dolfin as df
+
 from . import helper as h
 from .cpp import *
+
 
 class Parameters:
     def __init__(self, constraint):
@@ -12,12 +14,12 @@ class Parameters:
         # quadrature degree
         self.deg_q = 2
 
-        self.E = 20000.
+        self.E = 20000.0
         self.nu = 0.2
-        self.ft = 4.
+        self.ft = 4.0
         self.alpha = 0.99
         self.gf = 0.1
-        self.k = 10.
+        self.k = 10.0
 
 
 class MechanicsProblem(df.NonlinearProblem):
@@ -52,7 +54,7 @@ class MechanicsProblem(df.NonlinearProblem):
         self.q_dsigma_deps = df.Function(VQT, name="stress-strain tangent")
 
         n_gauss_points = len(self.q_eps.vector().get_local()) // q_dim(prm.constraint)
-        self.iploop.resize(n_gauss_points);
+        self.iploop.resize(n_gauss_points)
 
         dd, d_ = df.TrialFunction(self.V), df.TestFunction(self.V)
 
@@ -113,7 +115,6 @@ class MechanicsProblem(df.NonlinearProblem):
     def update(self):
         self.calculate_eps(self.q_eps)
         self.iploop.update(self.q_eps.vector().get_local())
-
 
     def set_bcs(self, bcs):
         # Only now (with the bcs) can we initialize the _assembler

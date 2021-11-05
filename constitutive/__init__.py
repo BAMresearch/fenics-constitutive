@@ -1,9 +1,12 @@
-import dolfin as df
-from .mechanics_problem import *
-from .explicit_dynamics import CDM, CDM2
-
 import warnings
-from ffc.quadrature.deprecation import QuadratureRepresentationDeprecationWarning
+
+import dolfin as df
+from ffc.quadrature.deprecation import \
+    QuadratureRepresentationDeprecationWarning
+
+from .explicit_dynamics import CDM
+from .helper import *
+from .mechanics_problem import *
 
 warnings.simplefilter("ignore", QuadratureRepresentationDeprecationWarning)
 df.parameters["form_compiler"]["representation"] = "quadrature"
