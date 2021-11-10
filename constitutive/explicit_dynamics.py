@@ -38,11 +38,10 @@ class CDM:
         self.ip_loop.add_law(law, np.arange(self.QT.dim() // 9))
         self.ip_loop.resize(self.QT.dim() // 9)
 
+        
+        self.stress_rate = stress_rate
         if stress_rate is not None:
-            self.stress_rate = stress_rate
             self.stress_rate.resize(self.QT.dim() // 9)
-        else:
-            self.stress_rate = None
 
         self.f_ext = f_ext
         self.test_function = df.TestFunction(V)
@@ -56,6 +55,7 @@ class CDM:
         )
 
         self.bcs = bcs
+        self.bc_mesh=bc_mesh
         self.M_inv = 1 / M
         self.x = df.interpolate(df.Expression(("x[0]", "x[1]", "x[2]"), degree=1), V)
         self.damping_factor = damping_factor
@@ -119,19 +119,20 @@ class CDM:
         helper.function_set(self.v, c1 * self.v.vector().get_local() + c2 * h * self.a)
 
         # if self.bcs is not None:
-        # if self.bc_mesh == "current":
-        # for bc in self.bcs:
-        # bc.apply(self.v.vector())
-        # elif self.bc_mesh == "initial":
-        # helper.function_add(self.x, -self.u.vector().get_local())
-        # df.set_coordinates(self.mesh.geometry(), self.x)
-        # for bc in self.bcs:
-        # bc.apply(self.v.vector())
-        # helper.function_add(self.x, self.u.vector().get_local())
-
-        if self.bcs is not None:
+        if self.bc_mesh == "current":
             for bc in self.bcs:
                 bc.apply(self.v.vector())
+        elif self.bc_mesh == "initial":
+            u_vec = helper.function_get(self.u)
+            helper.function_add(self.x, -u_vec)
+            df.set_coordinates(self.mesh.geometry(), self.x)
+            for bc in self.bcs:
+                bc.apply(self.v.vector())
+            helper.function_add(self.x, u_vec)
+
+        # if self.bcs is not None:
+            # for bc in self.bcs:
+                # bc.apply(self.v.vector())
 
         du = h * self.v.vector().get_local()
         helper.function_add(self.x, du * 0.5)
