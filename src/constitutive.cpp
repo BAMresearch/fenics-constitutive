@@ -57,6 +57,7 @@ PYBIND11_MODULE(cpp, m)
     ipLoop.def("resize", &IpLoop::Resize);
     ipLoop.def("get", &IpLoop::Get);
     ipLoop.def("required_inputs", &IpLoop::RequiredInputs);
+    ipLoop.def("updateTime", &IpLoop::UpdateTime, py::arg("timePrev"), py::arg("time"));
 
     pybind11::class_<LawInterface, std::shared_ptr<LawInterface>> law(m, "LawInterface");
 
@@ -127,5 +128,6 @@ PYBIND11_MODULE(cpp, m)
      **   UMAT
      *************************************************************************/
     pybind11::class_<Umat, std::shared_ptr<Umat>, MechanicsLaw> umat(m, "Umat");
-    umat.def(pybind11::init<Constraint>());
+    umat.def(pybind11::init<char*, Constraint, const std::vector<double>*>(), py::arg("cmname"), py::arg("constraint"),
+	     py::arg("EulerAngles") = std::vector<double>());
 }

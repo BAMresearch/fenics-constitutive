@@ -84,11 +84,11 @@ class TestUniaxial(unittest.TestCase):
         prm = c.Parameters(constraint_type)
         prm.deg_d = 1
 
-        law = c.Umat(constraint_type)
+        law = c.Umat("SDCHABOX",constraint_type)
         #law = c.LinearElastic(1e9, 0.3, constraint_type)
 
         problem = c.MechanicsProblem(mesh, prm, law)
-        
+
         # ===== Dirichlet BC =====
         load     = Expression("topDisplacement", topDisplacement=0.,degree = 1)
         bcLoad   = DirichletBC(problem.Vd.sub(2),load, top)

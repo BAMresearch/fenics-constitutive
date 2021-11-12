@@ -183,3 +183,200 @@ def spaces(mesh, deg_q, qdim):
     QV = df.VectorElement(q, cell, deg_q, quad_scheme="default", dim=qdim)
     QT = df.TensorElement(q, cell, deg_q, quad_scheme="default", shape=(qdim, qdim))
     return [df.FunctionSpace(mesh, Q) for Q in [QF, QV, QT]]
+
+
+"""
+Read orientations from Abaqus *.inp file(s)
+
+1. create orientation class:
+   ori = OrientationFromAbaqus()
+
+2. read Abaqus *.inp files
+   ori.read_orientations_from("AbaqusInputFile.inp")
+
+3. If *ORIENTATION & *SOLID SECTION are in different *.inp files, then the call
+   must be performed for each file
+   ori.read_orientations_from("AbaqusInputFileContainingOrientations.inp")
+   ori.read_orientations_from("AbaqusInputFileContainingSolidSections.inp")
+
+4. Call:
+   ori.isComplete()
+   to ensure that recalculation from *ORIANTATION to Euler angles has been done
+
+5. Access the Euler angles via the dictionary:
+   ori.orientation_data_Euler
+   which for a given solid section name
+   provides np.array([phi, theta, rho]) in degrees
+
+"""
+import os.path
+import sys
+
+class OrientationFromAbaqus:
+    def __init__(self):
+        self.orientation_data_Abaqus = {}
+        self.orientation_data_Euler   = {}
+        self.solid_section_data      = {}
+
+    def read_orientations_from(self, filename):
+        # Reads Abaqus orientations from an inp file, which contains
+        # *ORIENT and/or *SOLID SECTION
+        # if *ORIENT and *SOLID SECTION are in different files,
+        # the function must be calles sequentially
+        if not os.path.isfile(filename):
+            print("**ERROR: file with orientations ", filename, " was not found.")
+            raise Exception()
+
+        with open(filename, "r") as f:
+            orientation_data   = {}
+            solid_saction_data = {}
+            line = f.readline()
+            while True:
+                if not line:
+                    break
+                
+                if line.startswith("**"):
+                    line = f.readline()
+                    continue
+                    
+                keyword = line.partition(",")[0].strip().replace("*", "").upper()
+                if keyword == "ORIENTATION":
+                    
+                    param_map = self.evaluate_argument_line(line)
+                    self.orientation_data_Abaqus[param_map['NAME']] = self.read_rectangular_values(f)
+
+                    # go to next orientation
+                    line = f.readline()
+                    continue
+                if keyword == "SOLID SECTION":
+
+                    param_map = self.evaluate_argument_line(line)
+                    self.solid_section_data[param_map['ELSET']] =[param_map['MATERIAL'],param_map['ORIENTATION']]
+                    
+                    # go to next solid section
+                    line = f.readline()
+                    continue
+                else:
+                    line = f.readline()
+
+            # if orientations have been read, convert them to Euler angles
+            if bool(self.orientation_data_Abaqus) and not bool(self.orientation_data_Euler):
+                for key, OriAbaqus in self.orientation_data_Abaqus.items():
+                    EulerAngles = self.convert2Euler(OriAbaqus[0])
+                    self.orientation_data_Euler[key] = EulerAngles
+        
+    def isComplete(self):
+        if bool(self.solid_section_data) and bool(self.orientation_data_Euler):
+            return True
+        
+    def evaluate_argument_line(self, line):
+        # reads line, which starts by *keyword, like *Orientation, *Solid Section etc.
+        # returns a dict., like
+        # {SYSTEM: RECTANGULAR, NAME: ORIENT1}
+        # for line: *ORIENTATION, SYSTEM=RECTANGULAR, NAME=ORIENT1
+
+        words = line.split(",")
+        param_map = {}
+        for word in words:
+            if "=" in word:
+                sword = word.split("=")
+                
+                if len(sword) != 2:
+                    print("**ERROR: wrong input in ",line)
+                    raise Exception()
+
+                key = sword[0].strip().upper()
+                value = sword[1].strip()
+                param_map[key] = value
+                
+        keyword = words[0].strip().replace("*", "").upper()
+        if keyword == 'ORIENTATION':
+            if param_map['SYSTEM'] != 'RECTANGULAR':
+                print("**ERROR: only RECTANGULAR system is implemented.")
+                raise Exception()
+        if keyword == 'SOLID SECTION':
+            if 'ELSET' not in list(param_map.keys()):
+                print("**ERROR: ELSET missing in ",line)
+                raise Exception()
+            if 'MATERIAL' not in list(param_map.keys()):
+                print("**ERROR: MATERIAL missing in ",line)
+                raise Exception()
+            if 'ORIENTATION' not in list(param_map.keys()):
+                print("**ERROR: ORIENTATION missing in ",line)
+                raise Exception()
+            
+        return param_map
+    
+    def read_rectangular_values(self, f):
+        values = []
+        while True:
+            line = f.readline()
+            if not line or line.startswith("*"):
+                break
+            if line.strip() == "":
+                continue
+
+            words = line.strip().split(",")
+        
+            if len(words) < 6:
+                print("**ERROR: wrong input in ",line)
+                raise Exception()
+
+            values.append([float(x) for x in words[:6]])
+            # only one line must be read
+            break
+        return np.array(values, dtype=float)
+
+    def convert2Euler(self, orientationAbaqus):
+        # returns np.array [phi, theta, rho]
+        # notations Sp := sin(phi), Ct := cos(theta) etc.
+        
+        # the system solved is:
+        # a1 =  CrCp - CtSrSp;  a2 = CtCpSr + CrSp; a3 = StSr
+        # b1 = -CpSr - CtCrSp;  b2 = CtCrCp - SrSp; b3 = CrCt
+        
+        # some equalities:
+        # TANr = a3/b3
+        #
+        # TANp = b3/a3 (b2 - Ct a1)/(b2 Ct - a1) or TANp = - (b1 + a1 TANr)/(a2 TANr + b2)
+        # obtained by (a1 Sr + b1 C)r / (a2 Sr + b2 Cr)
+        #
+        # Ct = - (a2 TANr + b2)/(b1 TANr - a1)
+        # obtained by (a1 Ct - b2) / (b1 Ct + a2)
+        
+        a1 = orientationAbaqus[0]
+        a2 = orientationAbaqus[1]
+        a3 = orientationAbaqus[2]
+        b1 = orientationAbaqus[3]
+        b2 = orientationAbaqus[4]
+        b3 = orientationAbaqus[5]
+
+        TANr = a3/b3
+        rho = np.arctan2(a3,b3)
+   
+        Ct = -(b2 + a2*TANr)/(b1*TANr - a1)
+        St = np.sqrt(a3*a3 + b3*b3)
+        theta = np.arccos(Ct)
+    
+        TANp = -(b1 + a1*TANr)/(a2*TANr + b2)
+        phi = np.arctan(TANp)
+   
+        # the convertion is not unique
+        # the solutions must be checked with regards to +/-pi
+        convertion = False
+        for angle in [phi, phi + np.pi, phi - np.pi]:
+            A1 =  np.cos(rho)*np.cos(angle) - np.cos(theta)*np.sin(rho)*np.sin(angle)
+            A2 =  np.cos(rho)*np.sin(angle) + np.cos(theta)*np.cos(angle)*np.sin(rho)
+            B1 = -np.cos(angle)*np.sin(rho) - np.cos(theta)*np.cos(rho)*np.sin(angle)
+            B2 = -np.sin(rho)*np.sin(angle) + np.cos(theta)*np.cos(angle)*np.cos(rho)
+            # a3 and b3 are correct and do not depend on phi
+            if np.allclose([a1,a2,b1,b2],[A1,A2,B1,B2]):
+                phi = angle
+                convertion = True
+                break
+
+        if not convertion:
+            print("**ERROR: convertion of ORIENTATION to Euler not found.")
+            raise Exception()
+
+        return np.array([phi, theta, rho])*180/np.pi

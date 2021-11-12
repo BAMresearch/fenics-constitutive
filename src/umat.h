@@ -10,16 +10,15 @@ using namespace std;
    namespace constants
    {
      // constants have internal linkage by default
-     const char cmname[] = "SDCHABOX";
      const int ntens  = 6;
      const int dim    = 3;
-     const int nstatv = 29;
-     const int nprops = 0;
    }
 
    extern "C" 
    {
      void param0_sdchabox_(char[],bool*,int);
+     void param0_sdgdp_(char[],bool*,int);
+     void param0_sdcrcry_(char[],bool*,int);
 
      void kusdchabox_(double[],double[],double (*ddsdde)[constants::ntens],double*,double*,double*,
 		      double*,double[],double[],double*,
@@ -27,22 +26,57 @@ using namespace std;
      		      int*,int*,int*,int*,double[],int*,double[constants::dim],double (*drot)[constants::dim],double*,
      		      double*,double (*dfgrd0)[constants::dim],double (*dfgrd1)[constants::dim],int*,int*,int*,int*,int*,int*,
      		      int);
-
+     void kusdgdp_(double[],double[],double (*ddsdde)[constants::ntens],double*,double*,double*,
+		      double*,double[],double[],double*,
+     		      double[],double[],double[],double*,double*,double*,double*,double*,char[],
+     		      int*,int*,int*,int*,double[],int*,double[constants::dim],double (*drot)[constants::dim],double*,
+     		      double*,double (*dfgrd0)[constants::dim],double (*dfgrd1)[constants::dim],int*,int*,int*,int*,int*,int*,
+     		      int);
+     void kusdcrcry_(double[],double[],double (*ddsdde)[constants::ntens],double*,double*,double*,
+		      double*,double[],double[],double*,
+     		      double[],double[],double[],double*,double*,double*,double*,double*,char[],
+     		      int*,int*,int*,int*,double[],int*,double[constants::dim],double (*drot)[constants::dim],double*,
+     		      double*,double (*dfgrd0)[constants::dim],double (*dfgrd1)[constants::dim],int*,int*,int*,int*,int*,int*,
+     		      int);
    }
 
 class Umat : public MechanicsLaw
 {
 public:
-     Umat(Constraint c)
+  Umat(char cmname[], Constraint c, const std::vector<double>* EulerAngles = 0)
         : MechanicsLaw(c)
         , _C(C(1., 0., c))
-	, _statevPrev(constants::nstatv)
-	, _statevEvaluate(constants::nstatv)
 	, _stranPrev(Dim::Q(c))
 	, _stressPrev(Dim::Q(c))
     {
-      char cmname[strlen(constants::cmname)];
+      std::string cmnameStr(cmname);
       bool initMat = true;
+      int nstatv;
+
+      // set the name of the UMAT routine to the statev _cmname 
+      _cmname = cmnameStr;
+      
+      // initiate state variables
+      nstatv = getNumberStatev();
+      _statevPrev = QValues(nstatv);
+      _statevEvaluate = QValues(nstatv);
+
+      // get orientation
+      //_EulerAngles[0] = 0;
+      //_EulerAngles = 0;
+      
+      if ((*EulerAngles).empty() == false)
+	{
+	  if ((*EulerAngles).size() != 3)
+	    {
+	      std::cout << "ERROR: Orientation needs three Euler angles in °"<<std::endl;
+	      throw std::exception();
+	    }
+	  // _EulerAngles = &((*EulerAngles).at(0));
+	  // 2710 std::copy((*EulerAngles).begin(), (*EulerAngles).end(), _EulerAngles);
+	  _EulerAngles = *EulerAngles;
+	  // std::cout << (*EulerAngles).at(0) << std::endl;
+        }
 
       // not all constraints are implemented
       // PLANE_STRESS requires another stiffness matrix and must be transfered
@@ -58,10 +92,45 @@ public:
 	  throw std::exception();
 	}
       
-      strcpy(cmname, constants::cmname);
-      param0_sdchabox_(cmname,&initMat,strlen(cmname));
+      // read material constants for the given constitutive law
+      if(cmnameStr == "SDCHABOX")
+	{
+	  param0_sdchabox_(cmname,&initMat,strlen(cmname));
+	}
+      else if (cmnameStr == "SDGDP")
+	{
+	  param0_sdgdp_(cmname,&initMat,strlen(cmname));
+	}
+      else if (cmnameStr == "SDCRCRY")
+	{
+	  param0_sdcrcry_(cmname,&initMat,strlen(cmname));
+	}
+      else
+	{
+	  std::cout << "ERROR at param0_ call: Unknown UMAT "<< cmnameStr <<std::endl;
+	  throw std::exception();
+	}
     }
-
+  int getNumberStatev()
+    {
+       if(_cmname == "SDCHABOX")
+	{
+	  return 29;
+	}
+       else if (_cmname == "SDGDP")
+	{
+	  return 45;
+	}
+       else if (_cmname == "SDCRCRY")
+	{
+	  return 37;
+	}
+      else
+	{
+	  std::cout << "ERROR at getNumberStatev: Unknown UMAT "<< _cmname <<std::endl;
+	  throw std::exception();
+	}
+    }
     void Resize(int n) override
     {
         _statevPrev.Resize(n);
@@ -185,9 +254,9 @@ public:
   
     void Update(const Eigen::VectorXd& strain, int i) override
     {
-      int nstatv = constants::nstatv;
+      int nstatv = getNumberStatev();
       const int ntens = _C.rows();
-	
+  
       Eigen::VectorXd statevXd(nstatv), stressXd(ntens);
 
       stressXd = Evaluate(strain, i).first;   // the routine overwrites _statevEvaluate
@@ -197,25 +266,24 @@ public:
 
       //      std::cout << " OUTPUT FROM RESIZE =================" << std::endl;
       //      std::cout << _stressPrev.Get(i) << std::endl;
-      
     }
 
   std::pair<Eigen::VectorXd, Eigen::MatrixXd> Evaluate(const Eigen::VectorXd& strain, int i) override
     {
       // for plain_strain we transform a strain vectors of length 3 to the full vectors of length 6
       // and send to abaqus; therefore for plain_strain and full, the strains and stresses have the
-      // length of constant::ntens=6; once we convert the abaqus stress of lemgth 6 to the fenics stress
+      // length of constant::ntens=6; once we convert the abaqus stress of length 6 to the fenics stress
       // of the length 6 for full or the length 3 for plain_strain, we need to provide the fenics
       // length = _C.rows(), see the return of the function
       int ntens = constants::ntens; //_C.rows();
-      int nstatv = constants::nstatv, nprops = constants::nprops;
+      int nstatv = getNumberStatev(),  nprops;
       int  ndi,nshr,noel,npt,layer,kspt,kstep,kinc;
       double stress[ntens], 
 	stran[ntens], dstran[ntens],
 	ddsddt[ntens],drplde[ntens];
       double ddsdde[6][6],drot[3][3],dfgrd0[3][3],dfgrd1[3][3];
 
-      double statev[nstatv],props[nprops],time[2],coords[3];
+      double statev[nstatv],time[2],coords[3];
 
       double sse,spd,scd,pnewdt,rpl,drpldt,dtime,temp,dtemp,predef,dpred,celent;
 
@@ -236,22 +304,75 @@ public:
 
       ConvertVoigtXd2arr(strain - _stranPrev.Get(i), dstran);
 
-      char cmname[strlen(constants::cmname)];
+      //2210      char cmname[strlen(constants::cmname)];
 //1008      bool initMat = true;
       
       //     assign constants::cmname to cmname;
       //     std::copy(constants::cmname, constants::cmname + strlen(constants::cmname), cmname);
-      strcpy(cmname, constants::cmname);
+      //2210 strcpy(cmname, constants::cmname);
+      char cmname[_cmname.length()];
+      strcpy(cmname, _cmname.c_str());
+      //2210 char cmname[strlen(_cmname)];
+      //2210 strcpy(cmname, _cmname);
 //1008      param0_sdchabox_(cmname,&initMat,strlen(cmname));
       //      std::cout << "... after param0_" << std::endl;
 
-
-      kusdchabox_(stress,statev,ddsdde,&sse,&spd,&scd,
-		  &rpl,ddsddt,drplde,&drpldt,
-		  stran,dstran,time,&dtime,&temp,&dtemp,&predef,&dpred,cmname,
-		  &ndi,&nshr,&ntens,&nstatv,props,&nprops,coords,drot,&pnewdt,
-		  &celent,dfgrd0,dfgrd1,&noel,&npt,&layer,&kspt,&kstep,&kinc,strlen(cmname));
+      // get orientation
+      // the props are used to transfer the Euler angles only!
+      if(_EulerAngles.empty())
+	{
+	  nprops = 0;
+	}
+      else
+	{
+	  if(_EulerAngles.size() == 3)
+	    {
+	      nprops = 3;
+	    }
+	  else
+	    {
+	      nprops = 0;
+	    }
+	}
       
+      double props[nprops];
+      if(_EulerAngles.size() == 3 and nprops == 3)
+	{
+	  std::copy(_EulerAngles.begin(), _EulerAngles.end(), props);
+	}
+
+      // UMAT call
+      if(_cmname == "SDCHABOX")
+	{
+	  kusdchabox_(stress,statev,ddsdde,&sse,&spd,&scd,
+		   &rpl,ddsddt,drplde,&drpldt,
+		   stran,dstran,time,&dtime,&temp,&dtemp,&predef,&dpred,cmname,
+		   &ndi,&nshr,&ntens,&nstatv,props,&nprops,coords,drot,&pnewdt,
+		   &celent,dfgrd0,dfgrd1,&noel,&npt,&layer,&kspt,&kstep,&kinc,strlen(cmname));
+	}
+      else if (_cmname == "SDGDP")
+	{
+	  kusdgdp_(stress,statev,ddsdde,&sse,&spd,&scd,
+		   &rpl,ddsddt,drplde,&drpldt,
+		   stran,dstran,time,&dtime,&temp,&dtemp,&predef,&dpred,cmname,
+		   &ndi,&nshr,&ntens,&nstatv,props,&nprops,coords,drot,&pnewdt,
+		   &celent,dfgrd0,dfgrd1,&noel,&npt,&layer,&kspt,&kstep,&kinc,strlen(cmname));
+	}
+      else if (_cmname == "SDCRCRY")
+	{
+	  //  std::cout<< *time <<" from umat.h, dstran " << dstran[2] << std::endl;
+	  kusdcrcry_(stress,statev,ddsdde,&sse,&spd,&scd,
+		   &rpl,ddsddt,drplde,&drpldt,
+		   stran,dstran,time,&dtime,&temp,&dtemp,&predef,&dpred,cmname,
+		   &ndi,&nshr,&ntens,&nstatv,props,&nprops,coords,drot,&pnewdt,
+		   &celent,dfgrd0,dfgrd1,&noel,&npt,&layer,&kspt,&kstep,&kinc,strlen(cmname));
+	  // std::cout<< " from umat.h, dds " << ddsdde[0][0] << std::endl;
+	}
+      else
+	{
+	  std::cout << "ERROR at evaluate: Unknown UMAT "<< _cmname <<std::endl;
+	  throw std::exception();
+	}
       
       Eigen::VectorXd statevXd(nstatv);
       for ( int j = 0; j != nstatv; j++ )
@@ -260,16 +381,23 @@ public:
 	}
  
       _statevEvaluate.Set(statevXd, i);
-  
+
       return {ConvertVoigtArr2vectorXd(stress, _C.rows()), ConvertDdsdde2matrixXd(ddsdde)};
     }
 
 private:
     Eigen::MatrixXd _C;
 
-    // history values
+    // history variables
     QValues _statevPrev;
     QValues _statevEvaluate;
     QValues _stranPrev;
-    QValues _stressPrev; 
+    QValues _stressPrev;
+
+    // constitutive law name
+    std::string _cmname;
+
+    // orientation, optional
+  //2710    double _EulerAngles[3];
+    std::vector<double> _EulerAngles; 
 };
