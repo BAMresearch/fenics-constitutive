@@ -179,7 +179,7 @@ public:
         auto p = _eos->Evaluate(eta, e1);
         _internal_vars_1[E].Set(e1, i);
         /***********************************************************************
-         * Combine deviatoric and volumetric stresses and use stress rate
+         * Combine deviatoric and volumetric stresses and apply stress rate
          **********************************************************************/
 
         stress = mandel_to_matrix(s - T_vol * p);
