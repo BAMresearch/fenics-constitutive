@@ -186,17 +186,28 @@ def as_mandel(T):
     )
 
 
+# def critical_timestep(K_form, M_form, mesh):
+#     eig = 0.0
+#     for cell in df.cells(mesh):
+        # get total element mass
+#         Me = df.assemble_local(M_form, cell)
+#         Ke = df.assemble_local(K_form, cell)
+#         eig = max(np.linalg.norm(eigvals(Ke, Me), np.inf), eig)
+#     eig = df.MPI.max(df.MPI.comm_world, eig)
+#     h = 2.0 / eig ** 0.5
+#     return h
 def critical_timestep(K_form, M_form, mesh):
     eig = 0.0
-    for cell in df.cells(mesh):
-        # get total element mass
+    i_local = mesh.num_cells()
+    i_max = int(df.MPI.max(df.MPI.comm_world, mesh.num_cells()))
+    for i in range(i_max):
+        cell = df.Cell(mesh,i%i_local)
         Me = df.assemble_local(M_form, cell)
         Ke = df.assemble_local(K_form, cell)
         eig = max(np.linalg.norm(eigvals(Ke, Me), np.inf), eig)
-
+    eig = df.MPI.max(df.MPI.comm_world, eig)
     h = 2.0 / eig ** 0.5
     return h
-
 
 """
 Setting values for the quadrature space
