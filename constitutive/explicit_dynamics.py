@@ -22,26 +22,31 @@ class CDM:
         calculate_F=False,
         bc_mesh="current",
     ):
+
         self.QT = helper.quadrature_tensor_space(V, shape=(3, 3))
         self.QV = helper.quadrature_vector_space(V, dim=6)
 
         self.stress = df.Function(self.QV)
+
+        self.local_q_dim = self.stress.vector().get_local().size // 6
+        print(self.local_q_dim)
+
         self.mesh = V.mesh()
         self.v = v0
         self.u = u0
         self.a = np.zeros_like(self.u.vector().get_local())
         self.L = df.Function(self.QT)
         self.F = df.Function(self.QT) if calculate_F else None
-        self.t = np.ones(self.QT.dim() // 9) * t0
+        self.t = np.ones(self.local_q_dim) * t0
 
         self.ip_loop = cpp.IpLoop()
-        self.ip_loop.add_law(law, np.arange(self.QT.dim() // 9))
-        self.ip_loop.resize(self.QT.dim() // 9)
+        self.ip_loop.add_law(law, np.arange(self.local_q_dim))
+        self.ip_loop.resize(self.local_q_dim)
 
         
         self.stress_rate = stress_rate
         if stress_rate is not None:
-            self.stress_rate.resize(self.QT.dim() // 9)
+            self.stress_rate.resize(self.local_q_dim)
 
         self.f_ext = f_ext
         self.test_function = df.TestFunction(V)
@@ -60,6 +65,7 @@ class CDM:
         self.x = df.interpolate(df.Expression(("x[0]", "x[1]", "x[2]"), degree=1), V)
         self.damping_factor = damping_factor
 
+    #@profile
     def stress_update(self, h):
 
         helper.local_project(
@@ -79,7 +85,6 @@ class CDM:
             self.ip_loop.set(cpp.Q.TIME_STEP, np.ones_like(self.t) * h)
 
             self.ip_loop.evaluate()
-            self.ip_loop.update()
             new_stress = self.ip_loop.get(cpp.Q.SIGMA)
         else:
             self.stress_rate.set(self.L.vector().get_local())
@@ -88,7 +93,6 @@ class CDM:
             new_stress = self.stress_rate(new_stress, h * 0.5)
 
             eps = cpp.strain_increment(self.L.vector().get_local(), h)
-
             self.ip_loop.set(cpp.Q.SIGMA, new_stress)
             self.ip_loop.set(cpp.Q.EPS, eps)
 
@@ -97,9 +101,10 @@ class CDM:
             new_stress = self.ip_loop.get(cpp.Q.SIGMA)
             new_stress = self.stress_rate(new_stress, h * 0.5)
 
+        self.ip_loop.update()
         helper.function_set(self.stress, new_stress)
 
-    # @profile
+    #@profile
     def step(self, h):
 
         if self.damping_factor is not None:
