@@ -69,20 +69,22 @@ public:
     void DefineOutputs(std::vector<QValues>& output) const override
     {
         output[SIGMA] = QValues(_stress_dim);
-        if (_tangent)
+        if (_tangent){
             //return the consistent tangent if required by the user
             output[DSIGMA_DEPS] = QValues(_stress_dim,_stress_dim);
+        }
     }
 
     void DefineInputs(std::vector<QValues>& input) const override
     {
         //depending on total_strains, EPS will either be interpreted as a strain increment or the total strains
         input[EPS] = QValues(_stress_dim);
-        if (!_total_strains)
+        if (!_total_strains){
             //If EPS is a strain increment, it is assumed that the stress may be transformed outside
             //the constitutive law (e.g. rotation with an objective stress rate). Therefore it is used
             //as an input instead of an iunternal variable
             input[SIGMA] = QValues(_stress_dim);
+        }
     }
     Eigen::VectorXd GetInternalVar(Q which)
     {
@@ -108,7 +110,8 @@ public:
         if (f <= 0)
         {
             output[SIGMA].Set(sigma_tr,i);
-            _internal_vars_1[SIGMA].Set(sigma_tr, i);
+            if (_total_strains)
+              _internal_vars_1[SIGMA].Set(sigma_tr, i);
             if(_tangent)
               output[DSIGMA_DEPS].Set(_C,i);
         }
@@ -121,7 +124,8 @@ public:
             auto stress = sigma_tr - beta * sigma_dev;
 
             output[SIGMA].Set(stress,i);
-            _internal_vars_1[SIGMA].Set(stress, i);
+            if(_total_strains)
+                _internal_vars_1[SIGMA].Set(stress, i);
             if(_tangent){
                 auto tangent = _C -
                           3 * _mu * (3 * _mu / (3 * _mu + _H) - beta) * n_elas *
@@ -135,11 +139,12 @@ public:
     }
     void Update(const std::vector<QValues>& input, int i) override
     {
-        _internal_vars_0[EPS].Set(input[EPS].Get(i),i);
-        _internal_vars_0[LAMBDA].Set(_internal_vars_1[LAMBDA].Get(i), i);
+        _internal_vars_0[LAMBDA].Set(_internal_vars_1[LAMBDA].GetScalar(i), i);
 
-        if (_total_strains)
+        if (_total_strains){
             _internal_vars_0[SIGMA].Set(_internal_vars_1[SIGMA].Get(i), i);
+            _internal_vars_0[EPS].Set(input[EPS].Get(i),i);
+        }
 
     }
 
