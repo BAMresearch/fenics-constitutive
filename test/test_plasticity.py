@@ -3,8 +3,13 @@ import dolfin as df
 import numpy as np
 from fenics_helpers import boundary
 from fenics_helpers.timestepping import TimeStepper
-import constitutive as c
 
+import os, sys
+from pathlib import Path
+sys.path.insert(0, '..')
+sys.path.insert(0, '.')
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'test'))
+from plasticity_law_pure_python import * # (includes import constitutive as c)
 
 def show_loading(loading, t0=0.0, t1=1.0, N=1000):
     import matplotlib.pyplot as plt
@@ -16,8 +21,8 @@ def show_loading(loading, t0=0.0, t1=1.0, N=1000):
     plt.plot(ts, bcs)
     plt.show()
 
-
-def revise_prm(prm):
+def my_parameters():
+    prm = c.Parameters(c.Constraint.PLANE_STRESS)
     prm.E = 1000.0
     prm.Et = prm.E / 100.0
     prm.sig0 = 12.0
@@ -27,19 +32,14 @@ def revise_prm(prm):
     prm.deg_q = 4
     return prm
 
-
 def plasticity_law(prm):
     yf = c.YieldVM(prm.sig0, prm.constraint, prm.H)
     ri = c.RateIndependentHistory()
+    ## law (at GP-level) in C++
+    law = c.PlasticConsitutiveRateIndependentHistory(prm.E, prm.nu, prm.constraint, yf, ri)
     ## law (at GP-level) in PYTHON
     # law = PlasticConsitutiveRateIndependentHistory(prm.E, prm.nu, prm.constraint, yf=yf, ri=ri)
-    ## law (at GP-level) in C++
-    law = c.PlasticConsitutiveRateIndependentHistory(
-        prm.E, prm.nu, prm.constraint, yf, ri
-    )
-
     return law
-
 
 class TestPlasticity(unittest.TestCase):
     def test_at_one_point(self):
@@ -68,75 +68,29 @@ class TestPlasticity(unittest.TestCase):
             k = array([0.00428167])
             d_eps_p = array([ 0.00422003, -0.00173456,  0.00100407])
         """
-        prm = c.Parameters(c.Constraint.PLANE_STRESS)
-        law = plasticity_law(revise_prm(prm))
-        law.resize(1)
-        strain = np.array([0.01698246, -0.00421753, 0.00357475])
-        sig_cr = np.array([13.206089, 1.47886298, 0.98872433])
-        Ct = np.array(
-            [
-                [280.44279754, 338.97481295, -51.57281077],
-                [338.97481295, 848.94226837, 3.64252814],
-                [-51.57281077, 3.64252814, 271.93046544],
-            ]
-        )
-        gp_id = 0
-        k0 = 0.0
-        sigma, dsigma = law.evaluate(strain, gp_id)
-        sigma_c, dsigma_c, _, _ = law.correct_stress(law.D @ strain, k0, 1e-9, 20)
-        self.assertLess(np.linalg.norm(sigma - sigma_c), 1e-9)
-        self.assertLess(np.linalg.norm(dsigma - dsigma_c), 1e-9)
-        self.assertLess(np.linalg.norm(sigma - sig_cr), 1e-5)
-        self.assertLess(np.linalg.norm(dsigma - Ct), 5e-4)
-
-    def test_1d(self):
-        mesh = df.UnitIntervalMesh(5)
-        prm = c.Parameters(c.Constraint.UNIAXIAL_STRESS)
-        # I think that this test should fail for UNIAXIAL_STRAIN...
-        prm.E = 17.0
-        prm.Et = 12.0
-        prm.sig0 = 42.0
-        prm.H = prm.E * prm.Et / (prm.E - prm.Et)
-        prm.nu = 0.2
-        prm.deg_d = 3
-        prm.deg_q = 4
-
+        prm = my_parameters()
         law = plasticity_law(prm)
-        problem = c.MechanicsProblem(mesh, prm, law=law)
-
-        left = boundary.plane_at(0.0)
-        right = boundary.plane_at(1.0)
-        bc_expr = df.Expression(("u",), degree=0, u=0)
-
-        bcs = []
-        bcs.append(df.DirichletBC(problem.Vd, bc_expr, right))
-        bcs.append(df.DirichletBC(problem.Vd, (0,), left))
-        problem.set_bcs(bcs)
-        
-        ld = c.helper.LoadDisplacementCurve(bcs[0])
-
-        # we do two load increments, the first to sigma0, the second to 
-        # 2*sigma0
-        eps_of_sig0 = prm.sig0/prm.E
-        for t in np.linspace(0., 2 * eps_of_sig0 , 3):
-            bc_expr.u = t
-            problem.solve()
-            problem.update()
-            ld(t, df.assemble(problem.R))
-
-        first_slope = (ld.load[1] - ld.load[0]) / eps_of_sig0
-        second_slope = (ld.load[2] - ld.load[1]) / eps_of_sig0
-        
-        self.assertAlmostEqual(first_slope, prm.E)
-        self.assertAlmostEqual(second_slope, prm.Et)
+        strain = np.array([ 0.01698246, -0.00421753,  0.00357475])
+        sig_cr = np.array([13.206089  ,  1.47886298,  0.98872433])
+        Ct = np.array([[280.44279754, 338.97481295, -51.57281077],
+               [338.97481295, 848.94226837,   3.64252814],
+               [-51.57281077,   3.64252814, 271.93046544]])
+        gp_id = 0; k0 = 0.0;
+        if isinstance(law, c.PlasticConsitutiveRateIndependentHistory):
+            law.resize(1)
+            sigma_c, dsigma_c = law.evaluate(strain, gp_id)
+        else:
+            sigma_c, dsigma_c, _, _ = law.correct_stress(law.D@strain, k0, 1e-9, 20)
+        self.assertLess( np.linalg.norm(sigma_c-sig_cr), 1e-5)
+        self.assertLess( np.linalg.norm(dsigma_c-Ct), 5e-4)
 
     def test_bending(self):
         # return
         LX = 6.0
         LY = 0.5
         LZ = 0.5
-        mesh_resolution = 2.0
-
+        mesh_resolution = 7.0
+        
         def loading(t):
             level = 4 * LZ
             N = 1.5
@@ -151,13 +105,13 @@ class TestPlasticity(unittest.TestCase):
             int(LY * mesh_resolution),
         )
 
-        prm = c.Parameters(c.Constraint.PLANE_STRESS)
-        law = plasticity_law(revise_prm(prm))
-
+        prm = my_parameters()
+        law = plasticity_law(prm)
+        
+        ## ip-loop in C++ (This case cannot be used together with law (at GP-level) in PYTHON)
+        problem = c.MechanicsProblem(mesh, prm, law=law)
         ## ip-loop in PYTHON
         # problem = c.MechanicsProblem(mesh, prm, law=None, iploop=PlasticityIPLoopInPython(law))
-        ## ip-loop in C++
-        problem = c.MechanicsProblem(mesh, prm, law=law)
 
         left = boundary.plane_at(0.0)
         right_top = boundary.point_at((LX, LY))
@@ -186,9 +140,6 @@ class TestPlasticity(unittest.TestCase):
         ld = c.helper.LoadDisplacementCurve(bcs[0])
         ld.show()
 
-        if not ld.is_root:
-            set_log_level(LogLevel.ERROR)
-
         fff = df.XDMFFile("output.xdmf")
         fff.parameters["functions_share_mesh"] = True
         fff.parameters["flush_output"] = True
@@ -210,9 +161,3 @@ class TestPlasticity(unittest.TestCase):
 if __name__ == "__main__":
     ### ALL TESTs
     unittest.main()
-
-    ### SELECTIVE
-    # tests = TestPlasticity()
-    # tests.test_1d()
-    # tests.test_bending()
-    # tests.test_at_one_point()
