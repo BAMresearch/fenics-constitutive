@@ -11,6 +11,23 @@ analytical solution
 from dataclasses import dataclass
 import dolfin as df
 
+class UniaxialTrussExperiment:
+    def __init__(self, L):
+        self.mesh = df.IntervalMesh(1, 0., L)
+
+    def create_bcs(self, V):
+        def left(x, on_boundary):
+            return x[0] < df.DOLFIN_EPS and on_boundary
+
+        return [df.DirichletBC(V, df.Constant(0.0), left)]
+
+    def refine(self, N=1):
+        """
+        Refines the mesh `N` times.
+        """
+        for _ in range(N):
+            self.mesh = df.refine(self.mesh)
+
 @dataclass
 class TrussSolution:
     E: float
@@ -36,40 +53,33 @@ class DisplacementSolution(df.UserExpression):
         return ()
 
 
-def generate_mesh(L):
-    """function to be provided by the user to generate mesh
+class LinearElasticity:
+    def __init__(self, experiment, params, degree):
+        self.experiment = experiment
+        self.params = params
+        self.degree = degree
 
-    Parameters
-    ----------
-    depends on specific case
+    def solve(self):
+        mesh = self.experiment.mesh
+        V = df.FunctionSpace(mesh, "Lagrange", self.degree)
+        u = df.TrialFunction(V)
+        v = df.TestFunction(V)
+        bcs = self.experiment.create_bcs(V)
+        
+        params = self.params
+        E = params["E"]
+        E = params["E"]
+        g = params["g"]
+        A = params["A"]
+        rho = params["rho"]
+        f = df.Constant(rho * g * A)
+        a = E * df.inner(df.grad(u), df.grad(v)) * df.dx
+        L = f * v * df.dx
 
-    Returns
-    -------
-    mesh: 
-        the mesh 
-    """
-    return df.IntervalMesh(1, 0., L)
+        solution = df.Function(V)
+        df.solve(a == L, solution, bcs)
+        return solution
 
-def solve_truss_problem(mesh, params, degree):
-    """solve the model on given mesh"""
-    V = df.FunctionSpace(mesh, "Lagrange", degree)
-    u = df.TrialFunction(V)
-    v = df.TestFunction(V)
-    E = params["E"]
-    g = params["g"]
-    A = params["A"]
-    rho = params["rho"]
-    f = df.Constant(rho * g * A)
-    a = E * df.inner(df.grad(u), df.grad(v)) * df.dx
-    L = f * v * df.dx
-
-    def left(x, on_boundary):
-        return x[0] < df.DOLFIN_EPS and on_boundary
-
-    bcs = df.DirichletBC(V, df.Constant(0.0), left)
-    solution = df.Function(V)
-    df.solve(a == L, solution, bcs)
-    return solution
 
 
 def get_exact_solution(parameters):
@@ -88,16 +98,17 @@ if __name__ == "__main__":
         "rho": 1.0,
         }
     n_refinements = 0
+    exp = UniaxialTrussExperiment(parameters["L"])
+
     u = get_exact_solution(parameters)
-    mesh = generate_mesh(parameters["L"])
-    print(mesh.num_cells())
+    problem = LinearElasticity(exp, parameters, degree=1)
     while True:
-        u_fem = solve_truss_problem(mesh, parameters, degree=1)
-        err = df.errornorm(u, u_fem, norm_type="l2", mesh=mesh)
+        u_fem = problem.solve()
+        err = df.errornorm(u, u_fem, norm_type="l2", mesh=exp.mesh)
         if err < 1.e-4:
             break
 
-        mesh = df.refine(mesh)
+        exp.refine() 
         n_refinements += 1
 
     print(f"Finally converged. Please use {n_refinements=}.")
