@@ -4,12 +4,7 @@ import numpy as np
 from fenics_helpers import boundary
 from fenics_helpers.timestepping import TimeStepper
 
-import os, sys
-from pathlib import Path
-sys.path.insert(0, '..')
-sys.path.insert(0, '.')
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'test'))
-from plasticity_law_pure_python import * # (includes import constitutive as c)
+import constitutive as c
 
 def show_loading(loading, t0=0.0, t1=1.0, N=1000):
     import matplotlib.pyplot as plt

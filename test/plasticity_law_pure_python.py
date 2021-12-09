@@ -22,7 +22,7 @@ import numpy as np
 #     def __call__(self, sigma, kappa):
 #         return self.p_and_diffs(sigma, kappa)
 
-class PlasticConsitutivePerfect(c.ElasticConstitutive):
+class PlasticConsitutivePerfect(c.LinearElastic):
     def __init__(self, E, nu, constraint, yf):
         """
         yf: a callable with:
