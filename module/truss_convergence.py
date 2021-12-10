@@ -36,9 +36,9 @@ class Experiment:
 
 
 class UniaxialTrussExperiment(Experiment):
-    def __init__(self, L):
+    def __init__(self, parameters):
         super().__init__()
-        self.mesh = df.IntervalMesh(1, 0.0, L)
+        self.mesh = df.IntervalMesh(1, 0.0, parameters["L"])
 
     def create_bcs(self, V):
         def left(x, on_boundary):
@@ -52,6 +52,11 @@ class UniaxialTrussExperiment(Experiment):
         """
         for _ in range(N):
             self.mesh = df.refine(self.mesh)
+
+def get_experiment(name, parameters):
+    # metaprogramming! 
+    cls_name = name + "Experiment"
+    return eval(cls_name)(parameters)
 
 
 class DisplacementSolution(df.UserExpression):
@@ -137,7 +142,7 @@ if __name__ == "__main__":
         "rho": 7.0,
         "degree": 1,
     }
-    experiment = UniaxialTrussExperiment(parameters["L"])
+    experiment = get_experiment("UniaxialTruss", parameters)
 
     # attach analytic solution for the full displacement field
     full_u_sensor = DisplacementFieldSensor()
