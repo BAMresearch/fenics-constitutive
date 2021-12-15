@@ -63,20 +63,6 @@ def get_experiment(name, parameters):
     return eval(cls_name)(parameters)
 
 
-class DisplacementSolution(df.UserExpression):
-    def __init__(self, parameters):
-        super().__init__(degree=8)
-        self.parameters = parameters
-
-    def eval(self, value, x):
-        p = self.parameters
-        rho, g, L, E, A = p["rho"], p["g"], p["L"], p["E"], p["A"]
-        value[0] = rho * g * L * (x[0] - x[0] ** 2 / 2 / L) / E * A
-
-    def value_shape(self):
-        return ()
-
-
 # MODULE "PROBLEM"
 
 
@@ -116,6 +102,20 @@ class LinearElasticity:
             return {s: s.measure(u) for s in sensors}
 
 
+class DisplacementSolution(df.UserExpression):
+    def __init__(self, parameters):
+        super().__init__(degree=8)
+        self.parameters = parameters
+
+    def eval(self, value, x):
+        p = self.parameters
+        rho, g, L, E, A = p["rho"], p["g"], p["L"], p["E"], p["A"]
+        value[0] = rho * g * L * (x[0] - x[0] ** 2 / 2 / L) / E * A
+
+    def value_shape(self):
+        return ()
+
+
 # EXAMPLE APPLICATION: "CONVERGENCE TEST"
 
 
@@ -140,6 +140,9 @@ def run_convergence(experiment, parameters, sensor, max_n_refinements=15, eps=1.
 
     print(f"Finally converged. Please use {n_refinements=}.")
     return n_refinements
+
+
+# EXAMPLE APPLICATION: "PARAMETER ESTIMATION"
 
 
 def estimate_E(experiment, parameters, sensor):
