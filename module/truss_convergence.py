@@ -13,6 +13,7 @@ import numpy as np
 
 # MODULE "SENSOR"
 
+
 class DisplacementFieldSensor:
     def measure(self, u):
         return u
@@ -25,7 +26,9 @@ class DisplacementSensor:
     def measure(self, u):
         return u(self.where)
 
+
 # MODULE "EXPERIMENT"
+
 
 class Experiment:
     def __init__(self):
@@ -53,8 +56,9 @@ class UniaxialTrussExperiment(Experiment):
         for _ in range(N):
             self.mesh = df.refine(self.mesh)
 
+
 def get_experiment(name, parameters):
-    # metaprogramming! 
+    # metaprogramming!
     cls_name = name + "Experiment"
     return eval(cls_name)(parameters)
 
@@ -72,7 +76,9 @@ class DisplacementSolution(df.UserExpression):
     def value_shape(self):
         return ()
 
+
 # MODULE "PROBLEM"
+
 
 class LinearElasticity:
     def __init__(self, experiment, params):
@@ -86,8 +92,9 @@ class LinearElasticity:
         v = df.TestFunction(V)
         bcs = self.experiment.create_bcs(V)
 
-        p = self.params
-        rho, g, L, E, A = p["rho"], p["g"], p["L"], p["E"], p["A"]
+        rho, g, L, E, A = [
+            df.Constant(self.params[what]) for what in ["rho", "g", "L", "E", "A"]
+        ]
         f = df.Constant(rho * g * A)
         a = E * df.inner(df.grad(u), df.grad(v)) * df.dx
         L = f * v * df.dx
@@ -108,7 +115,9 @@ class LinearElasticity:
             # list of sensors
             return {s: s.measure(u) for s in sensors}
 
+
 # EXAMPLE APPLICATION: "CONVERGENCE TEST"
+
 
 def run_convergence(experiment, parameters, sensor, max_n_refinements=15, eps=1.0e-4):
     problem = LinearElasticity(experiment, parameters)
@@ -133,6 +142,23 @@ def run_convergence(experiment, parameters, sensor, max_n_refinements=15, eps=1.
     return n_refinements
 
 
+def estimate_E(experiment, parameters, sensor):
+    from scipy.optimize import minimize_scalar
+
+    def error(E):
+        parameters["E"] = E
+        print(f"Try {parameters['E'] = }")
+        problem = LinearElasticity(experiment, parameters)
+        value_fem = problem(sensor)
+        value_exp = experiment.data[sensor]
+        return abs(value_fem - value_exp)
+
+    optimize_result = minimize_scalar(
+        fun=error, bracket=[0.5 * parameters["E"], 2 * parameters["E"]], tol=1.0e-8
+    )
+    return optimize_result.x
+
+
 if __name__ == "__main__":
     parameters = {
         "L": 42.0,
@@ -154,6 +180,11 @@ if __name__ == "__main__":
     p = parameters
     u_max = 0.5 * p["rho"] * p["g"] * p["A"] * p["L"] ** 2 / p["E"]
     experiment.add_sensor_data(u_sensor, u_max)
+
+    # First assume that we don't know E...
+    parameters["E"] = 1.0
+    # ...so we infer it using the measuremnts.
+    parameters["E"] = estimate_E(experiment, parameters, u_sensor)
 
     # Run the convergence analysis with the maximum displacement. As for all
     # nodal values, we expect them to be correct even for a single linear
