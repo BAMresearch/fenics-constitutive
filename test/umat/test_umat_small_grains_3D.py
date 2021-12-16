@@ -212,7 +212,9 @@ class TestUniaxial(unittest.TestCase):
             
             # locale.setlocale(locale.LC_NUMERIC, "en_US.UTF-8")
             # fff.write(problem.u, t)
-            # fff.write(project(problem.q_sigma[0], V0), t)
+            q_sigma_0 = project(problem.q_sigma[0], V0)
+            q_sigma_0.rename("sigma_0", "sigma_0")
+            fff.write(q_sigma_0, t)
                         
             ld(t, assemble(problem.R))
             
