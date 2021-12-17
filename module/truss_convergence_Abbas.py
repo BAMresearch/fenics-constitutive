@@ -104,7 +104,7 @@ class LinearElasticity:
             return {s: s.measure(u) for s in sensors}
 
 
-class DisplacementSolution(df.UserExpression):
+class AReferenceSolution(df.UserExpression):
     def __init__(self, problem_pars, model_pars):
         super().__init__(degree=8)
         self.problem_pars = problem_pars
@@ -130,13 +130,13 @@ def run_convergence(experiment, problem_pars, model_pars \
 
     for n_refinements in range(max_n_refinements):
         u_fem = problem(sensor)
-        u_correct = experiment.data[sensor]
+        u_reference = experiment.data[sensor]
 
         try:
             # numpy ?
-            err = np.linalg.norm(u_fem - u_correct)
+            err = np.linalg.norm(u_fem - u_reference)
         except TypeError:
-            err = df.errornorm(u_correct, u_fem, norm_type="l2", mesh=experiment.mesh)
+            err = df.errornorm(u_reference, u_fem, norm_type="l2", mesh=experiment.mesh)
 
         if err < eps:
             break
@@ -185,8 +185,8 @@ if __name__ == "__main__":
 
     # attach analytic solution for the full displacement field
     full_u_sensor = DisplacementFieldSensor()
-    u_correct = DisplacementSolution(problem_pars, model_pars)
-    experiment.add_sensor_data(full_u_sensor, u_correct)
+    u_reference = AReferenceSolution(problem_pars, model_pars)
+    experiment.add_sensor_data(full_u_sensor, u_reference)
 
     # attach analytic solution for the bottom displacement
     u_sensor = DisplacementSensor(where=problem_pars["L"])
