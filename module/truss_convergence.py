@@ -10,6 +10,7 @@ analytical solution
 """
 import dolfin as df
 import numpy as np
+import pytest
 
 # MODULE "SENSOR"
 
@@ -29,7 +30,7 @@ class DisplacementSensor:
 
 class ForceSensor:
     def __init__(self, bc):
-        self.dofs = list(self.bc.get_boundary_values().keys())
+        self.dofs = list(bc.get_boundary_values().keys())
 
     def measure(self, u, R):
         load_local = np.sum(R[self.dofs])
@@ -173,9 +174,9 @@ def estimate_E(experiment, parameters, sensor):
         fun=error, bracket=[0.5 * parameters["E"], 2 * parameters["E"]], tol=1.0e-8
     )
     return optimize_result.x
-    
 
-def dev():
+
+def test_force_sensor():
     parameters = {
         "L": 42.0,
         "E": 10.0,
@@ -186,7 +187,13 @@ def dev():
     }
     experiment = get_experiment("UniaxialTruss", parameters)
     p = LinearElasticity(experiment, parameters)
-    # bcs = experiment
+    force_sensor = ForceSensor(p.bcs[0])
+
+    F = p(force_sensor)
+    assert F == pytest.approx(
+        -parameters["L"] * parameters["A"] * parameters["rho"] * parameters["g"]
+    )
+
 
 def demonstrate_examples():
     parameters = {
@@ -199,7 +206,7 @@ def demonstrate_examples():
     }
     experiment = get_experiment("UniaxialTruss", parameters)
 
-    # attach analytic solution for the full displacement field 
+    # attach analytic solution for the full displacement field
     full_u_sensor = DisplacementFieldSensor()
     u_correct = DisplacementSolution(parameters)
     experiment.add_sensor_data(full_u_sensor, u_correct)
@@ -231,6 +238,7 @@ def demonstrate_examples():
         n_refinements = run_convergence(experiment, parameters, full_u_sensor)
         assert n_refinements == expected_n_refinements
 
+
 if __name__ == "__main__":
-    demonstrate_examples()
-    # dev()
+    # demonstrate_examples()
+    test_force_sensor()
