@@ -27,6 +27,15 @@ class DisplacementSensor:
         return u(self.where)
 
 
+class ForceSensor:
+    def __init__(self, bc):
+        self.dofs = list(self.bc.get_boundary_values().keys())
+
+    def measure(self, u, R):
+        load_local = np.sum(R[self.dofs])
+        return load_local
+
+
 # MODULE "EXPERIMENT"
 
 
@@ -71,27 +80,27 @@ class LinearElasticity:
         self.experiment = experiment
         self.params = params
 
-    def solve(self):
         mesh = self.experiment.mesh
-        V = df.FunctionSpace(mesh, "Lagrange", self.params["degree"])
-        u = df.Function(V)
-        v = df.TestFunction(V)
-        bcs = self.experiment.create_bcs(V)
+        self.V = df.FunctionSpace(mesh, "Lagrange", self.params["degree"])
+        self.u = df.Function(self.V)
+        v = df.TestFunction(self.V)
+        self.bcs = self.experiment.create_bcs(self.V)
 
         rho, g, L, E, A = [
             df.Constant(self.params[what]) for what in ["rho", "g", "L", "E", "A"]
         ]
         f = df.Constant(rho * g * A)
-        R = E * df.inner(df.grad(u), df.grad(v)) * df.dx - f * v * df.dx
+        self.R = E * df.inner(df.grad(self.u), df.grad(v)) * df.dx - f * v * df.dx
 
+    def solve(self):
         df.solve(
-            R == 0,
-            u,
-            bcs,
+            self.R == 0,
+            self.u,
+            self.bcs,
             solver_parameters={"newton_solver": {"relative_tolerance": 1.0e-1}},
         )  # why??
 
-        return u, df.assemble(R)
+        return self.u, df.assemble(self.R)
 
     def __call__(self, sensors):
         """
@@ -124,9 +133,9 @@ class DisplacementSolution(df.UserExpression):
 
 
 def run_convergence(experiment, parameters, sensor, max_n_refinements=15, eps=1.0e-4):
-    problem = LinearElasticity(experiment, parameters)
 
     for n_refinements in range(max_n_refinements):
+        problem = LinearElasticity(experiment, parameters)
         u_fem = problem(sensor)
         u_correct = experiment.data[sensor]
 
@@ -164,9 +173,22 @@ def estimate_E(experiment, parameters, sensor):
         fun=error, bracket=[0.5 * parameters["E"], 2 * parameters["E"]], tol=1.0e-8
     )
     return optimize_result.x
+    
 
+def dev():
+    parameters = {
+        "L": 42.0,
+        "E": 10.0,
+        "g": 9.81,
+        "A": 4.0,
+        "rho": 7.0,
+        "degree": 1,
+    }
+    experiment = get_experiment("UniaxialTruss", parameters)
+    p = LinearElasticity(experiment, parameters)
+    # bcs = experiment
 
-if __name__ == "__main__":
+def demonstrate_examples():
     parameters = {
         "L": 42.0,
         "E": 10.0,
@@ -177,7 +199,7 @@ if __name__ == "__main__":
     }
     experiment = get_experiment("UniaxialTruss", parameters)
 
-    # attach analytic solution for the full displacement field
+    # attach analytic solution for the full displacement field 
     full_u_sensor = DisplacementFieldSensor()
     u_correct = DisplacementSolution(parameters)
     experiment.add_sensor_data(full_u_sensor, u_correct)
@@ -208,3 +230,7 @@ if __name__ == "__main__":
         parameters["degree"] = degree
         n_refinements = run_convergence(experiment, parameters, full_u_sensor)
         assert n_refinements == expected_n_refinements
+
+if __name__ == "__main__":
+    demonstrate_examples()
+    # dev()
