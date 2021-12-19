@@ -93,11 +93,11 @@ class LinearElasticity:
             df.Constant(self.params[what]) for what in ["rho", "g", "L", "E", "A"]
         ]
         F = params["rho"] * params["g"] * params["A"]
-        f = df.Expression("t * F", t=0.0, F=F, degree=0)
-        f.t = 1.0
-        self.R = E * df.inner(df.grad(self.u), df.grad(v)) * df.dx - f * v * df.dx
+        self.f = df.Expression("t * F", t=0.0, F=F, degree=0)
+        self.R = E * df.inner(df.grad(self.u), df.grad(v)) * df.dx - self.f * v * df.dx
 
-    def solve(self):
+    def solve(self, t=1.):
+        self.f.t = t
         df.solve(
             self.R == 0,
             self.u,
@@ -107,7 +107,7 @@ class LinearElasticity:
 
         return self.u, df.assemble(self.R)
 
-    def __call__(self, sensors):
+    def evaluate(self, sensors, t):
         """
         Evaluates the problem for the given sensors
         """
@@ -118,6 +118,14 @@ class LinearElasticity:
         except AttributeError:
             # list of sensors
             return {s: s.measure(u, R) for s in sensors}
+
+    def __call__(self, sensors, ts=[1.]):
+        measurements = []
+        for t in ts:
+            measurements.append(self.evaluate(sensors, t))
+        if len(ts) == 1:
+            measurements = measurements[0]
+        return measurements
 
 
 class DisplacementSolution(df.UserExpression):
