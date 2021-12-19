@@ -15,7 +15,7 @@ import numpy as np
 
 
 class DisplacementFieldSensor:
-    def measure(self, u):
+    def measure(self, u, R):
         return u
 
 
@@ -23,7 +23,7 @@ class DisplacementSensor:
     def __init__(self, where):
         self.where = where
 
-    def measure(self, u):
+    def measure(self, u, R):
         return u(self.where)
 
 
@@ -91,19 +91,19 @@ class LinearElasticity:
             solver_parameters={"newton_solver": {"relative_tolerance": 1.0e-1}},
         )  # why??
 
-        return u
+        return u, df.assemble(R)
 
     def __call__(self, sensors):
         """
         Evaluates the problem for the given sensors
         """
-        u = self.solve()
+        u, R = self.solve()
         try:
             # only one sensor
-            return sensors.measure(u)
+            return sensors.measure(u, R)
         except AttributeError:
             # list of sensors
-            return {s: s.measure(u) for s in sensors}
+            return {s: s.measure(u, R) for s in sensors}
 
 
 class DisplacementSolution(df.UserExpression):
