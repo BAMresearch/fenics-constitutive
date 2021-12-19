@@ -52,12 +52,14 @@ class UniaxialTrussExperiment(Experiment):
     def __init__(self, parameters):
         super().__init__()
         self.mesh = df.IntervalMesh(1, 0.0, parameters["L"])
+        self.bcs = None  # to be created externally via .create_bcs
 
     def create_bcs(self, V):
         def left(x, on_boundary):
             return x[0] < df.DOLFIN_EPS and on_boundary
 
-        return [df.DirichletBC(V, df.Constant(0.0), left)]
+        self.bcs = [df.DirichletBC(V, df.Constant(0.0), left)]
+        return self.bcs
 
     def refine(self, N=1):
         """
@@ -90,7 +92,9 @@ class LinearElasticity:
         rho, g, L, E, A = [
             df.Constant(self.params[what]) for what in ["rho", "g", "L", "E", "A"]
         ]
-        f = df.Constant(rho * g * A)
+        F = params["rho"] * params["g"] * params["A"]
+        f = df.Expression("t * F", t=0.0, F=F, degree=0)
+        f.t = 1.0
         self.R = E * df.inner(df.grad(self.u), df.grad(v)) * df.dx - f * v * df.dx
 
     def solve(self):
@@ -233,12 +237,12 @@ def demonstrate_examples():
     # Run the convergence analysis with the whole displacement field.
     # Here, a linear solution can only be exact up to a given epsilon.
     # Quadratic and cubic interpolation caputure the field without refinement.
-    for degree, expected_n_refinements in [(3, 0), (2, 0), (1, 14)]:
+    for degree, expected_n_refinements in [(3, 0), (2, 0), (1, 8)]:
         parameters["degree"] = degree
-        n_refinements = run_convergence(experiment, parameters, full_u_sensor)
+        n_refinements = run_convergence(experiment, parameters, full_u_sensor, eps=1)
         assert n_refinements == expected_n_refinements
 
 
 if __name__ == "__main__":
-    # demonstrate_examples()
+    demonstrate_examples()
     test_force_sensor()
