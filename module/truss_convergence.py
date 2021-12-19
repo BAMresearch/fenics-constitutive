@@ -74,7 +74,7 @@ class LinearElasticity:
     def solve(self):
         mesh = self.experiment.mesh
         V = df.FunctionSpace(mesh, "Lagrange", self.params["degree"])
-        u = df.TrialFunction(V)
+        u = df.Function(V)
         v = df.TestFunction(V)
         bcs = self.experiment.create_bcs(V)
 
@@ -82,12 +82,16 @@ class LinearElasticity:
             df.Constant(self.params[what]) for what in ["rho", "g", "L", "E", "A"]
         ]
         f = df.Constant(rho * g * A)
-        a = E * df.inner(df.grad(u), df.grad(v)) * df.dx
-        L = f * v * df.dx
+        R = E * df.inner(df.grad(u), df.grad(v)) * df.dx - f * v * df.dx
 
-        solution = df.Function(V)
-        df.solve(a == L, solution, bcs)
-        return solution
+        df.solve(
+            R == 0,
+            u,
+            bcs,
+            solver_parameters={"newton_solver": {"relative_tolerance": 1.0e-1}},
+        )  # why??
+
+        return u
 
     def __call__(self, sensors):
         """
