@@ -143,7 +143,12 @@ def run_convergence(experiment, model_pars \
             err = df.errornorm(u_reference, u_fem, norm_type="l2", mesh=experiment.mesh)
 
         if err < eps:
+            print(f"----------- CONVERGED -----------")
+            print(f" n_refinement = {n_refinements}, Error = {err}")
             break
+        else:
+            print(f"----------- NOT CONVERGED -------")
+            print(f" n_refinement = {n_refinements}, Error = {err}")
 
         experiment.refine()
         n_refinements += 1
