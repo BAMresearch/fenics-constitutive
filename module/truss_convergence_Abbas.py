@@ -79,10 +79,10 @@ class LinearElasticity:
         v = df.TestFunction(V)
         bcs = self.experiment.create_bcs(V)
 
-        rho, g, L, A = [
-            df.Constant(self.problem_pars[what]) for what in ["rho", "g", "L", "A"]
+        L, A = [
+            df.Constant(self.problem_pars[what]) for what in ["L", "A"]
         ]
-        E = df.Constant(self.model_pars["E"])
+        E, rho, g = df.Constant(self.model_pars["E"]), self.model_pars["rho"], self.model_pars["g"]
         f = df.Constant(rho * g * A)
         a = E * df.inner(df.grad(u), df.grad(v)) * df.dx
         L = f * v * df.dx
@@ -105,6 +105,10 @@ class LinearElasticity:
 
 
 class AReferenceSolution(df.UserExpression):
+    """
+    In this example, it is an analytical solution.
+    But in general, it can be any reference solution, e.g. from a very fine mesh.
+    """
     def __init__(self, problem_pars, model_pars):
         super().__init__(degree=8)
         self.problem_pars = problem_pars
@@ -113,8 +117,8 @@ class AReferenceSolution(df.UserExpression):
     def eval(self, value, x):
         pp = self.problem_pars
         mp = self.model_pars
-        rho, g, L, A = pp["rho"], pp["g"], pp["L"], pp["A"]
-        E = mp["E"]
+        L, A = pp["L"], pp["A"]
+        E, rho, g = mp["E"], mp["rho"], mp["g"]
         value[0] = rho * g * L * (x[0] - x[0] ** 2 / 2 / L) / E * A
 
     def value_shape(self):
@@ -172,13 +176,13 @@ if __name__ == "__main__":
     problem_pars = {
         # parameters that prescribe a physical phenomenon regardless of a model associated with it.
         "L": 42.0,
-        "g": 9.81,
         "A": 4.0,
-        "rho": 7.0,
     }
     model_pars = {
-        # parameters that prescribe a model (associated with a problem).
+        # parameters that prescribe a model (associated with a problem/experiment).
         "E": 10.0,
+        "rho": 7.0,
+        "g": 9.81,
         "degree": 1,
     }
     experiment = get_experiment("UniaxialTruss", problem_pars)
@@ -192,7 +196,7 @@ if __name__ == "__main__":
     u_sensor = DisplacementSensor(where=problem_pars["L"])
     pp = problem_pars
     mp = model_pars
-    u_max = 0.5 * pp["rho"] * pp["g"] * pp["A"] * pp["L"] ** 2 / mp["E"]
+    u_max = 0.5 * mp["rho"] * mp["g"] * pp["A"] * pp["L"] ** 2 / mp["E"]
     experiment.add_sensor_data(u_sensor, u_max)
 
     # First assume that we don't know E...
