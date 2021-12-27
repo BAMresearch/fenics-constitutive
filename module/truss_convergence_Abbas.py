@@ -41,7 +41,8 @@ class Experiment:
 class UniaxialTrussExperiment(Experiment):
     def __init__(self, problem_pars):
         super().__init__()
-        self.mesh = df.IntervalMesh(1, 0.0, problem_pars["L"])
+        self.problem_pars = problem_pars
+        self.mesh = df.IntervalMesh(1, 0.0, self.problem_pars["L"])
 
     def create_bcs(self, V):
         def left(x, on_boundary):
@@ -67,9 +68,8 @@ def get_experiment(name, problem_pars):
 
 
 class LinearElasticity:
-    def __init__(self, experiment, problem_pars, model_pars):
+    def __init__(self, experiment, model_pars):
         self.experiment = experiment
-        self.problem_pars = problem_pars
         self.model_pars = model_pars
 
     def solve(self):
@@ -80,7 +80,7 @@ class LinearElasticity:
         bcs = self.experiment.create_bcs(V)
 
         L, A = [
-            df.Constant(self.problem_pars[what]) for what in ["L", "A"]
+            df.Constant(self.experiment.problem_pars[what]) for what in ["L", "A"]
         ]
         E, rho, g = df.Constant(self.model_pars["E"]), self.model_pars["rho"], self.model_pars["g"]
         f = df.Constant(rho * g * A)
@@ -128,9 +128,9 @@ class AReferenceSolution(df.UserExpression):
 # EXAMPLE APPLICATION: "CONVERGENCE TEST"
 
 
-def run_convergence(experiment, problem_pars, model_pars \
+def run_convergence(experiment, model_pars \
                     , sensor, max_n_refinements=15, eps=1.0e-4):
-    problem = LinearElasticity(experiment, problem_pars, model_pars)
+    problem = LinearElasticity(experiment, model_pars)
 
     for n_refinements in range(max_n_refinements):
         u_fem = problem(sensor)
@@ -155,13 +155,13 @@ def run_convergence(experiment, problem_pars, model_pars \
 # EXAMPLE APPLICATION: "PARAMETER ESTIMATION"
 
 
-def estimate_E(experiment, problem_pars, model_pars, sensor):
+def estimate_E(experiment, model_pars, sensor):
     from scipy.optimize import minimize_scalar
 
     def error(E):
         model_pars["E"] = E
         print(f"Try {model_pars['E'] = }")
-        problem = LinearElasticity(experiment, problem_pars, model_pars)
+        problem = LinearElasticity(experiment, model_pars)
         value_fem = problem(sensor)
         value_exp = experiment.data[sensor]
         return abs(value_fem - value_exp)
@@ -202,14 +202,14 @@ if __name__ == "__main__":
     # First assume that we don't know E...
     model_pars["E"] = 1.0
     # ...so we infer it using the measuremnts.
-    model_pars["E"] = estimate_E(experiment, problem_pars, model_pars, u_sensor)
+    model_pars["E"] = estimate_E(experiment, model_pars, u_sensor)
 
     # Run the convergence analysis with the maximum displacement. As for all
     # nodal values, we expect them to be correct even for a single linear
     # element.
     for degree in [1, 2, 3]:
         model_pars["degree"] = degree
-        n_refinements = run_convergence(experiment, problem_pars, model_pars, u_sensor)
+        n_refinements = run_convergence(experiment, model_pars, u_sensor)
         assert n_refinements == 0
 
     # Run the convergence analysis with the whole displacement field.
@@ -217,5 +217,5 @@ if __name__ == "__main__":
     # Quadratic and cubic interpolation caputure the field without refinement.
     for degree, expected_n_refinements in [(3, 0), (2, 0), (1, 14)]:
         model_pars["degree"] = degree
-        n_refinements = run_convergence(experiment, problem_pars, model_pars, full_u_sensor)
+        n_refinements = run_convergence(experiment, model_pars, full_u_sensor)
         assert n_refinements == expected_n_refinements
