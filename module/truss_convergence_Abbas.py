@@ -39,10 +39,10 @@ class Experiment:
 
 
 class UniaxialTrussExperiment(Experiment):
-    def __init__(self, problem_pars):
+    def __init__(self, expr_pars):
         super().__init__()
-        self.problem_pars = problem_pars
-        self.mesh = df.IntervalMesh(1, 0.0, self.problem_pars["L"])
+        self.pars = expr_pars
+        self.mesh = df.IntervalMesh(1, 0.0, self.pars["L"])
 
     def create_bcs(self, V):
         def left(x, on_boundary):
@@ -58,13 +58,13 @@ class UniaxialTrussExperiment(Experiment):
             self.mesh = df.refine(self.mesh)
 
 
-def get_experiment(name, problem_pars):
+def get_experiment(name, expr_pars):
     # metaprogramming!
     cls_name = name + "Experiment"
-    return eval(cls_name)(problem_pars)
+    return eval(cls_name)(expr_pars)
 
 
-# MODULE "PROBLEM"
+# MODULE "MODEL"
 
 
 class LinearElasticity:
@@ -80,7 +80,7 @@ class LinearElasticity:
         bcs = self.experiment.create_bcs(V)
 
         L, A = [
-            df.Constant(self.experiment.problem_pars[what]) for what in ["L", "A"]
+            df.Constant(self.experiment.pars[what]) for what in ["L", "A"]
         ]
         E, rho, g = df.Constant(self.model_pars["E"]), self.model_pars["rho"], self.model_pars["g"]
         f = df.Constant(rho * g * A)
@@ -93,7 +93,7 @@ class LinearElasticity:
 
     def __call__(self, sensors):
         """
-        Evaluates the problem for the given sensors
+        Evaluates the model for the given sensors
         """
         u = self.solve()
         try:
@@ -109,15 +109,15 @@ class AReferenceSolution(df.UserExpression):
     In this example, it is an analytical solution.
     But in general, it can be any reference solution, e.g. from a very fine mesh.
     """
-    def __init__(self, problem_pars, model_pars):
+    def __init__(self, expr_pars, model_pars):
         super().__init__(degree=8)
-        self.problem_pars = problem_pars
+        self.expr_pars = expr_pars
         self.model_pars = model_pars
 
     def eval(self, value, x):
-        pp = self.problem_pars
+        ep = self.expr_pars
         mp = self.model_pars
-        L, A = pp["L"], pp["A"]
+        L, A = ep["L"], ep["A"]
         E, rho, g = mp["E"], mp["rho"], mp["g"]
         value[0] = rho * g * L * (x[0] - x[0] ** 2 / 2 / L) / E * A
 
@@ -130,10 +130,10 @@ class AReferenceSolution(df.UserExpression):
 
 def run_convergence(experiment, model_pars \
                     , sensor, max_n_refinements=15, eps=1.0e-4):
-    problem = LinearElasticity(experiment, model_pars)
+    model = LinearElasticity(experiment, model_pars)
 
     for n_refinements in range(max_n_refinements):
-        u_fem = problem(sensor)
+        u_fem = model(sensor)
         u_reference = experiment.data[sensor]
 
         try:
@@ -161,8 +161,8 @@ def estimate_E(experiment, model_pars, sensor):
     def error(E):
         model_pars["E"] = E
         print(f"Try {model_pars['E'] = }")
-        problem = LinearElasticity(experiment, model_pars)
-        value_fem = problem(sensor)
+        model = LinearElasticity(experiment, model_pars)
+        value_fem = model(sensor)
         value_exp = experiment.data[sensor]
         return abs(value_fem - value_exp)
 
@@ -173,30 +173,30 @@ def estimate_E(experiment, model_pars, sensor):
 
 
 if __name__ == "__main__":
-    problem_pars = {
-        # parameters that prescribe a physical phenomenon regardless of a model associated with it.
+    expr_pars = {
+        # Parameters that prescribe a physical phenomenon regardless of a model associated with it.
         "L": 42.0,
         "A": 4.0,
     }
     model_pars = {
-        # parameters that prescribe a model (associated with a problem/experiment).
+        # Parameters that describe a model (associated with a experiment).
         "E": 10.0,
         "rho": 7.0,
         "g": 9.81,
         "degree": 1,
     }
-    experiment = get_experiment("UniaxialTruss", problem_pars)
+    experiment = get_experiment("UniaxialTruss", expr_pars)
 
     # attach analytic solution for the full displacement field
     full_u_sensor = DisplacementFieldSensor()
-    u_reference = AReferenceSolution(problem_pars, model_pars)
+    u_reference = AReferenceSolution(expr_pars, model_pars)
     experiment.add_sensor_data(full_u_sensor, u_reference)
 
     # attach analytic solution for the bottom displacement
-    u_sensor = DisplacementSensor(where=problem_pars["L"])
-    pp = problem_pars
+    u_sensor = DisplacementSensor(where=expr_pars["L"])
+    ep = expr_pars
     mp = model_pars
-    u_max = 0.5 * mp["rho"] * mp["g"] * pp["A"] * pp["L"] ** 2 / mp["E"]
+    u_max = 0.5 * mp["rho"] * mp["g"] * ep["A"] * ep["L"] ** 2 / mp["E"]
     experiment.add_sensor_data(u_sensor, u_max)
 
     # First assume that we don't know E...
