@@ -28,12 +28,12 @@ class Experiment:
         self.data[sensor] = data
 
 class Bend3Point2DExperiment(Experiment):
-    def __init__(self, problem_pars):
+    def __init__(self, expr_pars):
         super().__init__()
-        self.problem_pars = problem_pars
+        self.pars = expr_pars
         tol = 1e-14
         lx, ly, x_from, x_to, unit_res = \
-            (self.problem_pars[what] for what in ["lx", "ly", "x_from", "x_to", "unit_res"])
+            (self.pars[what] for what in ["lx", "ly", "x_from", "x_to", "unit_res"])
         self.mesh = df.RectangleMesh(df.Point(0., 0.), df.Point(lx, ly) \
                                      , int(unit_res * lx), int(unit_res * ly), diagonal='right')
         if x_from is None:
@@ -46,13 +46,13 @@ class Bend3Point2DExperiment(Experiment):
 
     def create_bcs(self, V):
         tol = 1e-14
-        right_sup = self.problem_pars["right_sup"]
-        left_sup = self.problem_pars["left_sup"]
+        right_sup = self.pars["right_sup"]
+        left_sup = self.pars["left_sup"]
         if right_sup is None:
-            right_sup = self.problem_pars["lx"]
+            right_sup = self.pars["lx"]
         if left_sup is None:
             left_sup = 0.0
-        x_fix = self.problem_pars["x_fix"]
+        x_fix = self.pars["x_fix"]
         
         bcs = []
         # It is crucial to not include on_boundary for pointwise boundary condition
@@ -93,19 +93,19 @@ class Bend3Point2DExperiment(Experiment):
             df.AutoSubDomain(self._refine_domain).mark(mf_ref, True)
             self.mesh = df.refine(self.mesh, mf_ref)
 
-def get_experiment(name, problem_pars):
+def get_experiment(name, expr_pars):
     # metaprogramming!
     cls_name = name + "Experiment"
-    return eval(cls_name)(problem_pars)
+    return eval(cls_name)(expr_pars)
 
-# MODULE "PROBLEM"
+# MODULE "model"
 
 #### to be developed ...
 
 
 if __name__ == "__main__":
-    problem_pars = {
-        # parameters that prescribe a physical phenomenon regardless of a model associated with it.
+    expr_pars = {
+        # Parameters that prescribe a physical phenomenon regardless of a model associated with it.
         "lx": 100.0,
         "ly": 30.0,
         ## The mesh will be refined in the interval [x_from, x_to]
@@ -121,13 +121,13 @@ if __name__ == "__main__":
         "x_fix": 'left', # on the left side is fixed in x-direction.
     }
     model_pars = {
-        # parameters that prescribe a model (associated with a problem).
+        # Parameters that prescribe a model (associated with an experiment).
         "E": 10.0,
         "degree": 1,
         "elem_type": 'CG',
         "dep_dim": 2,
     }
-    experiment = get_experiment("Bend3Point2D", problem_pars)
+    experiment = get_experiment("Bend3Point2D", expr_pars)
     elem = df.VectorElement(model_pars["elem_type"], experiment.mesh.ufl_cell() \
                             , model_pars["degree"], dim=model_pars["dep_dim"])
     df.FiniteElement('CG', experiment.mesh.ufl_cell(), model_pars["degree"])
