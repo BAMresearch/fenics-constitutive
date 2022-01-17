@@ -1,4 +1,6 @@
 """
+add stress and strain sensor
+
 truss under its own dead weight
 
 solve
