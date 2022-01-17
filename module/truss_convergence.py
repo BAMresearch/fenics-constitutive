@@ -1,5 +1,5 @@
 """
-add stress and strain sensor
+add stress sensor
 
 truss under its own dead weight
 
@@ -7,7 +7,7 @@ solve
     EA u''(x) = - ρgA on Ω
 
 analytical solution
-    u(x) = ρgl (x - x ** 2 / 2 / l) / E
+    u(x) = ρgl (x - x ** 2 / 2 / l) / E A
     with Ω = (0, l)
 """
 import dolfin as df
@@ -20,13 +20,37 @@ class DisplacementFieldSensor:
     def measure(self, u):
         return u
 
-
 class DisplacementSensor:
     def __init__(self, where):
         self.where = where
 
     def measure(self, u):
         return u(self.where)
+
+
+class StrainFieldSensor:
+    def __init__(self,kine):
+        self.kine = kine  # define function for kinematic eps = kine(u)
+
+    def measure(self, u):
+        # compute strains from displacements
+        V_eps = df.FunctionSpace(u.function_space().mesh(), "DG", 0)
+        eps = df.project(self.kine(self,u),V_eps)
+        return eps
+
+class StrainSensor:
+    def __init__(self, where, kine):
+        self.where = where
+        self.kine = kine  # define function for kinematic eps = kine(u)
+
+    def measure(self, u):
+        # compute strains from displacements
+        V_eps = df.FunctionSpace(u.function_space().mesh(), "DG", 0)
+        eps = df.project(self.kine(self,u), V_eps)
+        # eps = df.project(u.dx(0), V_eps)
+        # print('u at position',u(self.where),u.compute_vertex_values())
+        # print('eps',eps.compute_vertex_values())
+        return eps(self.where)
 
 
 # MODULE "EXPERIMENT"
@@ -73,6 +97,12 @@ class LinearElasticity:
         self.experiment = experiment
         self.params = params
 
+    def eps(self,u):
+        return u.dx(0)
+
+    def sigma(self,u,E):
+        return E*u.dx(0)
+
     def solve(self):
         mesh = self.experiment.mesh
         V = df.FunctionSpace(mesh, "Lagrange", self.params["degree"])
@@ -96,6 +126,7 @@ class LinearElasticity:
         Evaluates the problem for the given sensors
         """
         u = self.solve()
+
         try:
             # only one sensor
             return sensors.measure(u)
@@ -117,6 +148,19 @@ class DisplacementSolution(df.UserExpression):
     def value_shape(self):
         return ()
 
+class StrainSolution(df.UserExpression):
+    def __init__(self, parameters):
+        super().__init__(degree=8)
+        self.parameters = parameters
+
+    def eval(self, value, x):
+        p = self.parameters
+        rho, g, L, E, A = p["rho"], p["g"], p["L"], p["E"], p["A"]
+        value[0] = rho * g * L * (1 - x[0] / 2 / L) / E * A
+
+    def value_shape(self):
+        return ()
+
 
 # EXAMPLE APPLICATION: "CONVERGENCE TEST"
 
@@ -128,6 +172,7 @@ def run_convergence(experiment, parameters, sensor, max_n_refinements=15, eps=1.
         u_fem = problem(sensor)
         u_correct = experiment.data[sensor]
 
+
         try:
             # numpy ?
             err = np.linalg.norm(u_fem - u_correct)
@@ -135,12 +180,17 @@ def run_convergence(experiment, parameters, sensor, max_n_refinements=15, eps=1.
             err = df.errornorm(u_correct, u_fem, norm_type="l2", mesh=experiment.mesh)
 
         if err < eps:
+            print(f"----------- CONVERGED -----------")
+            print(f" n_refinement = {n_refinements}, Error = {err}")
             break
+        else:
+            print(f"----------- NOT CONVERGED -------")
+            print(f" n_refinement = {n_refinements}, Error = {err}")
 
         experiment.refine()
         n_refinements += 1
 
-    print(f"Finally converged. Please use {n_refinements=}.")
+    print(f"Finally converged. Please use {n_refinements=} with degree {parameters['degree']}.")
     return n_refinements
 
 
@@ -202,7 +252,25 @@ if __name__ == "__main__":
     # Run the convergence analysis with the whole displacement field.
     # Here, a linear solution can only be exact up to a given epsilon.
     # Quadratic and cubic interpolation caputure the field without refinement.
-    for degree, expected_n_refinements in [(3, 0), (2, 0), (1, 14)]:
+    for degree, expected_n_refinements in [(3, 0), (2, 0), (1, 15)]:
         parameters["degree"] = degree
         n_refinements = run_convergence(experiment, parameters, full_u_sensor)
         assert n_refinements == expected_n_refinements
+
+
+    ### added
+    ### add strain sensor
+    eps_sensor = StrainSensor(where=0,kine=LinearElasticity.eps)
+    eps_max =p["rho"] * p["g"] * p["L"] * p["A"] / p["E"]  # add analytic eps at sensor x=0
+    print(f'eps_max {eps_max}')
+    experiment.add_sensor_data(eps_sensor, eps_max)
+
+    full_eps_sensor = StrainFieldSensor(kine=LinearElasticity.eps)
+    eps_correct = StrainSolution(parameters)
+    experiment.add_sensor_data(full_eps_sensor, eps_correct)
+
+    # Run convergence analysis with maximum strain
+    for degree in [1]:
+        parameters["degree"] = degree
+        n_refinements = run_convergence(experiment, parameters, eps_sensor, eps=1.0e-3)
+        assert n_refinements == 1
