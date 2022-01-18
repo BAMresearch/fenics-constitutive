@@ -44,8 +44,8 @@ class Experiment:
     def __init__(self):
         self.data = {}
 
-    def add_sensor_data(self, sensor, data):
-        self.data[sensor] = data
+    def add_sensor_data(self, sensor, data, ts=[1.]):
+        self.data[sensor] = (data, ts)
 
 
 class UniaxialTrussExperiment(Experiment):
@@ -57,6 +57,9 @@ class UniaxialTrussExperiment(Experiment):
     def create_bcs(self, V):
         def left(x, on_boundary):
             return x[0] < df.DOLFIN_EPS and on_boundary
+        
+        def right(x, on_boundary):
+            return x[parameters["L"]] > df.DOLFIN_EPS and on_boundary
 
         self.bcs = [df.DirichletBC(V, df.Constant(0.0), left)]
         return self.bcs
@@ -111,7 +114,7 @@ class LinearElasticity:
         """
         Evaluates the problem for the given sensors
         """
-        u, R = self.solve()
+        u, R = self.solve(t)
         try:
             # only one sensor
             return sensors.measure(u, R)
@@ -149,8 +152,8 @@ def run_convergence(experiment, parameters, sensor, max_n_refinements=15, eps=1.
 
     for n_refinements in range(max_n_refinements):
         problem = LinearElasticity(experiment, parameters)
-        u_fem = problem(sensor)
-        u_correct = experiment.data[sensor]
+        u_correct, ts = experiment.data[sensor]
+        u_fem = problem(sensor, ts)
 
         try:
             # numpy ?
@@ -170,25 +173,29 @@ def run_convergence(experiment, parameters, sensor, max_n_refinements=15, eps=1.
 
 # EXAMPLE APPLICATION: "PARAMETER ESTIMATION"
 
+def estimate(experiment, parameters, sensor, what):
+    from scipy.optimize import least_squares
+    param = parameters.copy()
+
+    def error(prm):
+        param[what] = prm.squeeze()
+        print(f"Try {what} = {param[what]}")
+        problem = LinearElasticity(experiment, param)
+        value_exp, ts = experiment.data[sensor]
+        value_fem = problem(sensor, ts)
+        return value_fem - value_exp
+
+    optimize_result = least_squares(
+        fun=error, x0=0.5 * param[what]
+    )
+    return optimize_result.x.squeeze()
+
 
 def estimate_E(experiment, parameters, sensor):
-    from scipy.optimize import minimize_scalar
-
-    def error(E):
-        parameters["E"] = E
-        print(f"Try {parameters['E'] = }")
-        problem = LinearElasticity(experiment, parameters)
-        value_fem = problem(sensor)
-        value_exp = experiment.data[sensor]
-        return abs(value_fem - value_exp)
-
-    optimize_result = minimize_scalar(
-        fun=error, bracket=[0.5 * parameters["E"], 2 * parameters["E"]], tol=1.0e-8
-    )
-    return optimize_result.x
+    return estimate(experiment, parameters, sensor, what="E")
 
 
-def test_force_sensor():
+def test_fit_to_LD():
     parameters = {
         "L": 42.0,
         "E": 10.0,
@@ -201,10 +208,19 @@ def test_force_sensor():
     p = LinearElasticity(experiment, parameters)
     force_sensor = ForceSensor(p.bcs[0])
 
-    F = p(force_sensor)
-    assert F == pytest.approx(
-        -parameters["L"] * parameters["A"] * parameters["rho"] * parameters["g"]
-    )
+    F = p(force_sensor, ts=[1.])
+    F_at_t_1 = -parameters["L"] * parameters["A"] * parameters["rho"] * parameters["g"]
+    assert F == pytest.approx(F_at_t_1)
+
+    ts = np.linspace(0, 1, 11)
+    F_correct = F_at_t_1 * ts
+    experiment.add_sensor_data(force_sensor, F_correct, ts)
+
+    A = estimate(experiment, parameters, force_sensor, what="A")
+    assert A == pytest.approx(parameters["A"])
+
+
+
 
 
 def demonstrate_examples():
@@ -253,4 +269,4 @@ def demonstrate_examples():
 
 if __name__ == "__main__":
     demonstrate_examples()
-    test_force_sensor()
+    test_fit_to_LD()
