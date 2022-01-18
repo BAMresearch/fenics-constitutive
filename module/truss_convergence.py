@@ -1,5 +1,5 @@
 """
-add stress sensor
+add stress and strain sensor
 
 truss under its own dead weight
 
@@ -34,7 +34,8 @@ class StrainFieldSensor:
 
     def measure(self, u):
         # compute strains from displacements
-        V_eps = df.FunctionSpace(u.function_space().mesh(), "DG", 0)
+        degree_strain = u.function_space().ufl_element().degree()-1
+        V_eps = df.FunctionSpace(u.function_space().mesh(), "DG", degree_strain)
         eps = df.project(self.kine(self,u),V_eps)
         return eps
 
@@ -45,12 +46,22 @@ class StrainSensor:
 
     def measure(self, u):
         # compute strains from displacements
-        V_eps = df.FunctionSpace(u.function_space().mesh(), "DG", 0)
+        degree_strain = u.function_space().ufl_element().degree() - 1
+        V_eps = df.FunctionSpace(u.function_space().mesh(), "DG", degree_strain)
         eps = df.project(self.kine(self,u), V_eps)
-        # eps = df.project(u.dx(0), V_eps)
-        # print('u at position',u(self.where),u.compute_vertex_values())
-        # print('eps',eps.compute_vertex_values())
         return eps(self.where)
+
+class StressFieldSensor:
+    def __init__(self,mat,params):
+        self.mat = mat  # define function for material law stress=f(u)
+        self.params = params # parameters like E
+
+    def measure(self, u):
+        # compute strains from displacements
+        degree_stress = u.function_space().ufl_element().degree()-1
+        V_stress = df.FunctionSpace(u.function_space().mesh(), "DG", degree_stress)
+        stress = df.project(self.mat(self,u,self.params),V_stress)
+        return stress
 
 
 # MODULE "EXPERIMENT"
@@ -100,8 +111,8 @@ class LinearElasticity:
     def eps(self,u):
         return u.dx(0)
 
-    def sigma(self,u,E):
-        return E*u.dx(0)
+    def sigma(self,u,params):
+        return params['E']*u.dx(0)
 
     def solve(self):
         mesh = self.experiment.mesh
@@ -156,7 +167,7 @@ class StrainSolution(df.UserExpression):
     def eval(self, value, x):
         p = self.parameters
         rho, g, L, E, A = p["rho"], p["g"], p["L"], p["E"], p["A"]
-        value[0] = rho * g * L * (1 - x[0] / 2 / L) / E * A
+        value[0] = rho * g * L * (1 - x[0] / L) / E * A
 
     def value_shape(self):
         return ()
@@ -213,6 +224,19 @@ def estimate_E(experiment, parameters, sensor):
     )
     return optimize_result.x
 
+def compare(experiment, parameters, sensor):
+    problem = LinearElasticity(experiment, parameters)
+    fem = problem(sensor)
+    correct = experiment.data[sensor]
+
+    try:
+        # numpy ?
+        err = np.linalg.norm(fem - correct)
+    except TypeError:
+        err = df.errornorm(correct, fem, norm_type="l2", mesh=experiment.mesh)
+
+    return err
+
 
 if __name__ == "__main__":
     parameters = {
@@ -259,18 +283,60 @@ if __name__ == "__main__":
 
 
     ### added
-    ### add strain sensor
+    # compare strain to given analytic one for fixed refinement
+    parameters["degree"] = 2
+    experiment.refine(N=0)
+    # add one point
     eps_sensor = StrainSensor(where=0,kine=LinearElasticity.eps)
     eps_max =p["rho"] * p["g"] * p["L"] * p["A"] / p["E"]  # add analytic eps at sensor x=0
-    print(f'eps_max {eps_max}')
     experiment.add_sensor_data(eps_sensor, eps_max)
 
+    parameters["degree"] = 2
+    experiment.refine(N=0)
+    err = compare(experiment, parameters, eps_sensor)
+    assert err <= 0.01
+
+    # over whole truss
     full_eps_sensor = StrainFieldSensor(kine=LinearElasticity.eps)
     eps_correct = StrainSolution(parameters)
     experiment.add_sensor_data(full_eps_sensor, eps_correct)
+    err = compare(experiment, parameters, full_eps_sensor)
+    assert err <= 0.01
 
-    # Run convergence analysis with maximum strain
-    for degree in [1]:
-        parameters["degree"] = degree
-        n_refinements = run_convergence(experiment, parameters, eps_sensor, eps=1.0e-3)
-        assert n_refinements == 1
+    # compute stresses whole field
+    # stress sensor
+    full_stress_sensor = StressFieldSensor(mat=LinearElasticity.sigma,params=parameters)
+    experiment.add_sensor_data(full_stress_sensor, None)
+    problem = LinearElasticity(experiment, parameters)
+    stress_fem = problem(full_stress_sensor)
+
+    # some plotting stuff
+    import matplotlib.pylab as plt
+
+    fig, axes = plt.subplots(1, 3)
+    ax = axes[0]
+    u_fem = problem(full_u_sensor)
+    u_correct = df.project(experiment.data[full_u_sensor],u_fem.function_space())
+    ax.plot(experiment.mesh.coordinates(), u_fem.compute_vertex_values(),'*b',label='u fem')
+    ax.plot(experiment.mesh.coordinates(), u_correct.compute_vertex_values(), '+g', label='u correct')
+    ax.legend(loc='best')
+    ax.set_xlabel('x')
+    ax.set_ylabel('u')
+
+    ax = axes[1]
+    eps_fem = problem(full_eps_sensor)
+    eps_correct = df.project(experiment.data[full_eps_sensor],eps_fem.function_space())
+    ax.plot(experiment.mesh.coordinates(), eps_fem.compute_vertex_values(), '*b', label='eps fem')
+    ax.plot(experiment.mesh.coordinates(), eps_correct.compute_vertex_values(), '+g', label='eps correct')
+    ax.legend(loc='best')
+    ax.set_xlabel('x')
+    ax.set_ylabel('eps')
+
+    ax = axes[2]
+    ax.plot(eps_fem.compute_vertex_values(), stress_fem.compute_vertex_values(), '*b', label='stress-strain fem')
+    ax.legend(loc='best')
+    ax.set_xlabel('strain')
+    ax.set_ylabel('stress')
+
+    plt.show()
+
