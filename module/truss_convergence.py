@@ -283,6 +283,7 @@ if __name__ == "__main__":
 
 
     ### added
+    
     # compare strain to given analytic one for fixed refinement
     parameters["degree"] = 2
     experiment.refine(N=0)
