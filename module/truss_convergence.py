@@ -276,7 +276,7 @@ if __name__ == "__main__":
     # Run the convergence analysis with the whole displacement field.
     # Here, a linear solution can only be exact up to a given epsilon.
     # Quadratic and cubic interpolation caputure the field without refinement.
-    for degree, expected_n_refinements in [(3, 0), (2, 0), (1, 15)]:
+    for degree, expected_n_refinements in [(3, 0), (2, 0), (1, 14)]:
         parameters["degree"] = degree
         n_refinements = run_convergence(experiment, parameters, full_u_sensor)
         assert n_refinements == expected_n_refinements
