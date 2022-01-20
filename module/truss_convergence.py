@@ -121,7 +121,7 @@ class DisplacementSolution(df.UserExpression):
 
 def run_convergence(experiment, parameters, sensor, max_n_refinements=15, eps=1.0e-8):
     problem = LinearElasticity(experiment, parameters)
-    
+    errors = []    
     # compute first solution on coarsest mesh
     u_i = problem(sensor)
 
@@ -134,10 +134,17 @@ def run_convergence(experiment, parameters, sensor, max_n_refinements=15, eps=1.
         try:
             # numpy ?
             err = np.linalg.norm(u_i1 - u_i)/np.linalg.norm(u_i1)
+            errors.append(err)
         except TypeError:
-            err = df.errornorm(u_i1, u_i, norm_type="l2", mesh=experiment.mesh)/df.norm(u_i1, norm_type="l2", mesh=experiment.mesh)
-
+            scale = df.norm(u_i1, norm_type="l2", mesh=experiment.mesh)
+            err = df.errornorm(u_i1, u_i, norm_type="l2", mesh=experiment.mesh)/scale
+            errors.append(err)
         if err < eps:
+            # uncomment for error plot
+            # import matplotlib.pyplot as plt
+            # plt.plot(list(range(n_refinements+1)),errors)
+            # plt.yscale("log")
+            # plt.show()
             break
         u_i = u_i1
         
