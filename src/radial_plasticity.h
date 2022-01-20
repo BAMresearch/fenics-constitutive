@@ -193,8 +193,10 @@ public:
     Eigen::VectorXd T_vol;
     Eigen::MatrixXd T_dev;
     double _mu;
+    bool _total_strains;
+    bool _tangent;
 
-    RadialReturnPlasticity(double E_, double nu, std::shared_ptr<RadialYieldSurface> Y)
+    RadialReturnPlasticity(double E_, double nu, std::shared_ptr<RadialYieldSurface> Y, bool total_strains = true, bool tangent = true)
     {
         _internal_vars_0.resize(Q::LAST);
         _internal_vars_1.resize(Q::LAST);

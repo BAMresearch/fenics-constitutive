@@ -12,7 +12,9 @@ struct EOSInterface{
 class PolynomialEOS : public EOSInterface{
     /* A class for an EOS of the form 
      * p(\rho, e) = A(\rho) + B(\rho)*e 
-     * where A, B are polynomials with 
+     * where A, B are polynomials od degree
+     * _degA, _degB
+     * _coeff = []
      * */
 public:
     Eigen::VectorXd _coeff;
@@ -27,7 +29,13 @@ public:
     }
     double Evaluate(double eta, double e) override
     {
-        return 1.0;
+      double resA = 0.0;
+      double resB = 0.0;
+      for(int i = 0;i<_degA;i++)
+        resA += _coeff(i)*std::pow(eta,i);
+      for(int i = 0;i<_degB;i++)
+        resB += _coeff(i+_degA)*std::pow(eta,i+_degA);
+      return resA+e*resB;
     }
 };
 

@@ -151,6 +151,15 @@ class LocalProjector:
         self.solver.solve_local_rhs(u)
 
 
+"""
+local_project
+---------------
+
+Projecting an expression or function ``v`` into a function space ``V``.
+This is done the same way as in the LocalProjector class. We recommend the use
+of this function if the underlying mesh is updated. In this case LocalProjector
+won't work properly. Otherwise LocalProjector is often more efficient because the factorization is done only once.
+"""
 def local_project(v, V, dx, u=None):
     dv = df.TrialFunction(V)
     v_ = df.TestFunction(V)
@@ -165,6 +174,12 @@ def local_project(v, V, dx, u=None):
     else:
         solver.solve_local_rhs(u)
 
+"""
+Convert a symmetric tensor to Mandel notation
+---------------------------------------------
+Mandel notation is similar to Voigt notation, but with the factor \sqrt{2} for
+both stresses and strains.
+"""
 
 def as_mandel(T):
     """
@@ -185,23 +200,24 @@ def as_mandel(T):
         ]
     )
 
+"""
+Calculate the critical timestep
+-------------------------------
 
-def critical_timestep(K_form, M_form, mesh):
+"""
+
+def critical_timestep(K_form, M_form, mesh, regular_mesh=False):
     eig = 0.0
     eig_max = 0.0
-    #eig_min = np.inf
     i_local = mesh.num_cells()
-    i_max = int(df.MPI.max(df.MPI.comm_world, mesh.num_cells()))
+    i_max = 1 if regular_mesh else int(df.MPI.max(df.MPI.comm_world, mesh.num_cells()))
     for i in range(i_max):
         cell = df.Cell(mesh,i%i_local)
         Me = df.assemble_local(M_form, cell)
         Ke = df.assemble_local(K_form, cell)
         eig = np.linalg.norm(eigvals(Ke, Me),np.inf)
         eig_max = max(eig, eig_max)
-        #eig_min = min(eig, eig_min)
     eig_max = df.MPI.max(df.MPI.comm_world, eig_max)
-    #eig_min = df.MPI.min(df.MPI.comm_world, eig_min)
-    #print(2/eig_max**0.5, 2/eig_min**0.5, flush=True)
     h = 2.0 / eig_max ** 0.5
     return h
 

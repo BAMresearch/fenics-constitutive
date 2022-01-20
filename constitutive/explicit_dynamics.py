@@ -21,22 +21,24 @@ class CDM:
         damping_factor=None,
         calculate_F=False,
         bc_mesh="current",
+        update_mesh = True,
     ):
-
-        self.QT = helper.quadrature_tensor_space(V, shape=(3, 3))
-        self.QV = helper.quadrature_vector_space(V, dim=6)
-
-        self.stress = df.Function(self.QV)
-
-        self.local_q_dim = self.stress.vector().get_local().size // 6
-        print(self.local_q_dim)
 
         self.mesh = V.mesh()
         self.v = v0
         self.u = u0
         self.a = np.zeros_like(self.u.vector().get_local())
+
+        self.QT = helper.quadrature_tensor_space(V, shape=(3, 3))
+        self.QV = helper.quadrature_vector_space(V, dim=6)
+
         self.L = df.Function(self.QT)
         self.F = df.Function(self.QT) if calculate_F else None
+
+        self.stress = df.Function(self.QV)
+
+        self.local_q_dim = self.stress.vector().get_local().size // 6
+
         self.t = np.ones(self.local_q_dim) * t0
 
         self.ip_loop = cpp.IpLoop()
@@ -49,9 +51,11 @@ class CDM:
             self.stress_rate.resize(self.local_q_dim)
 
         self.f_ext = f_ext
-        self.test_function = df.TestFunction(V)
+
+        test_function = df.TestFunction(V)
+
         self.f_int_form = df.inner(
-            helper.as_mandel(df.sym(df.grad(self.test_function))), self.stress
+            helper.as_mandel(df.sym(df.grad(test_function))), self.stress
         ) * df.dx(
             metadata={
                 "quadrature_degree": self.stress.ufl_element().degree(),
@@ -60,12 +64,12 @@ class CDM:
         )
 
         self.bcs = bcs
-        self.bc_mesh=bc_mesh
+        self.bc_mesh = bc_mesh
         self.M_inv = 1 / M
         self.x = df.interpolate(df.Expression(("x[0]", "x[1]", "x[2]"), degree=1), V)
         self.damping_factor = damping_factor
 
-    #@profile
+
     def stress_update(self, h):
 
         helper.local_project(

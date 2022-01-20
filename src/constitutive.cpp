@@ -170,15 +170,18 @@ PYBIND11_MODULE(cpp, m)
     isotropic_hardening_plasticity.def("get_internal_var", &IsotropicHardeningPlasticity::GetInternalVar);
     isotropic_hardening_plasticity.def_readonly("C", &IsotropicHardeningPlasticity::_C);
     
+    /*************************************************************************
+     **   RADIAL PLASTICITY
+     *************************************************************************/
     pybind11::class_<AnalyticMisesPlasticity, std::shared_ptr<AnalyticMisesPlasticity>, LawInterface> analytic_mises_plasticity(m, "AnalyticMisesPlasticity");
     analytic_mises_plasticity.def(pybind11::init<double, double, double, double, bool, bool>(), py::arg("E"), py::arg("nu"), py::arg("sig0"), py::arg("H"),py::arg("total_strains") = true, py::arg("tangent") = true);
     analytic_mises_plasticity.def("get_internal_var", &AnalyticMisesPlasticity::GetInternalVar);
     analytic_mises_plasticity.def_readonly("C", &AnalyticMisesPlasticity::_C);
 
-    pybind11::class_<RadialReturnMisesPlasticity, std::shared_ptr<RadialReturnMisesPlasticity>, LawInterface> radial_return_mises_plasticity(m, "RadialReturnMisesPlasticity");
-    radial_return_mises_plasticity.def(pybind11::init<double, double, double, double>(), py::arg("E"), py::arg("nu"), py::arg("sig0"), py::arg("H"));
-    radial_return_mises_plasticity.def("get_internal_var", &RadialReturnMisesPlasticity::GetInternalVar);
-    radial_return_mises_plasticity.def_readonly("C", &RadialReturnMisesPlasticity::_C);
+    //pybind11::class_<RadialReturnMisesPlasticity, std::shared_ptr<RadialReturnMisesPlasticity>, LawInterface> radial_return_mises_plasticity(m, "RadialReturnMisesPlasticity");
+    //radial_return_mises_plasticity.def(pybind11::init<double, double, double, double>(), py::arg("E"), py::arg("nu"), py::arg("sig0"), py::arg("H"));
+    //radial_return_mises_plasticity.def("get_internal_var", &RadialReturnMisesPlasticity::GetInternalVar);
+    //radial_return_mises_plasticity.def_readonly("C", &RadialReturnMisesPlasticity::_C);
 
     pybind11::class_<RadialReturnPlasticity, std::shared_ptr<RadialReturnPlasticity>, LawInterface> radial_return_plasticity(m, "RadialReturnPlasticity");
     radial_return_plasticity.def(pybind11::init<double, double, std::shared_ptr<RadialYieldSurface>>(), py::arg("E"), py::arg("nu"), py::arg("Y"));
@@ -191,6 +194,14 @@ PYBIND11_MODULE(cpp, m)
     radial_mises_yield_surface.def(pybind11::init<double, double>(), py::arg("sig0"), py::arg("H"));
     
     /*************************************************************************
-     ** RHT Concrete model
+     ** Hydrocode models
      *************************************************************************/
+    pybind11::class_<MisesEOS, std::shared_ptr<MisesEOS>, LawInterface> mises_eos(m, "MisesEOS");
+    mises_eos.def(pybind11::init<double, double, double, double, std::shared_ptr<EOSInterface>>(), py::arg("sig0"), py::arg("mu"), py::arg("rho"), py::arg("H"), py::arg("EOS"));
+    mises_eos.def("get_internal_var", &MisesEOS::GetInternalVar);
+
+    pybind11::class_<EOSInterface, std::shared_ptr<EOSInterface>> eos_interface(m, "EOSInterface");
+
+    pybind11::class_<PolynomialEOS, std::shared_ptr<PolynomialEOS>, EOSInterface> polynomial_eos(m, "PolynomialEOS");
+    polynomial_eos.def(pybind11::init<Eigen::VectorXd, int, int>(), py::arg("coeff"), py::arg("deg A"), py::arg("deg B"));
 }
