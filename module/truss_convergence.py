@@ -119,22 +119,35 @@ class DisplacementSolution(df.UserExpression):
 # EXAMPLE APPLICATION: "CONVERGENCE TEST"
 
 
-def run_convergence(experiment, parameters, sensor, max_n_refinements=15, eps=1.0e-4):
+def run_convergence(experiment, parameters, sensor, max_n_refinements=15, eps=1.0e-8):
     problem = LinearElasticity(experiment, parameters)
+    errors = []    
+    # compute first solution on coarsest mesh
+    u_i = problem(sensor)
 
+    experiment.refine()
+    
     for n_refinements in range(max_n_refinements):
-        u_fem = problem(sensor)
-        u_correct = experiment.data[sensor]
-
+        u_i1 = problem(sensor)
+        
+        # compute relative error
         try:
             # numpy ?
-            err = np.linalg.norm(u_fem - u_correct)
+            err = np.linalg.norm(u_i1 - u_i)/np.linalg.norm(u_i1)
+            errors.append(err)
         except TypeError:
-            err = df.errornorm(u_correct, u_fem, norm_type="l2", mesh=experiment.mesh)
-
+            scale = df.norm(u_i1, norm_type="l2", mesh=experiment.mesh)
+            err = df.errornorm(u_i1, u_i, norm_type="l2", mesh=experiment.mesh)/scale
+            errors.append(err)
         if err < eps:
+            # uncomment for error plot
+            # import matplotlib.pyplot as plt
+            # plt.plot(list(range(n_refinements+1)),errors)
+            # plt.yscale("log")
+            # plt.show()
             break
-
+        u_i = u_i1
+        
         experiment.refine()
         n_refinements += 1
 
@@ -198,9 +211,18 @@ if __name__ == "__main__":
         assert n_refinements == 0
 
     # Run the convergence analysis with the whole displacement field.
-    # Here, a linear solution can only be exact up to a given epsilon.
+    # Here, a linear solution can only be exact up to a given epsilon
+    # Sjard: And therefore assuming a fixed number of refinements makes
+    # no sense for the new convergence study
     # Quadratic and cubic interpolation caputure the field without refinement.
-    for degree, expected_n_refinements in [(3, 0), (2, 0), (1, 14)]:
+    for degree, expected_n_refinements in [(3, 0), (2, 0)]:
         parameters["degree"] = degree
         n_refinements = run_convergence(experiment, parameters, full_u_sensor)
         assert n_refinements == expected_n_refinements
+
+    # Run convergence study for elements of order 1
+    # Here we just want to check, that at least one 
+    # refinement step is done
+    parameters["degree"] = 1
+    n_refinements = run_convergence(experiment, parameters, full_u_sensor)
+    assert n_refinements >= 1
