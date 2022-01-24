@@ -1,11 +1,13 @@
 """
+add stress and strain sensor
+
 truss under its own dead weight
 
 solve
     EA u''(x) = - ρgA on Ω
 
 analytical solution
-    u(x) = ρgl (x - x ** 2 / 2 / l) / E
+    u(x) = ρgl (x - x ** 2 / 2 / l) / E A
     with Ω = (0, l)
 """
 import dolfin as df
@@ -19,13 +21,48 @@ class DisplacementFieldSensor:
     def measure(self, u):
         return u
 
-
 class DisplacementSensor:
     def __init__(self, where):
         self.where = where
 
     def measure(self, u):
         return u(self.where)
+
+
+class StrainFieldSensor:
+    def __init__(self,kine):
+        self.kine = kine  # define function for kinematic eps = kine(u)
+
+    def measure(self, u):
+        # compute strains from displacements
+        degree_strain = u.function_space().ufl_element().degree()-1
+        V_eps = df.FunctionSpace(u.function_space().mesh(), "DG", degree_strain)
+        eps = df.project(self.kine(self,u),V_eps)
+        return eps
+
+class StrainSensor:
+    def __init__(self, where, kine):
+        self.where = where
+        self.kine = kine  # define function for kinematic eps = kine(u)
+
+    def measure(self, u):
+        # compute strains from displacements
+        degree_strain = u.function_space().ufl_element().degree() - 1
+        V_eps = df.FunctionSpace(u.function_space().mesh(), "DG", degree_strain)
+        eps = df.project(self.kine(self,u), V_eps)
+        return eps(self.where)
+
+class StressFieldSensor:
+    def __init__(self,mat,params):
+        self.mat = mat  # define function for material law stress=f(u)
+        self.params = params # parameters like E
+
+    def measure(self, u):
+        # compute strains from displacements
+        degree_stress = u.function_space().ufl_element().degree()-1
+        V_stress = df.FunctionSpace(u.function_space().mesh(), "DG", degree_stress)
+        stress = df.project(self.mat(self,u,self.params),V_stress)
+        return stress
 
 
 # MODULE "EXPERIMENT"
@@ -75,6 +112,12 @@ class LinearElasticity:
         self.experiment = experiment
         self.params = params
 
+    def eps(self,u):
+        return u.dx(0)
+
+    def sigma(self,u,params):
+        return params['E']*u.dx(0)
+
     def solve(self):
         mesh = self.experiment.mesh
         V = df.FunctionSpace(mesh, "Lagrange", self.params["degree"])
@@ -98,6 +141,7 @@ class LinearElasticity:
         Evaluates the problem for the given sensors
         """
         u = self.solve()
+
         try:
             # only one sensor
             return sensors.measure(u)
@@ -119,11 +163,22 @@ class DisplacementSolution(df.UserExpression):
     def value_shape(self):
         return ()
 
+class StrainSolution(df.UserExpression):
+    def __init__(self, parameters):
+        super().__init__(degree=8)
+        self.parameters = parameters
+
+    def eval(self, value, x):
+        p = self.parameters
+        rho, g, L, E, A = p["rho"], p["g"], p["L"], p["E"], p["A"]
+        value[0] = rho * g * L * (1 - x[0] / L) / E * A
+
+    def value_shape(self):
+        return ()
+
 
 # EXAMPLE APPLICATION: "CONVERGENCE TEST"
-
-
-def run_convergence(experiment, parameters, sensor, max_n_refinements=15, eps=1.0e-8):
+def run_convergence_sjard(experiment, parameters, sensor, max_n_refinements=15, eps=1.0e-8):
     problem = LinearElasticity(experiment, parameters)
     errors = []    
     # compute first solution on coarsest mesh
@@ -144,20 +199,44 @@ def run_convergence(experiment, parameters, sensor, max_n_refinements=15, eps=1.
             err = df.errornorm(u_i1, u_i, norm_type="l2", mesh=experiment.mesh)/scale
             errors.append(err)
         if err < eps:
-            # uncomment for error plot
-            # import matplotlib.pyplot as plt
-            # plt.plot(list(range(n_refinements+1)),errors)
-            # plt.yscale("log")
-            # plt.show()
+            print(f"----------- CONVERGED -----------")
+            print(f" n_refinement = {n_refinements}, Error = {err}")
             break
         u_i = u_i1
         
         experiment.refine()
         n_refinements += 1
 
-    print(f"Finally converged. Please use {n_refinements=}.")
+    print(f"Finally converged. Please use {n_refinements=} with degree {parameters['degree']}.")
     return n_refinements
 
+def run_convergence(experiment, parameters, sensor, max_n_refinements=15, eps=1.0e-4):
+    problem = LinearElasticity(experiment, parameters)
+
+    for n_refinements in range(max_n_refinements):
+        u_fem = problem(sensor)
+        u_correct = experiment.data[sensor]
+
+
+        try:
+            # numpy ?
+            err = np.linalg.norm(u_fem - u_correct)
+        except TypeError:
+            err = df.errornorm(u_correct, u_fem, norm_type="l2", mesh=experiment.mesh)
+
+        if err < eps:
+            print(f"----------- CONVERGED -----------")
+            print(f" n_refinement = {n_refinements}, Error = {err}")
+            break
+        else:
+            print(f"----------- NOT CONVERGED -------")
+            print(f" n_refinement = {n_refinements}, Error = {err}")
+
+        experiment.refine()
+        n_refinements += 1
+
+    print(f"Finally converged. Please use {n_refinements=} with degree {parameters['degree']}.")
+    return n_refinements
 
 # EXAMPLE APPLICATION: "PARAMETER ESTIMATION"
 
@@ -177,6 +256,19 @@ def estimate_E(experiment, parameters, sensor):
         fun=error, bracket=[0.5 * parameters["E"], 2 * parameters["E"]], tol=1.0e-8
     )
     return optimize_result.x
+
+def compare(experiment, parameters, sensor):
+    problem = LinearElasticity(experiment, parameters)
+    fem = problem(sensor)
+    correct = experiment.data[sensor]
+
+    try:
+        # numpy ?
+        err = np.linalg.norm(fem - correct)
+    except TypeError:
+        err = df.errornorm(correct, fem, norm_type="l2", mesh=experiment.mesh)
+
+    return err
 
 
 # Question: would it be better to "feed" a problem instead of experiment + parameters?
@@ -282,6 +374,14 @@ if __name__ == "__main__":
     # attach analytic solution for the full displacement field
     full_u_sensor = DisplacementFieldSensor()
     u_correct = DisplacementSolution(parameters)
+
+    # run sjards convergence study without experimental data!
+    parameters["degree"] = 1
+    n_refinements = run_convergence_sjard(experiment, parameters, full_u_sensor)
+    assert n_refinements >= 1
+
+
+    # attach the analytic solution and 
     experiment.add_sensor_data(full_u_sensor, u_correct)
 
     # attach analytic solution for the bottom displacement
@@ -316,6 +416,66 @@ if __name__ == "__main__":
         parameters["degree"] = degree
         n_refinements = run_convergence(experiment, parameters, full_u_sensor)
         assert n_refinements == expected_n_refinements
+
+
+    ### added
+    
+    # compare strain to given analytic one for fixed refinement
+    parameters["degree"] = 2
+    experiment.refine(N=0)
+    # add one point
+    eps_sensor = StrainSensor(where=0,kine=LinearElasticity.eps)
+    eps_max =p["rho"] * p["g"] * p["L"] * p["A"] / p["E"]  # add analytic eps at sensor x=0
+    experiment.add_sensor_data(eps_sensor, eps_max)
+
+    parameters["degree"] = 2
+    experiment.refine(N=0)
+    err = compare(experiment, parameters, eps_sensor)
+    assert err <= 0.01
+
+    # over whole truss
+    full_eps_sensor = StrainFieldSensor(kine=LinearElasticity.eps)
+    eps_correct = StrainSolution(parameters)
+    experiment.add_sensor_data(full_eps_sensor, eps_correct)
+    err = compare(experiment, parameters, full_eps_sensor)
+    assert err <= 0.01
+
+    # compute stresses whole field
+    # stress sensor
+    full_stress_sensor = StressFieldSensor(mat=LinearElasticity.sigma,params=parameters)
+    experiment.add_sensor_data(full_stress_sensor, None)
+    problem = LinearElasticity(experiment, parameters)
+    stress_fem = problem(full_stress_sensor)
+
+    # some plotting stuff
+    import matplotlib.pylab as plt
+
+    fig, axes = plt.subplots(1, 3)
+    ax = axes[0]
+    u_fem = problem(full_u_sensor)
+    u_correct = df.project(experiment.data[full_u_sensor],u_fem.function_space())
+    ax.plot(experiment.mesh.coordinates(), u_fem.compute_vertex_values(),'*b',label='u fem')
+    ax.plot(experiment.mesh.coordinates(), u_correct.compute_vertex_values(), '+g', label='u correct')
+    ax.legend(loc='best')
+    ax.set_xlabel('x')
+    ax.set_ylabel('u')
+
+    ax = axes[1]
+    eps_fem = problem(full_eps_sensor)
+    eps_correct = df.project(experiment.data[full_eps_sensor],eps_fem.function_space())
+    ax.plot(experiment.mesh.coordinates(), eps_fem.compute_vertex_values(), '*b', label='eps fem')
+    ax.plot(experiment.mesh.coordinates(), eps_correct.compute_vertex_values(), '+g', label='eps correct')
+    ax.legend(loc='best')
+    ax.set_xlabel('x')
+    ax.set_ylabel('eps')
+
+    ax = axes[2]
+    ax.plot(eps_fem.compute_vertex_values(), stress_fem.compute_vertex_values(), '*b', label='stress-strain fem')
+    ax.legend(loc='best')
+    ax.set_xlabel('strain')
+    ax.set_ylabel('stress')
+
+    plt.show()
 
     # Run convergence study for elements of order 1
     # Here we just want to check, that at least one 
