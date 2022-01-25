@@ -80,9 +80,9 @@ class StrainSensor(Sensor):
 
 
 class StressFieldSensor(Sensor):
-    def __init__(self, mat, params):
+    def __init__(self, mat, parameters):
         self.mat = mat  # define function for material law stress=f(u)
-        self.params = params  # parameters like E
+        self.parameters = parameters  # parameters like E
 
     def measure(self, u, R=None):
         # compute strains from displacements
@@ -137,14 +137,14 @@ def get_experiment(name, parameters):
 
 
 class LinearElasticity:
-    def __init__(self, experiment, params):
+    def __init__(self, experiment, parameters):
         self.experiment = experiment
-        self.params = params
+        self.parameters = parameters
         self.setup()
 
     def setup(self):
         mesh = self.experiment.mesh
-        self.V = df.FunctionSpace(mesh, "Lagrange", self.params["degree"])
+        self.V = df.FunctionSpace(mesh, "Lagrange", self.parameters["degree"])
         self.u = df.Function(self.V)
         v = df.TestFunction(self.V)
         self.bcs = self.experiment.create_bcs(self.V)
@@ -152,11 +152,11 @@ class LinearElasticity:
         rho, g, L, E, A = [
             df.Constant(what)
             for what in [
-                self.params.rho,
-                self.params.g,
-                self.params.L,
-                self.params.E,
-                self.params.A,
+                self.parameters.rho,
+                self.parameters.g,
+                self.parameters.L,
+                self.parameters.E,
+                self.parameters.A,
             ]
         ]
         F = rho * g * A
@@ -167,7 +167,7 @@ class LinearElasticity:
         return u.dx(0)
 
     def sigma(self, u):
-        return self.params.E * u.dx(0)
+        return self.parameters.E * u.dx(0)
 
     def solve(self, t=1.0):
         self.f.t = t
@@ -230,14 +230,13 @@ class StrainSolution(df.UserExpression):
 
 # EXAMPLE APPLICATION: "CONVERGENCE TEST"
 def run_convergence_sjard(
-    experiment, parameters, sensor, max_n_refinements=15, eps=1.0e-8
+    problem, sensor, max_n_refinements=15, eps=1.0e-8
 ):
-    problem = LinearElasticity(experiment, parameters)
     errors = []
     # compute first solution on coarsest mesh
     u_i = problem(sensor)
 
-    experiment.refine()
+    problem.experiment.refine()
     problem.setup()
 
     for n_refinements in range(max_n_refinements):
@@ -249,8 +248,8 @@ def run_convergence_sjard(
             err = np.linalg.norm(u_i1 - u_i) / np.linalg.norm(u_i1)
             errors.append(err)
         except TypeError:
-            scale = df.norm(u_i1, norm_type="l2", mesh=experiment.mesh)
-            err = df.errornorm(u_i1, u_i, norm_type="l2", mesh=experiment.mesh) / scale
+            scale = df.norm(u_i1, norm_type="l2")
+            err = df.errornorm(u_i1, u_i, norm_type="l2") / scale
             errors.append(err)
         if err < eps:
             print(f"----------- CONVERGED -----------")
@@ -258,28 +257,29 @@ def run_convergence_sjard(
             break
         u_i = u_i1
 
-        experiment.refine()
+        problem.experiment.refine()
         problem.setup()
         n_refinements += 1
 
     print(
-        f"Finally converged. Please use {n_refinements=} with degree {parameters['degree']}."
+        f"Finally converged. Please use {n_refinements=} with degree {problem.parameters['degree']}."
     )
     return n_refinements
 
 
-def run_convergence(experiment, parameters, sensor, max_n_refinements=15, eps=1.0e-4):
+def run_convergence(problem, sensor, max_n_refinements=15, eps=1.0e-4):
+    
+    u_correct, ts = problem.experiment.data[sensor]
 
     for n_refinements in range(max_n_refinements):
-        problem = LinearElasticity(experiment, parameters)
-        u_correct, ts = experiment.data[sensor]
+        problem.setup()
         u_fem = problem(sensor, ts)
 
         try:
             # numpy ?
             err = np.linalg.norm(u_fem - u_correct)
         except TypeError:
-            err = df.errornorm(u_correct, u_fem, norm_type="l2", mesh=experiment.mesh)
+            err = df.errornorm(u_correct, u_fem, norm_type="l2")
 
         if err < eps:
             print(f"----------- CONVERGED -----------")
@@ -289,11 +289,11 @@ def run_convergence(experiment, parameters, sensor, max_n_refinements=15, eps=1.
             print(f"----------- NOT CONVERGED -------")
             print(f" n_refinement = {n_refinements}, Error = {err}")
 
-        experiment.refine()
+        problem.experiment.refine()
         n_refinements += 1
 
     print(
-        f"Finally converged. Please use {n_refinements=} with degree {parameters['degree']}."
+        f"Finally converged. Please use {n_refinements=} with degree {problem.parameters['degree']}."
     )
     return n_refinements
 
@@ -304,12 +304,12 @@ def run_convergence(experiment, parameters, sensor, max_n_refinements=15, eps=1.
 def estimate(problem, sensor, what):
     from scipy.optimize import least_squares
 
-    param = problem.params.copy()
+    param = problem.parameters.copy()
     value_exp, ts = problem.experiment.data[sensor]
 
     def error(prm):
-        problem.params[what] = prm.squeeze()
-        print(f"Try {what} = {problem.params[what]}")
+        problem.parameters[what] = prm.squeeze()
+        print(f"Try {what} = {problem.parameters[what]}")
         problem.setup()
         value_fem = problem(sensor, ts)
         return value_fem - value_exp
@@ -334,7 +334,7 @@ def scalar_parameter_study(
     #          maybe a problem class that gets experiement, material and parameters? instead of passing param to both?
 
     # validation
-    og_params = problem.params.copy()
+    og_params = problem.parameters.copy()
     # for prm in to_vary:
     # assert prm in og_params
 
@@ -342,12 +342,12 @@ def scalar_parameter_study(
     result = defaultdict(list)
     for prm, values in to_vary.items():
         for value in values:
-            problem.params[prm] = value
-            problem.experiment.update_param(problem.params)
+            problem.parameters[prm] = value
+            problem.experiment.update_param(problem.parameters)
             problem.setup()
             solution = problem(sensor)
             result[prm].append(solution)
-        problem.params[prm] = og_params[prm]
+        problem.parameters[prm] = og_params[prm]
 
     # plotting
     fig, axes = plt.subplots(len(to_vary))
@@ -388,8 +388,9 @@ def main_convergence_incremental():
     """convergence analysis without analytical solution"""
     parameters = LinearElasticityParameters()
     experiment = get_experiment("UniaxialTruss", parameters)
+    problem = LinearElasticity(experiment, parameters)
     full_u_sensor = DisplacementFieldSensor()
-    n_refinements = run_convergence_sjard(experiment, parameters, full_u_sensor)
+    n_refinements = run_convergence_sjard(problem, full_u_sensor)
     assert n_refinements == 13
 
 
@@ -397,6 +398,7 @@ def main_convergence_analytical():
     """convergence analysis using the analytic solution for two kinds of sensors"""
     parameters = LinearElasticityParameters()
     experiment = get_experiment("UniaxialTruss", parameters)
+    problem = LinearElasticity(experiment, parameters)
 
     u_field_sensor = DisplacementFieldSensor()
     u_field_correct = DisplacementSolution(parameters)
@@ -411,7 +413,7 @@ def main_convergence_analytical():
     # element.
     for degree in [1, 2, 3]:
         parameters.degree = degree
-        n_refinements = run_convergence(experiment, parameters, u_sensor)
+        n_refinements = run_convergence(problem, u_sensor)
         assert n_refinements == 0
 
     # Run the convergence analysis with the whole displacement field.
@@ -422,7 +424,7 @@ def main_convergence_analytical():
     for degree, expected_n_refinements in [(3, 0), (2, 0), (1, 8)]:
         # for degree, expected_n_refinements in [(3, 0), (2, 0)]:
         parameters["degree"] = degree
-        n_refinements = run_convergence(experiment, parameters, u_field_sensor, eps=1)
+        n_refinements = run_convergence(problem, u_field_sensor, eps=1)
         assert n_refinements == expected_n_refinements
 
 
@@ -458,7 +460,7 @@ def main_E_inference():
 
     experiment.add_sensor_data(u_sensor, u_correct)
 
-    problem.params.E = 0.42  # some wrong value
+    problem.parameters.E = 0.42  # some wrong value
     E = estimate(problem, u_sensor, what="E")
     assert E == pytest.approx(parameters.E)
 
@@ -477,7 +479,7 @@ def main_fit_to_LD():
     F_correct = F_at_t_1 * ts
     experiment.add_sensor_data(force_sensor, F_correct, ts)
 
-    problem.params["A"] = 0.42  # some wrong value
+    problem.parameters["A"] = 0.42  # some wrong value
     A = estimate(problem, force_sensor, what="A")
     assert A == pytest.approx(parameters["A"])
 
@@ -521,7 +523,7 @@ def main_strain_sensors():
     assert problem(eps_sensor) == pytest.approx(eps_max)
 
     # create stress sensor for plotting
-    stress_field_sensor = StressFieldSensor(mat=problem.sigma, params=parameters)
+    stress_field_sensor = StressFieldSensor(mat=problem.sigma, parameters=parameters)
     experiment.add_sensor_data(eps_field_sensor, eps_correct)
 
     fig, axes = plt.subplots(2, 1, sharex=True)
