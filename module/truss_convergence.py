@@ -10,6 +10,7 @@ analytical solution
     u(x) = ρgl (x - x ** 2 / 2 / l) / E A
     with Ω = (0, l)
 """
+import copy
 import dolfin as df
 import numpy as np
 import pytest
@@ -21,6 +22,7 @@ from collections import defaultdict
 
 # MODULE "SENSOR"
 
+
 class Sensor:
     def measure(self, u, R=None):
         raise NotImplementedError()
@@ -28,6 +30,7 @@ class Sensor:
     @property
     def name(self):
         return self.__class__.__name__
+
 
 class DisplacementFieldSensor(Sensor):
     def measure(self, u, R=None):
@@ -103,7 +106,7 @@ class Experiment:
 class UniaxialTrussExperiment(Experiment):
     def __init__(self, parameters):
         super().__init__()
-        self.mesh = df.IntervalMesh(1, 0.0, parameters["L"])
+        self.mesh = df.IntervalMesh(1, 0.0, parameters.L)
         self.bcs = None  # to be created externally via .create_bcs
 
     def create_bcs(self, V):
@@ -114,7 +117,7 @@ class UniaxialTrussExperiment(Experiment):
         return self.bcs
 
     def update_param(self, parameters):
-        self.mesh = df.IntervalMesh(1, 0.0, parameters["L"])
+        self.mesh = df.IntervalMesh(1, 0.0, parameters.L)
 
     def refine(self, N=1):
         """
@@ -147,7 +150,14 @@ class LinearElasticity:
         self.bcs = self.experiment.create_bcs(self.V)
 
         rho, g, L, E, A = [
-            df.Constant(self.params[what]) for what in ["rho", "g", "L", "E", "A"]
+            df.Constant(what)
+            for what in [
+                self.params.rho,
+                self.params.g,
+                self.params.L,
+                self.params.E,
+                self.params.A,
+            ]
         ]
         F = rho * g * A
         self.f = df.Expression("t * F", t=0.0, F=F, degree=0)
@@ -157,7 +167,7 @@ class LinearElasticity:
         return u.dx(0)
 
     def sigma(self, u):
-        return self.params["E"] * u.dx(0)
+        return self.params.E * u.dx(0)
 
     def solve(self, t=1.0):
         self.f.t = t
@@ -199,8 +209,7 @@ class DisplacementSolution(df.UserExpression):
 
     def eval(self, value, x):
         p = self.parameters
-        rho, g, L, E, A = p["rho"], p["g"], p["L"], p["E"], p["A"]
-        value[0] = rho * g * L * (x[0] - x[0] ** 2 / 2 / L) / E * A
+        value[0] = p.rho * p.g * p.L * (x[0] - x[0] ** 2 / 2 / p.L) / p.E * p.A
 
     def value_shape(self):
         return ()
@@ -213,8 +222,7 @@ class StrainSolution(df.UserExpression):
 
     def eval(self, value, x):
         p = self.parameters
-        rho, g, L, E, A = p["rho"], p["g"], p["L"], p["E"], p["A"]
-        value[0] = rho * g * L * (1 - x[0] / L) / E * A
+        value[0] = p.rho * p.g * p.L * (1 - x[0] / p.L) / p.E * p.A
 
     def value_shape(self):
         return ()
@@ -310,20 +318,6 @@ def estimate(problem, sensor, what):
     return optimize_result.x.squeeze()
 
 
-def compare(experiment, parameters, sensor):
-    problem = LinearElasticity(experiment, parameters)
-    correct, ts = experiment.data[sensor]
-    fem = problem(sensor, ts)
-
-    try:
-        # numpy ?
-        err = np.linalg.norm(fem - correct)
-    except (TypeError, AttributeError):
-        err = df.errornorm(correct, fem, norm_type="l2", mesh=experiment.mesh)
-
-    return err
-
-
 def scalar_parameter_study(
     problem,
     sensor,
@@ -341,8 +335,8 @@ def scalar_parameter_study(
 
     # validation
     og_params = problem.params.copy()
-    for prm in to_vary:
-        assert prm in og_params
+    # for prm in to_vary:
+    # assert prm in og_params
 
     # solution
     result = defaultdict(list)
@@ -354,7 +348,7 @@ def scalar_parameter_study(
             solution = problem(sensor)
             result[prm].append(solution)
         problem.params[prm] = og_params[prm]
-  
+
     # plotting
     fig, axes = plt.subplots(len(to_vary))
     fig.suptitle(f"Measurements of {sensor.name}")
@@ -367,20 +361,32 @@ def scalar_parameter_study(
 
     return result, (fig, axes)
 
-def default_parameters():
-    return {
-        "L": 42.0,
-        "E": 10.0,
-        "g": 9.81,
-        "A": 4.0,
-        "rho": 7.0,
-        "degree": 1,
-    }
+
+@dataclass
+class Parameters:
+    def __getitem__(self, key):
+        return getattr(self, key)
+
+    def __setitem__(self, key, value):
+        setattr(self, key, value)
+
+    def copy(self):
+        return copy.copy(self)
+
+
+@dataclass
+class LinearElasticityParameters(Parameters):
+    L: float = 42.0  # length
+    A: float = 4.0  # cross section
+    E: float = 10.0  # Young's modulus
+    g: float = 9.81  # gravitational constant
+    rho: float = 7.0  # density
+    degree: int = 1  # interpolation degree
 
 
 def main_convergence_incremental():
     """convergence analysis without analytical solution"""
-    parameters = default_parameters()
+    parameters = LinearElasticityParameters()
     experiment = get_experiment("UniaxialTruss", parameters)
     full_u_sensor = DisplacementFieldSensor()
     n_refinements = run_convergence_sjard(experiment, parameters, full_u_sensor)
@@ -389,14 +395,14 @@ def main_convergence_incremental():
 
 def main_convergence_analytical():
     """convergence analysis using the analytic solution for two kinds of sensors"""
-    parameters = default_parameters()
+    parameters = LinearElasticityParameters()
     experiment = get_experiment("UniaxialTruss", parameters)
 
     u_field_sensor = DisplacementFieldSensor()
     u_field_correct = DisplacementSolution(parameters)
     experiment.add_sensor_data(u_field_sensor, u_field_correct)
 
-    u_sensor = DisplacementSensor(where=parameters["L"])
+    u_sensor = DisplacementSensor(where=parameters.L)
     u_correct = u_sensor.measure(u_field_correct)
     experiment.add_sensor_data(u_sensor, u_correct)
 
@@ -404,7 +410,7 @@ def main_convergence_analytical():
     # nodal values, we expect them to be correct even for a single linear
     # element.
     for degree in [1, 2, 3]:
-        parameters["degree"] = degree
+        parameters.degree = degree
         n_refinements = run_convergence(experiment, parameters, u_sensor)
         assert n_refinements == 0
 
@@ -426,7 +432,7 @@ def main_parameter_study():
     study, here the influence of various parameters on the maximum truss
     displacement
     """
-    parameters = default_parameters()
+    parameters = LinearElasticityParameters()
     experiment = get_experiment("UniaxialTruss", parameters)
     problem = LinearElasticity(experiment, parameters)
     u_sensor = DisplacementSensor(where=parameters["L"])
@@ -441,8 +447,9 @@ def main_parameter_study():
 
     scalar_parameter_study(problem, u_sensor, to_vary, show=False)
 
+
 def main_E_inference():
-    parameters = default_parameters()
+    parameters = LinearElasticityParameters()
     experiment = get_experiment("UniaxialTruss", parameters)
     problem = LinearElasticity(experiment, parameters)
 
@@ -451,25 +458,26 @@ def main_E_inference():
 
     experiment.add_sensor_data(u_sensor, u_correct)
 
-    problem.params["E"] = 0.42 # some wrong value
+    problem.params.E = 0.42  # some wrong value
     E = estimate(problem, u_sensor, what="E")
-    assert E == pytest.approx(parameters["E"])
+    assert E == pytest.approx(parameters.E)
+
 
 def main_fit_to_LD():
-    parameters = default_parameters()
+    parameters = LinearElasticityParameters()
     experiment = get_experiment("UniaxialTruss", parameters)
     problem = LinearElasticity(experiment, parameters)
     force_sensor = ForceSensor(problem.bcs[0])
 
     F = problem(force_sensor, ts=[1.0])
-    F_at_t_1 = -parameters["L"] * parameters["A"] * parameters["rho"] * parameters["g"]
+    F_at_t_1 = -parameters.L * parameters.A * parameters.rho * parameters.g
     assert F == pytest.approx(F_at_t_1)
 
     ts = np.linspace(0, 1, 11)
     F_correct = F_at_t_1 * ts
     experiment.add_sensor_data(force_sensor, F_correct, ts)
 
-    problem.params["A"] = 0.42 # some wrong value
+    problem.params["A"] = 0.42  # some wrong value
     A = estimate(problem, force_sensor, what="A")
     assert A == pytest.approx(parameters["A"])
 
@@ -495,9 +503,9 @@ def plot_field(problem, sensor, ax=None):
     ax.set_ylabel(sensor.name)
     ax.legend()
 
+
 def main_strain_sensors():
-    parameters = default_parameters()
-    parameters["degree"] = 2
+    parameters = LinearElasticityParameters(degree=2)
     experiment = get_experiment("UniaxialTruss", parameters)
     experiment.refine(5)
     problem = LinearElasticity(experiment, parameters)
@@ -505,29 +513,27 @@ def main_strain_sensors():
     # check strain field sensor vs analytic solution
     eps_field_sensor = StrainFieldSensor(kine=problem.eps)
     eps_correct = StrainSolution(parameters)
-    assert df.errornorm(eps_correct, problem(eps_field_sensor)) < 1.e-8
-    
+    assert df.errornorm(eps_correct, problem(eps_field_sensor)) < 1.0e-8
+
     # check strain sensor vs analytic solution
     eps_max = eps_correct(0)
     eps_sensor = StrainSensor(where=0, kine=problem.eps)
     assert problem(eps_sensor) == pytest.approx(eps_max)
-    
+
     # create stress sensor for plotting
-    stress_field_sensor = StressFieldSensor(
-        mat=problem.sigma, params=parameters
-    )
-    experiment.add_sensor_data(eps_field_sensor, eps_correct) 
+    stress_field_sensor = StressFieldSensor(mat=problem.sigma, params=parameters)
+    experiment.add_sensor_data(eps_field_sensor, eps_correct)
 
     fig, axes = plt.subplots(2, 1, sharex=True)
     plot_field(problem, eps_field_sensor, axes[0])
     plot_field(problem, stress_field_sensor, axes[1])
 
-if __name__ == "__main__":
-    main_convergence_analytical() # Philipp
-    main_convergence_incremental() # Sjard
-    main_parameter_study() # Erik
-    main_E_inference() # Thomas
-    main_fit_to_LD() # Thomas
-    main_strain_sensors() # Annika
-    plt.show()
 
+if __name__ == "__main__":
+    main_convergence_analytical()  # Philipp
+    main_convergence_incremental()  # Sjard
+    main_parameter_study()  # Erik
+    main_E_inference()  # Thomas
+    main_fit_to_LD()  # Thomas
+    main_strain_sensors()  # Annika
+    plt.show()
