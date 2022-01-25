@@ -59,7 +59,7 @@ class StrainFieldSensor(Sensor):
         # compute strains from displacements
         degree_strain = u.function_space().ufl_element().degree() - 1
         V_eps = df.FunctionSpace(u.function_space().mesh(), "DG", degree_strain)
-        eps = df.project(self.kine(self, u), V_eps)
+        eps = df.project(self.kine(u), V_eps)
         return eps
 
 
@@ -72,7 +72,7 @@ class StrainSensor(Sensor):
         # compute strains from displacements
         degree_strain = u.function_space().ufl_element().degree() - 1
         V_eps = df.FunctionSpace(u.function_space().mesh(), "DG", degree_strain)
-        eps = df.project(self.kine(self, u), V_eps)
+        eps = df.project(self.kine(u), V_eps)
         return eps(self.where)
 
 
@@ -85,7 +85,7 @@ class StressFieldSensor(Sensor):
         # compute strains from displacements
         degree_stress = u.function_space().ufl_element().degree() - 1
         V_stress = df.FunctionSpace(u.function_space().mesh(), "DG", degree_stress)
-        stress = df.project(self.mat(self, u, self.params), V_stress)
+        stress = df.project(self.mat(u), V_stress)
         return stress
 
 
@@ -109,9 +109,6 @@ class UniaxialTrussExperiment(Experiment):
     def create_bcs(self, V):
         def left(x, on_boundary):
             return x[0] < df.DOLFIN_EPS and on_boundary
-
-        def right(x, on_boundary):
-            return x[parameters["L"]] > df.DOLFIN_EPS and on_boundary
 
         self.bcs = [df.DirichletBC(V, df.Constant(0.0), left)]
         return self.bcs
@@ -159,8 +156,8 @@ class LinearElasticity:
     def eps(self, u):
         return u.dx(0)
 
-    def sigma(self, u, params):
-        return params["E"] * u.dx(0)
+    def sigma(self, u):
+        return self.params["E"] * u.dx(0)
 
     def solve(self, t=1.0):
         self.f.t = t
@@ -296,50 +293,21 @@ def run_convergence(experiment, parameters, sensor, max_n_refinements=15, eps=1.
 # EXAMPLE APPLICATION: "PARAMETER ESTIMATION"
 
 
-def estimate(experiment, parameters, sensor, what):
+def estimate(problem, sensor, what):
     from scipy.optimize import least_squares
 
-    param = parameters.copy()
+    param = problem.params.copy()
+    value_exp, ts = problem.experiment.data[sensor]
 
     def error(prm):
-        param[what] = prm.squeeze()
-        print(f"Try {what} = {param[what]}")
-        problem = LinearElasticity(experiment, param)
-        value_exp, ts = experiment.data[sensor]
+        problem.params[what] = prm.squeeze()
+        print(f"Try {what} = {problem.params[what]}")
+        problem.setup()
         value_fem = problem(sensor, ts)
         return value_fem - value_exp
 
-    optimize_result = least_squares(fun=error, x0=0.5 * param[what])
+    optimize_result = least_squares(fun=error, x0=param[what])
     return optimize_result.x.squeeze()
-
-
-def estimate_E(experiment, parameters, sensor):
-    return estimate(experiment, parameters, sensor, what="E")
-
-
-def test_fit_to_LD():
-    parameters = {
-        "L": 42.0,
-        "E": 10.0,
-        "g": 9.81,
-        "A": 4.0,
-        "rho": 7.0,
-        "degree": 1,
-    }
-    experiment = get_experiment("UniaxialTruss", parameters)
-    p = LinearElasticity(experiment, parameters)
-    force_sensor = ForceSensor(p.bcs[0])
-
-    F = p(force_sensor, ts=[1.0])
-    F_at_t_1 = -parameters["L"] * parameters["A"] * parameters["rho"] * parameters["g"]
-    assert F == pytest.approx(F_at_t_1)
-
-    ts = np.linspace(0, 1, 11)
-    F_correct = F_at_t_1 * ts
-    experiment.add_sensor_data(force_sensor, F_correct, ts)
-
-    A = estimate(experiment, parameters, force_sensor, what="A")
-    assert A == pytest.approx(parameters["A"])
 
 
 def compare(experiment, parameters, sensor):
@@ -473,154 +441,93 @@ def main_parameter_study():
 
     scalar_parameter_study(problem, u_sensor, to_vary, show=False)
 
+def main_E_inference():
+    parameters = default_parameters()
+    experiment = get_experiment("UniaxialTruss", parameters)
+    problem = LinearElasticity(experiment, parameters)
+
+    u_sensor = DisplacementSensor(where=parameters["L"])
+    u_correct = u_sensor.measure(DisplacementSolution(parameters))
+
+    experiment.add_sensor_data(u_sensor, u_correct)
+
+    problem.params["E"] = 0.42 # some wrong value
+    E = estimate(problem, u_sensor, what="E")
+    assert E == pytest.approx(parameters["E"])
+
+def main_fit_to_LD():
+    parameters = default_parameters()
+    experiment = get_experiment("UniaxialTruss", parameters)
+    problem = LinearElasticity(experiment, parameters)
+    force_sensor = ForceSensor(problem.bcs[0])
+
+    F = problem(force_sensor, ts=[1.0])
+    F_at_t_1 = -parameters["L"] * parameters["A"] * parameters["rho"] * parameters["g"]
+    assert F == pytest.approx(F_at_t_1)
+
+    ts = np.linspace(0, 1, 11)
+    F_correct = F_at_t_1 * ts
+    experiment.add_sensor_data(force_sensor, F_correct, ts)
+
+    problem.params["A"] = 0.42 # some wrong value
+    A = estimate(problem, force_sensor, what="A")
+    assert A == pytest.approx(parameters["A"])
+
+
+def plot_field(problem, sensor, ax=None):
+    if ax is None:
+        ax = plt.gca()
+
+    def plot_single_field(field, ax, **kwargs):
+        x = field.function_space().tabulate_dof_coordinates()
+        ax.scatter(x, field.vector().get_local(), **kwargs)
+
+    field = problem(sensor)
+    plot_single_field(field, ax, marker="+", label="FEM")
+
+    try:
+        compare = problem.experiment.data[sensor][0]
+        field.interpolate(compare)
+        plot_single_field(field, ax, marker=".", label="ref")
+    except KeyError:
+        pass
+    ax.set_xlabel("x")
+    ax.set_ylabel(sensor.name)
+    ax.legend()
+
+def main_strain_sensors():
+    parameters = default_parameters()
+    parameters["degree"] = 2
+    experiment = get_experiment("UniaxialTruss", parameters)
+    experiment.refine(5)
+    problem = LinearElasticity(experiment, parameters)
+
+    # check strain field sensor vs analytic solution
+    eps_field_sensor = StrainFieldSensor(kine=problem.eps)
+    eps_correct = StrainSolution(parameters)
+    assert df.errornorm(eps_correct, problem(eps_field_sensor)) < 1.e-8
+    
+    # check strain sensor vs analytic solution
+    eps_max = eps_correct(0)
+    eps_sensor = StrainSensor(where=0, kine=problem.eps)
+    assert problem(eps_sensor) == pytest.approx(eps_max)
+    
+    # create stress sensor for plotting
+    stress_field_sensor = StressFieldSensor(
+        mat=problem.sigma, params=parameters
+    )
+    experiment.add_sensor_data(eps_field_sensor, eps_correct) 
+
+    fig, axes = plt.subplots(2, 1, sharex=True)
+    plot_field(problem, eps_field_sensor, axes[0])
+    plot_field(problem, stress_field_sensor, axes[1])
 
 if __name__ == "__main__":
-    main_convergence_incremental()
-    main_convergence_analytical()
-
-    main_parameter_study()
-
-    exit()
-    # define experimental paramters
-    # this incudes the strucutral as well as the material paramters
-    parameters = default_parameters()
-
-    # experiement class
-    experiment = get_experiment("UniaxialTruss", parameters)
-
-    # attach analytic solution for the full displacement field
-    full_u_sensor = DisplacementFieldSensor()
-    u_correct = DisplacementSolution(parameters)
-
-    # run sjards convergence study without experimental data!
-    parameters["degree"] = 1
-
-    # attach the analytic solution and
-    experiment.add_sensor_data(full_u_sensor, u_correct)
-
-    # attach analytic solution for the bottom displacement
-    u_sensor = DisplacementSensor(where=parameters["L"])
-    p = parameters
-    u_max = 0.5 * p["rho"] * p["g"] * p["A"] * p["L"] ** 2 / p["E"]
-    experiment.add_sensor_data(u_sensor, u_max)
-
-    # Run the paramterstudy
-    run_paramterstudy(
-        experiment,
-        parameters,
-        u_sensor,
-        param_list=["E", "g", "L", "degree"],
-        show=False,
-    )
-
-    # First assume that we don't know E...
-    parameters["E"] = 1.0
-    # ...so we infer it using the measuremnts.
-    parameters["E"] = estimate_E(experiment, parameters, u_sensor)
-
-    # Run the convergence analysis with the maximum displacement. As for all
-    # nodal values, we expect them to be correct even for a single linear
-    # element.
-    for degree in [1, 2, 3]:
-        parameters["degree"] = degree
-        n_refinements = run_convergence(experiment, parameters, u_sensor)
-        assert n_refinements == 0
-
-    # Run the convergence analysis with the whole displacement field.
-    # Here, a linear solution can only be exact up to a given epsilon
-    # Sjard: And therefore assuming a fixed number of refinements makes
-    # no sense for the new convergence study
-    # Quadratic and cubic interpolation caputure the field without refinement.
-    for degree, expected_n_refinements in [(3, 0), (2, 0), (1, 8)]:
-        # for degree, expected_n_refinements in [(3, 0), (2, 0)]:
-        parameters["degree"] = degree
-        n_refinements = run_convergence(experiment, parameters, full_u_sensor, eps=1)
-        assert n_refinements == expected_n_refinements
-
-    test_fit_to_LD()
-    ### added
-
-    # compare strain to given analytic one for fixed refinement
-    parameters["degree"] = 2
-    experiment.refine(N=0)
-    # add one point
-    eps_sensor = StrainSensor(where=0, kine=LinearElasticity.eps)
-    eps_max = (
-        p["rho"] * p["g"] * p["L"] * p["A"] / p["E"]
-    )  # add analytic eps at sensor x=0
-    experiment.add_sensor_data(eps_sensor, eps_max)
-
-    parameters["degree"] = 2
-    experiment.refine(N=0)
-    err = compare(experiment, parameters, eps_sensor)
-    assert err <= 0.01
-
-    # over whole truss
-    full_eps_sensor = StrainFieldSensor(kine=LinearElasticity.eps)
-    eps_correct = StrainSolution(parameters)
-    experiment.add_sensor_data(full_eps_sensor, eps_correct)
-    err = compare(experiment, parameters, full_eps_sensor)
-    assert err <= 0.01
-
-    # compute stresses whole field
-    # stress sensor
-    full_stress_sensor = StressFieldSensor(
-        mat=LinearElasticity.sigma, params=parameters
-    )
-    problem = LinearElasticity(experiment, parameters)
-    stress_fem = problem(full_stress_sensor)
-
-    # some plotting stuff
-    fig, axes = plt.subplots(1, 3)
-    ax = axes[0]
-    u_fem = problem(full_u_sensor)
-    u_correct = df.project(experiment.data[full_u_sensor][0], u_fem.function_space())
-    ax.plot(
-        experiment.mesh.coordinates(),
-        u_fem.compute_vertex_values(),
-        "*b",
-        label="u fem",
-    )
-    ax.plot(
-        experiment.mesh.coordinates(),
-        u_correct.compute_vertex_values(),
-        "+g",
-        label="u correct",
-    )
-    ax.legend(loc="best")
-    ax.set_xlabel("x")
-    ax.set_ylabel("u")
-
-    ax = axes[1]
-    eps_fem = problem(full_eps_sensor)
-    eps_correct = df.project(
-        experiment.data[full_eps_sensor][0], eps_fem.function_space()
-    )
-    ax.plot(
-        experiment.mesh.coordinates(),
-        eps_fem.compute_vertex_values(),
-        "*b",
-        label="eps fem",
-    )
-    ax.plot(
-        experiment.mesh.coordinates(),
-        eps_correct.compute_vertex_values(),
-        "+g",
-        label="eps correct",
-    )
-    ax.legend(loc="best")
-    ax.set_xlabel("x")
-    ax.set_ylabel("eps")
-
-    ax = axes[2]
-    ax.plot(
-        eps_fem.compute_vertex_values(),
-        stress_fem.compute_vertex_values(),
-        "*b",
-        label="stress-strain fem",
-    )
-    ax.legend(loc="best")
-    ax.set_xlabel("strain")
-    ax.set_ylabel("stress")
-
+    main_convergence_analytical() # Philipp
+    main_convergence_incremental() # Sjard
+    main_parameter_study() # Erik
+    main_E_inference() # Thomas
+    main_fit_to_LD() # Thomas
+    main_strain_sensors() # Annika
     plt.show()
+
