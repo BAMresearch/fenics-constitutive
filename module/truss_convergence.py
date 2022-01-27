@@ -95,27 +95,11 @@ class StressFieldSensor(Sensor):
 class Experiment:
     def __init__(self):
         self.data = {}
+        self.setup()
 
     def add_sensor_data(self, sensor, data, ts=[1.0]):
         self.data[sensor] = (data, ts)
-
-
-class UniaxialTrussExperiment(Experiment):
-    def __init__(self, parameters):
-        super().__init__()
-        self.mesh = df.IntervalMesh(1, 0.0, parameters.L)
-        self.bcs = None  # to be created externally via .create_bcs
-
-    def create_bcs(self, V):
-        def left(x, on_boundary):
-            return x[0] < df.DOLFIN_EPS and on_boundary
-
-        self.bcs = [df.DirichletBC(V, [df.Constant(0.0)], left)]
-        return self.bcs
-
-    def update_param(self, parameters):
-        self.mesh = df.IntervalMesh(1, 0.0, parameters.L)
-
+    
     def refine(self, N=1):
         """
         Refines the mesh `N` times.
@@ -123,6 +107,51 @@ class UniaxialTrussExperiment(Experiment):
         for _ in range(N):
             self.mesh = df.refine(self.mesh)
 
+    def setup(self):
+        raise NotImplementedError()
+
+
+class UniaxialTrussExperiment(Experiment):
+    def __init__(self, parameters):
+        self.parameters = parameters
+        super().__init__()
+
+    def setup(self):
+        self.mesh = df.IntervalMesh(1, 0.0, self.parameters.L)
+
+    def create_bcs(self, V):
+        def left(x, on_boundary):
+            return x[0] < df.DOLFIN_EPS and on_boundary
+
+        return [df.DirichletBC(V, [df.Constant(0.0)], left)]
+
+
+
+class Bending3Point2DExperiment(Experiment):
+    def __init__(self, parameters):
+        self.parameters = parameters
+        super().__init__()
+
+    def setup(self):
+        lx, ly = self.parameters.lx, self.parameters.ly
+        element_length = self.parameters.element_length
+        self.mesh = df.RectangleMesh(df.Point(0., 0.), df.Point(lx, ly) \
+                                     , int(lx/element_length), int(ly/element_length), diagonal='crossed')
+
+
+    def create_bcs(self, V):
+        def left_support(x, on_boundary):
+            return df.near(x[0], 0) and df.near(x[1], 0.)
+            
+        def right_support(x, on_boundary):
+            return df.near(x[0], self.parameters.lx) and df.near(x[1], 0.)
+
+        bc_left = df.DirichletBC(V, (0,0), left_support, method='pointwise')
+        bc_right = df.DirichletBC(V.sub(1), df.Constant(0.0), right_support, method='pointwise')
+
+        return [bc_left, bc_right]
+    
+    
 
 def get_experiment(name, parameters):
     # metaprogramming!
@@ -173,6 +202,7 @@ class LinearElasticity:
     def setup(self):
         mesh = self.experiment.mesh
         self.V = df.VectorFunctionSpace(mesh, "Lagrange", self.parameters["degree"])
+        logger.debug(f"DOFs: {self.V.dim()}")
         self.u = df.Function(self.V)
         v = df.TestFunction(self.V)
         self.bcs = self.experiment.create_bcs(self.V)
@@ -188,7 +218,12 @@ class LinearElasticity:
             ]
         ]
         F = rho * g * A
-        self.f = df.Expression(["t * F"], t=0.0, F=F, degree=0)
+        dim = mesh.geometric_dimension()
+        body_force = ["0"] * dim
+        body_force[-1] = "t*F"
+        # lets (for now) assume that the highest dimension is "downwards"
+
+        self.f = df.Expression(body_force, t=0.0, F=F, degree=0)
         self.R = df.inner(self.eps(v), self.sigma(self.u)) * df.dx
         self.R -= df.dot(self.f, v) * df.dx
 
@@ -265,14 +300,13 @@ class StrainSolution(df.UserExpression):
 
 # EXAMPLE APPLICATION: "CONVERGENCE TEST"
 def run_convergence_sjard(
-    experiment, parameters, sensor, max_n_refinements=15, eps=1.0e-8
+    problem, sensor, max_n_refinements=15, eps=1.0e-8
 ):
-    problem = LinearElasticity(experiment, parameters)
     errors = []
     # compute first solution on coarsest mesh
     u_i = problem(sensor)
 
-    experiment.refine()
+    problem.experiment.refine()
     problem.setup()
 
     for n_refinements in range(max_n_refinements):
@@ -284,21 +318,25 @@ def run_convergence_sjard(
             err = np.linalg.norm(u_i1 - u_i) / np.linalg.norm(u_i1)
             errors.append(err)
         except TypeError:
-            scale = df.norm(u_i1, norm_type="l2", mesh=experiment.mesh)
-            err = df.errornorm(u_i1, u_i, norm_type="l2", mesh=experiment.mesh) / scale
+            scale = df.norm(u_i1, norm_type="l2")
+            err = df.errornorm(u_i1, u_i, norm_type="l2") / scale
             errors.append(err)
         if err < eps:
             logger.debug(f"----------- CONVERGED -----------")
             logger.debug(f" n_refinement = {n_refinements}, Error = {err}")
             break
+        else:
+            logger.debug(f"----------- NOT CONVERGED -------")
+            logger.debug(f" n_refinement = {n_refinements}, Error = {err}")
+
         u_i = u_i1
 
-        experiment.refine()
+        problem.experiment.refine()
         problem.setup()
         n_refinements += 1
 
     logger.info(
-        f"Finally converged. Please use {n_refinements=} with degree {parameters['degree']}."
+        f"Finally converged. Please use {n_refinements=} with degree {problem.parameters['degree']}."
     )
     return n_refinements
 
@@ -347,7 +385,11 @@ def estimate(problem, sensor, what):
         logger.debug(f"Try {what} = {problem.parameters[what]}")
         problem.setup()
         value_fem = problem(sensor, ts)
-        return value_fem - value_exp
+        try:
+            np.isfinite(value_fem)
+            return value_fem - value_exp
+        except TypeError:
+            return value_fem.vector()[:] - value_exp.vector()[:]
 
     optimize_result = least_squares(fun=error, x0=param[what])
     return optimize_result.x.squeeze()
@@ -378,7 +420,7 @@ def scalar_parameter_study(
     for prm, values in to_vary.items():
         for value in values:
             problem.parameters[prm] = value
-            problem.experiment.update_param(problem.parameters)
+            problem.experiment.setup()
             problem.setup()
             solution = problem(sensor)
             result[prm].append(solution)
@@ -421,7 +463,14 @@ def uniaxial_truss_parameters(**kwargs):
     p = Parameters()
     p["L"] = 42.0  # length
     p["A"] = 4.0  # cross section
+    return p + kwargs
 
+def bending_parameters(**kwargs):
+    p = Parameters()
+    p["lx"] = 200.0  
+    p["ly"] = 30.0  
+    p["element_length"] = 10.
+    p["A"] = 4.0  # thickness
     return p + kwargs
 
 
@@ -440,8 +489,9 @@ def main_convergence_incremental():
     """convergence analysis without analytical solution"""
     parameters = linear_elasticity_parameters() + uniaxial_truss_parameters()
     experiment = get_experiment("UniaxialTruss", parameters)
+    problem = LinearElasticity(parameters)
     full_u_sensor = DisplacementFieldSensor()
-    n_refinements = run_convergence_sjard(experiment, parameters, full_u_sensor)
+    n_refinements = run_convergence_sjard(problem, full_u_sensor)
     assert n_refinements == 13
 
 
@@ -581,8 +631,22 @@ def main_strain_sensors():
     plot_field(problem, eps_field_sensor, axes[0])
     plot_field(problem, stress_field_sensor, axes[1])
 
+def main_bending():
+    parameters = linear_elasticity_parameters(degree=2, E=6174) + bending_parameters(element_length=10.)
+    experiment = get_experiment("Bending3Point2D", parameters)
+    problem = LinearElasticity(experiment, parameters)
+
+    sensor = DisplacementFieldSensor()
+    reference_solution = problem(sensor)
+    experiment.add_sensor_data(sensor, reference_solution)
+
+    parameters.E = 0.42
+    E = estimate(problem, sensor, what="E")
+    assert E == pytest.approx(6174)
+    exit()
 
 if __name__ == "__main__":
+    main_bending() # Abbas
     main_convergence_analytical()  # Philipp
     main_convergence_incremental()  # Sjard
     main_parameter_study()  # Erik
