@@ -161,38 +161,6 @@ def get_experiment(name, parameters):
 
 # MODULE "PROBLEM"
 
-
-class Elasticity:
-    def __init__(self, experiment, parameters):
-        self.mesh = mesh
-        self.mat = mat
-        self._function_spaces(order)
-
-    def _function_spaces(self, order):
-        self.Wd = df.VectorFunctionSpace(self.mesh, "P", order)
-        self.d = df.Function(self.Wd)
-        self.u = self.d
-
-    def eps(self, d):
-        return df.sym(df.grad(d))
-
-    def sigma(self, d):
-        dim = self.mesh.geometric_dimension()
-        l = self.mat.lmbda
-        mu = self.mat.mu
-
-        return l * df.div(d) * df.Identity(dim) + 2 * mu * self.eps(d)
-
-    @property
-    def R(self):
-        v = df.TestFunction(self.Wd)
-        return df.inner(self.eps(v), self.sigma(self.d)) * df.dx
-
-    @property
-    def J(self):
-        return df.derivative(self.R, self.u)
-
-
 class LinearElasticity:
     def __init__(self, experiment, parameters):
         self.experiment = experiment
@@ -207,23 +175,13 @@ class LinearElasticity:
         v = df.TestFunction(self.V)
         self.bcs = self.experiment.create_bcs(self.V)
 
-        rho, g, nu, E, A = [
-            df.Constant(what)
-            for what in [
-                self.parameters.rho,
-                self.parameters.g,
-                self.parameters.nu,
-                self.parameters.E,
-                self.parameters.A,
-            ]
-        ]
-        F = rho * g * A
+        F = self.parameters.rho * self.parameters.g * self.parameters.A
         dim = mesh.geometric_dimension()
         body_force = ["0"] * dim
-        body_force[-1] = "t*F"
+        body_force[-1] = "t * F"
         # lets (for now) assume that the highest dimension is "downwards"
 
-        self.f = df.Expression(body_force, t=0.0, F=F, degree=0)
+        self.f = df.Expression(body_force, t=0.0,F=F, degree=0)
         self.R = df.inner(self.eps(v), self.sigma(self.u)) * df.dx
         self.R -= df.dot(self.f, v) * df.dx
 
@@ -489,7 +447,7 @@ def main_convergence_incremental():
     """convergence analysis without analytical solution"""
     parameters = linear_elasticity_parameters() + uniaxial_truss_parameters()
     experiment = get_experiment("UniaxialTruss", parameters)
-    problem = LinearElasticity(parameters)
+    problem = LinearElasticity(experiment, parameters)
     full_u_sensor = DisplacementFieldSensor()
     n_refinements = run_convergence_sjard(problem, full_u_sensor)
     assert n_refinements == 13
@@ -643,7 +601,6 @@ def main_bending():
     parameters.E = 0.42
     E = estimate(problem, sensor, what="E")
     assert E == pytest.approx(6174)
-    exit()
 
 if __name__ == "__main__":
     main_bending() # Abbas
