@@ -8,7 +8,7 @@
 #include "radial_plasticity.h"
 #include "hypoelasticity.h"
 #include "mises_eos.h"
-
+#include "jh.h"
 namespace py = pybind11;
 
 PYBIND11_MODULE(cpp, m)
@@ -204,4 +204,18 @@ PYBIND11_MODULE(cpp, m)
 
     pybind11::class_<PolynomialEOS, std::shared_ptr<PolynomialEOS>, EOSInterface> polynomial_eos(m, "PolynomialEOS");
     polynomial_eos.def(pybind11::init<Eigen::VectorXd, int, int>(), py::arg("coeff"), py::arg("deg A"), py::arg("deg B"));
+
+
+    /*************************************************************************
+     ** Johnson Holmquist material model for ceramics
+     *************************************************************************/
+
+    pybind11::class_<JH2Parameters, std::shared_ptr<JH2Parameters>> jh2_parameters(m, "JH2Parameters");
+    jh2_parameters.def(pybind11::init<>());
+    jh2_parameters.def_readwrite("SHEAR_MODULUS", &JH2Parameters::SHEAR_MODULUS);
+
+    pybind11::class_<JH2, std::shared_ptr<JH2>, LawInterface> jh2(m, "JH2");
+    jh2.def(pybind11::init<std::shared_ptr<JH2Parameters>>(), py::arg("JH2Parameters"));
+    jh2.def("get_internal_var", &JH2::GetInternalVar);
+
 }

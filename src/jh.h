@@ -6,8 +6,10 @@
 #include <math.h>
 #include <complex>
 
-struct JHParameters
+struct JH2Parameters
 {
+    double RHO;
+    double SHEAR_MODULUS;
     double A;
     double B;
     double C;
@@ -17,17 +19,30 @@ struct JHParameters
     double T;
     double FC;
 
-}
+    double SIGMAHEL;
+    double PHEL;
 
-class JH: public LawInterface
+    double D1;
+    double D2;
+
+
+    double K1;
+    double K2;
+    double K3;
+    double beta;
+
+};
+
+class JH2: public LawInterface
 {
 public:
     std::vector<QValues> _internal_vars;
     //std::vector<QValues> _internal_vars_1;
     Eigen::VectorXd T_vol;
     Eigen::MatrixXd T_dev;
-    std::shared_ptr<JHParameters> _param;
-    JH(std::shared_ptr<JHParameters> parameters)
+    std::shared_ptr<JH2Parameters> _param;
+    
+    JH2(std::shared_ptr<JH2Parameters> parameters)
         :  _param(parameters)
     {
         _internal_vars.resize(Q::LAST);
@@ -98,11 +113,12 @@ public:
          **********************************************************************/
         double p_n = T_vol.dot(sigma_n);
         auto s_n = T_dev * matrix_to_mandel(stress);
-        auto s_tr = s_n + 2. * _mu * T_dev * d_eps * h;
+        auto s_tr = s_n + 2. * _param->SHEAR_MODULUS * T_dev * d_eps * h;
         double s_tr_eq = sqrt(1.5 * s_tr.transpose() * s_tr);
         double alpha = 0.0;
 
-        double p_s = p_n / _param.PHEL;
+        double p_s = p_n / _param->PHEL;
+        double t_s = _param->T / _param->PHEL;
         double del_lambda = 0.0;
         double complex_step = 1e-10;
         std::complex<double> ih(0.,complex_step);
@@ -114,8 +130,8 @@ public:
         std::complex<double> rate_factor;
 
 
-        Y_f = _param.A * pow(p_s + _param.TS, _param.N) * _param.SIGMA_HEL;
-        Y_r = _param.B * pow(p_s,_param.M) * _param.SIGMA_HEL;
+        Y_f = _param->A * pow(p_s + t_s, _param->N) * _param->SIGMAHEL;
+        Y_r = _param->B * pow(p_s,_param->M) * _param->SIGMAHEL;
 
         if (D_n == 0.0){
             Y_y = Y_f;
@@ -125,31 +141,31 @@ public:
         
         if (s_tr_eq >= Y_y.real()){
             //plastic flow initiated
-            const double e_p_f = _param.D1 * pow(p_s + _param.TS, _param.D2);
+            const double e_p_f = _param->D1 * pow(p_s + t_s, _param->D2);
             double f = 0.0;
             double df = 0.0;
             int j = 0;
             do  {
                 //calculate yield surface with complex step
-                rate_factor = 1. + _param.C * log(((del_lambda+ih)/h)/_param.EPS0);
+                rate_factor = 1. + _param->C * log(((del_lambda+ih)/h)/_param->EPS0);
                 if (D_n + del_lambda/e_p_f <= 1) {
                     Y_y = (Y_f + (D_n + (del_lambda + ih)/e_p_f) * (Y_r - Y_f)) * rate_factor; 
                 } else {
                     Y_y = Y_r * rate_factor;
                 }
                 // do the newton step
-                f = s_tr_eq - 3.*_mu * del_lambda - Y_y.real();
-                df =  3.*_mu + Y_y.imag()/complex_step;
+                f = s_tr_eq - 3.*_param->SHEAR_MODULUS * del_lambda - Y_y.real();
+                df =  3.*_param->SHEAR_MODULUS + Y_y.imag()/complex_step;
                 del_lambda += del_lambda - f/df;
 
                 j++;
             } while (abs(f)> 1e-10 && j < maxit);
             
-            alpha = (1. - 3.*_mu * del_lambda / s_tr_eq);
+            alpha = (1. - 3.*_param->SHEAR_MODULUS * del_lambda / s_tr_eq);
 
             _internal_vars[LAMBDA].Add(del_lambda, i);
             // Update damage variable or set to 1.
-            _internal_vars[DAMAGE].Set(fmin(D_n+del_lambda/e_p_f,1.0));
+            _internal_vars[DAMAGE].Set(fmin(D_n+del_lambda/e_p_f,1.0), i);
         
         } else {
             //elastic
@@ -174,20 +190,25 @@ public:
         /***********************************************************************
          * UPDATE ENERGY AND EOS
          **********************************************************************/
-        //TODO: Update this part
-        auto rho = 0.5 * (_internal_vars_0[RHO].GetScalar(i) + _internal_vars_1[RHO].GetScalar(i));
-        auto eta = _internal_vars_1[RHO].GetScalar(i)/_rho0 - 1.;
-        const Eigen::VectorXd s_12 = 0.5*(T_dev * sigma_n + s);
-        auto e0 = e_n;
-        auto e1 = e0;
-        auto e_tilde = e0 + (h/rho) * (s_12.dot(T_dev * d_eps)-0.5*p_n*_internal_vars_0[RHO].GetScalar(i) * d_eps_vol);
-        do{
-            e0 = e1;
-            e1 = e_tilde - 0.5*(h/rho)*d_eps_vol*_eos->Evaluate(eta ,e0);
-        } while (std::abs(e1-e0)>1e-10);
+        
+        const auto mu = _internal_vars[RHO].GetScalar(i)/_param->RHO -1.;
+        
+        const auto p = (mu > 0) ? _param->K1 * mu + _param->K2 * mu * mu + _param->K3 * mu * mu * mu : _param->K1 * mu;
+        
+        //TODO include \Delta P update
+        //auto rho = 0.5 * (_internal_vars_0[RHO].GetScalar(i) + _internal_vars_1[RHO].GetScalar(i));
+        //auto eta = _internal_vars_1[RHO].GetScalar(i)/_rho0 - 1.;
+        //const Eigen::VectorXd s_12 = 0.5*(T_dev * sigma_n + s);
+        //auto e0 = e_n;
+        //auto e1 = e0;
+        //auto e_tilde = e0 + (h/rho) * (s_12.dot(T_dev * d_eps)-0.5*p_n*_internal_vars_0[RHO].GetScalar(i) * d_eps_vol);
+        //do{
+            //e0 = e1;
+            //e1 = e_tilde - 0.5*(h/rho)*d_eps_vol*_eos->Evaluate(eta ,e0);
+        //} while (std::abs(e1-e0)>1e-10);
 
-        auto p = _eos->Evaluate(eta, e1);
-        _internal_vars_1[E].Set(e1, i);
+        //auto p = _eos->Evaluate(eta, e1);
+        //_internal_vars_1[E].Set(e1, i);
         /***********************************************************************
          * Combine deviatoric and volumetric stresses and apply stress rate
          **********************************************************************/
@@ -202,17 +223,11 @@ public:
 
     void Update(const std::vector<QValues>& input, int i) override
     {
-        _internal_vars_0[E].Set(_internal_vars_1[E].GetScalar(i),i);
-        _internal_vars_0[LAMBDA].Set(_internal_vars_1[LAMBDA].GetScalar(i), i);
-        _internal_vars_0[RHO].Set(_internal_vars_1[RHO].GetScalar(i), i);
     }
 
     void Resize(int n) override
     {
-        for (auto& qvalues : _internal_vars_0)
-            qvalues.Resize(n);
-
-        for (auto& qvalues : _internal_vars_1)
+        for (auto& qvalues : _internal_vars)
             qvalues.Resize(n);
     }
 
