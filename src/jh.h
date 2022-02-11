@@ -8,28 +8,27 @@
 
 struct JH2Parameters
 {
-    double RHO;
-    double SHEAR_MODULUS;
-    double A;
-    double B;
-    double C;
-    double M;
-    double N;
-    double EPS0;
-    double T;
-    double FC;
+    double RHO = 2440;
+    double SHEAR_MODULUS = 12.5;
+    double A = 0.6304;
+    double B = 0.2101;
+    double C = 0.006;
+    double M = 0.8437;
+    double N = 0.8437;
+    double EPS0 = 1.0;
+    double T = 0.0034;
 
-    double SIGMAHEL;
-    double PHEL;
+    double SIGMAHEL = 1.005;
+    double PHEL = 0.811;
 
-    double D1;
-    double D2;
+    double D1 = 0.6;
+    double D2 = 0.1;
 
 
-    double K1;
-    double K2;
-    double K3;
-    double beta;
+    double K1 = 16.667;
+    double K2 = 73.19;
+    double K3 = -236.2;
+    double beta = 0.0;
 
 };
 
