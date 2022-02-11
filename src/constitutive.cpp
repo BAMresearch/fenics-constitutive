@@ -4,7 +4,6 @@
 #include "interfaces.h"
 #include "linear_elastic.h"
 #include "local_damage.h"
-#include "plasticity.h"
 #include "radial_plasticity.h"
 #include "hypoelasticity.h"
 #include "mises_eos.h"
@@ -152,23 +151,6 @@ PYBIND11_MODULE(cpp, m)
     jaumann_updater.def("resize", &JaumannStressRate::Resize, py::arg("n"));
     jaumann_updater.def("__call__", &JaumannStressRate::Rotate, py::arg("stress"), py::arg("stepsize"));
     
-    /*************************************************************************
-     **   PLASTICITY
-     *************************************************************************/
-    
-    pybind11::class_<YieldFunction, std::shared_ptr<YieldFunction>> yield_function(m, "YieldFunction");
-    pybind11::class_<IsotropicHardeningLaw, std::shared_ptr<IsotropicHardeningLaw>> isotropic_hardening_law(m, "IsotropicHardeningLaw");
-
-    pybind11::class_<MisesYieldFunction, std::shared_ptr<MisesYieldFunction>, YieldFunction> mises_yield_function(m, "MisesYieldFunction");
-    mises_yield_function.def(pybind11::init<double, double>(), py::arg("sig0"), py::arg("H"));
-    
-    pybind11::class_<StrainHardening, std::shared_ptr<StrainHardening>, IsotropicHardeningLaw> strain_hardening(m, "StrainHardening");
-    strain_hardening.def(pybind11::init<>());
-
-    pybind11::class_<IsotropicHardeningPlasticity, std::shared_ptr<IsotropicHardeningPlasticity>, LawInterface> isotropic_hardening_plasticity(m, "IsotropicHardeningPlasticity");
-    isotropic_hardening_plasticity.def(pybind11::init<Eigen::MatrixXd&, std::shared_ptr<YieldFunction>, std::shared_ptr<IsotropicHardeningLaw>, bool, bool>(), py::arg("C"), py::arg("f"), py::arg("p"), py::arg("total_strains") = true, py::arg("tangent") = true);
-    isotropic_hardening_plasticity.def("get_internal_var", &IsotropicHardeningPlasticity::GetInternalVar);
-    isotropic_hardening_plasticity.def_readonly("C", &IsotropicHardeningPlasticity::_C);
     
     /*************************************************************************
      **   RADIAL PLASTICITY
