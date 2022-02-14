@@ -1,5 +1,6 @@
 import sys
 import numpy as np
+import time
 import pandas as pd
 import matplotlib.pyplot as plt
 import constitutive as c
@@ -26,8 +27,13 @@ except:
     l_z = 200
     res = 50
 
+E = 27000 #MPa
+nu = 0.2 #
+rho = 2e-3 #g/mm³ 
 
-
+E = 27 #GPa
+nu = 0.2 #
+rho = 2e-6 #kg/mm³ 
 
 friedlander = pd.read_csv("Druckkurve_Beispiel.txt",header=0,decimal=",",sep ='\s+')
 
@@ -35,10 +41,12 @@ cs = PchipInterpolator(friedlander.values[:, 0], friedlander.values[:, 1])
 
 
 def pressure(t):
-    return -cs(t+2.4) * 1e-3
+    # return 0.
+    return -cs(t+2.4) * 1e-6/4 #GPa
+    return -cs(t+2.4) * 1e-3 #MPa
 
-plt.plot(np.linspace(0,50,100),-pressure(np.linspace(0,50,100)))
-plt.show()
+# plt.plot(np.linspace(0,50,100),-pressure(np.linspace(0,50,100)))
+# plt.show()
 
 mesh = df.BoxMesh(
     df.Point(0.0, 0.0, 0.0), df.Point(l_x, l_y, l_z), l_x//res, l_y//res, l_z//res
@@ -68,7 +76,7 @@ print("Dimension of V:", V.dim())
 class Fixed(df.SubDomain):
     def inside(self, x, on_boundary):
         #return df.near(x[1], 0.0) and on_boundary
-        return (df.near(x[0], 0.0) or df.near(x[0], l_x)) # and df.near(x[2],0.0)#and on_boundary
+        return (df.near(x[0], 0.0) or df.near(x[0], l_x)) and on_boundary# and df.near(x[2],0.0)#and on_boundary
 
 
 class Exposed(df.SubDomain):
@@ -99,26 +107,27 @@ def forces(t):
     return df.assemble(pressure_form)
 
 
-bcs = [df.DirichletBC(V, (0.0, 0.0, 0.0), fixed, method="pointwise")]
+bcs = [df.DirichletBC(V, (0.0, 0.0, 0.0), fixed)]
 
-#law = c.AnalyticMisesPlasticity(E, nu, sig0, H, total_strains = False, tangent = False)
-#stress_rate = c.JaumannStressRate()
+# law = c.HookesLaw(E, nu, False, False)
+# stress_rate = c.JaumannStressRate()
 parameters = c.JH2Parameters()
 law = c.JH2(parameters)
+stress_rate = None
 # D = df.as_matrix(law.C.tolist())
 # K_form = df.inner(c.as_mandel(df.sym(df.grad(u_))), df.dot(D, c.as_mandel(df.sym(df.grad(v_))))) * df.dx
 # M_form = parameters.RHO * df.inner(u_, v_) * df.dx
 
-h = 1e-3 #c.critical_timestep(K_form, M_form, mesh, True)
+h = 1e-4 #c.critical_timestep(K_form, M_form, mesh, True)
 
 v = df.Function(V)
 u = df.Function(V)
 
-mass_form = df.action(df.inner(u_, v_) * parameters.RHO * df.dx, df.Constant((1.0, 1.0, 1.0)))
+mass_form = df.action(df.inner(u_, v_) * rho * df.dx, df.Constant((1.0, 1.0, 1.0)))
 M = df.assemble(mass_form).get_local()
 
 solver = c.CDM(
-    V, u, v, 0, forces, bcs, M, law,
+    V, u, v, 0, forces, bcs, M, law, stress_rate
 )
 if df.MPI.rank(df.MPI.comm_world) == 0:
     print("critical time step:", h, "ms")
@@ -134,23 +143,26 @@ dx = df.dx(
     }
 )
 xdmf_file.write(d,0.0)
-xdmf_file.write(lam, solver.t[0])
+# xdmf_file.write(lam, solver.t[0])
 # v = df.Function(V, name="Velocities")
 # a = df.Function(V, name="Acceleration")
 #@profile
+
+n_steps_ms = int(0.1 / h) 
 def gogogo():
     count = 0
     while np.any(solver.t < t_end):
         solver.step(h)
-        if count % 100 == 0:
+        if count % n_steps_ms == 0:
             d.assign(solver.u)
             # c.function_set(q,law.get_internal_var(c.Q.LAMBDA))
             # c.local_project(q,V0,dx,lam)
             xdmf_file.write(d, solver.t[0])
             # xdmf_file.write(lam, solver.t[0])
             if df.MPI.rank(df.MPI.comm_world) == 0:
-                print(solver.t[0],np.max(np.abs(solver.u.vector().get_local())), flush=True)
-        # count += 1
+                
+                print(solver.t[0],np.max(np.abs(solver.u.vector().get_local())), np.max(law.get_internal_var(c.Q.RHO)) ,np.min(law.get_internal_var(c.Q.RHO)) , flush=True)
+        count += 1
 
 
 gogogo()

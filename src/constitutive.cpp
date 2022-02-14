@@ -42,7 +42,8 @@ PYBIND11_MODULE(cpp, m)
             .value("KAPPA", Q::KAPPA)
             .value("LAMBDA", Q::LAMBDA)
             .value("DEEQ", Q::DEEQ)
-            .value("DSIGMA_DE", Q::DSIGMA_DE);
+            .value("DSIGMA_DE", Q::DSIGMA_DE)
+            .value("RHO", Q::RHO);
 
 
     m.def("g_dim", &Dim::G);
@@ -194,8 +195,8 @@ PYBIND11_MODULE(cpp, m)
 
     pybind11::class_<JH2Parameters, std::shared_ptr<JH2Parameters>> jh2_parameters(m, "JH2Parameters");
     jh2_parameters.def(pybind11::init<>());
-    jh2_parameters.def_readwrite("SHEAR_MODULUS", &JH2Parameters::SHEAR_MODULUS);
     jh2_parameters.def_readwrite("RHO", &JH2Parameters::RHO);
+    jh2_parameters.def_readwrite("SHEAR_MODULUS", &JH2Parameters::SHEAR_MODULUS);
 
     pybind11::class_<JH2, std::shared_ptr<JH2>, LawInterface> jh2(m, "JH2");
     jh2.def(pybind11::init<std::shared_ptr<JH2Parameters>>(), py::arg("JH2Parameters"));
