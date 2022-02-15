@@ -42,7 +42,7 @@ cs = PchipInterpolator(friedlander.values[:, 0], friedlander.values[:, 1])
 
 def pressure(t):
     # return 0.
-    return -cs(t+2.4) * 1e-6/4 #GPa
+    return -cs(t+2.4) * 1e-6 #GPa
     return -cs(t+2.4) * 1e-3 #MPa
 
 # plt.plot(np.linspace(0,50,100),-pressure(np.linspace(0,50,100)))
@@ -136,6 +136,7 @@ if df.MPI.rank(df.MPI.comm_world) == 0:
 d = df.Function(V, name="Displacement")
 q = df.Function(Q)
 lam = df.Function(V0, name="plastic_strain")
+damage = df.Function(V0, name="Damage")
 dx = df.dx(
     metadata={
         "quadrature_degree": q.ufl_element().degree(),
@@ -143,7 +144,8 @@ dx = df.dx(
     }
 )
 xdmf_file.write(d,0.0)
-# xdmf_file.write(lam, solver.t[0])
+xdmf_file.write(lam, solver.t[0])
+xdmf_file.write(damage, solver.t[0])
 # v = df.Function(V, name="Velocities")
 # a = df.Function(V, name="Acceleration")
 #@profile
@@ -155,10 +157,14 @@ def gogogo():
         solver.step(h)
         if count % n_steps_ms == 0:
             d.assign(solver.u)
-            # c.function_set(q,law.get_internal_var(c.Q.LAMBDA))
-            # c.local_project(q,V0,dx,lam)
+            c.function_set(q,law.get_internal_var(c.Q.LAMBDA))
+            c.local_project(q,V0,dx,lam)
+            c.function_set(q,law.get_internal_var(c.Q.DAMAGE))
+            c.local_project(q,V0,dx,damage)
+
             xdmf_file.write(d, solver.t[0])
-            # xdmf_file.write(lam, solver.t[0])
+            xdmf_file.write(lam, solver.t[0])
+            xdmf_file.write(damage, solver.t[0])
             if df.MPI.rank(df.MPI.comm_world) == 0:
                 
                 print(solver.t[0],np.max(np.abs(solver.u.vector().get_local())), np.max(law.get_internal_var(c.Q.RHO)) ,np.min(law.get_internal_var(c.Q.RHO)) , flush=True)

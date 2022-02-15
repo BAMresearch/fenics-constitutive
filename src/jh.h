@@ -94,7 +94,7 @@ public:
     //}
     void Evaluate(const std::vector<QValues>& input, std::vector<QValues>& output, int i) override
     {
-        int maxit = 20;
+        int maxit = 15;
         const Eigen::Matrix3d L_ = input[L].Get(i);
         const Eigen::VectorXd sigma_n = input[SIGMA].Get(i);
         const auto h = input[TIME_STEP].GetScalar(i);
@@ -115,7 +115,8 @@ public:
          * 1) Calculate failure surface Y_failure
          * 2) Calculate Yield surface Y_yield = f(Y_failure)
          **********************************************************************/
-        double p_n = T_vol.dot(sigma_n);
+        //TODO: sign of pressure
+        double p_n = - T_vol.dot(sigma_n);
         auto s_n = T_dev * matrix_to_mandel(stress);
         auto s_tr = s_n + 2. * _param->SHEAR_MODULUS * T_dev * d_eps * h;
         double s_tr_eq = sqrt(1.5 * s_tr.transpose() * s_tr);
@@ -143,17 +144,17 @@ public:
         //cout << Y_r <<" Y_r \n";
         //cout << Y_f <<" Y_f \n";
         if (D_n == 0.0){
-            Y_y = Y_f;
+            //Y_y = Y_f;
             Y_yield = Y_f;
         } else {
             //cout << "help, I am damaged";
-           Y_y = Y_f*(1.-D_n) + D_n * Y_r;
+            //Y_y = Y_f*(1.-D_n) + D_n * Y_r;
             Y_yield = Y_f*(1.-D_n) + D_n * Y_r;
         }
         
         //if (s_tr_eq >= Y_y.real()){
         if (s_tr_eq >= Y_yield){
-            cout << "help, i am plastic\n";
+            //cout << "help, i am plastic\n";
             //plastic flow initiated
             const double e_p_f = _param->D1 * pow(p_s + t_s, _param->D2);
             double rate_factor_f;
@@ -164,7 +165,7 @@ public:
             do  {
                 //cout << "I am in radial return\n";
                 //calculate yield surface with complex step
-                rate_factor = 1. + _param->C * log(((del_lambda+ih)/h)/_param->EPS0);
+                //rate_factor = 1. + _param->C * log(((del_lambda+ih)/h)/_param->EPS0);
                 if (del_lambda/h >= _param->EPS0){
                     rate_factor_f = 1. + _param->C * log((del_lambda/h)/_param->EPS0);
                     rate_factor_df = _param->C / del_lambda;
@@ -173,14 +174,16 @@ public:
                     rate_factor_df = 0.0;
                 }
                 //cout << rate_factor <<"\n";
-                //if (D_n + del_lambda/e_p_f <= 1) {
-                if (D_n  <= 1) {
-                    Y_y = (Y_f + D_n * (Y_r - Y_f)) * rate_factor;
-                    Y_yield = (Y_f + D_n * (Y_r - Y_f)) * rate_factor_f;
-                    dY_yield = (Y_f + D_n * (Y_r - Y_f)) * rate_factor_df;
+                if (D_n + del_lambda/e_p_f <= 1) {
+                //if (D_n <= 1) {
+                    //Y_y = (Y_f + D_n * (Y_r - Y_f)) * rate_factor;
+                    //Y_yield = (Y_f + D_n * (Y_r - Y_f)) * rate_factor_f;
+                    //dY_yield = (Y_f + D_n * (Y_r - Y_f)) * rate_factor_df;
+                    Y_yield = (Y_f + (D_n+del_lambda/e_p_f) * (Y_r - Y_f)) * rate_factor_f;
+                    dY_yield = Y_f * rate_factor_df + (1./e_p_f) * (Y_r - Y_f) * rate_factor_f + (D_n+del_lambda/e_p_f) * (Y_r - Y_f) * rate_factor_df;
                 } else {
-                    cout << "help, I am broken";
-                    Y_y = Y_r * rate_factor;
+                    //cout << "help, I am broken\n";
+                    //Y_y = Y_r * rate_factor;
                     Y_yield = Y_r * rate_factor_f;
                     dY_yield = Y_r * rate_factor_df;
                 }
@@ -192,16 +195,19 @@ public:
                 f = s_tr_eq - 3.*_param->SHEAR_MODULUS * del_lambda - Y_yield;
                 df =  -3.*_param->SHEAR_MODULUS - dY_yield;
                 del_lambda += del_lambda - f/df;
+                //del_lambda += del_lambda - (s_tr_eq - 3*_mu*del_lambda - Y)/(-3*_mu-dY);
                 //cout << del_lambda / h << " strain rate\n"; 
 
                 //cout<< df <<"\n";
 
                 //cout << -3.*_param->SHEAR_MODULUS<< "\n";
                 j++;
-            } while (abs(f)> 1e-10 && j < maxit);
+            } while (abs(f)> 1e-4 && j < maxit);
             //cout << j << "\n";            
             alpha = (1. - 3.*_param->SHEAR_MODULUS * del_lambda / s_tr_eq);
-            cout << (j == maxit) << " not converged\n";
+            if (j==maxit && abs(f)>1e-10){
+                cout <<"******\n abs(f) " << abs(f)<< " not converged\n p_s "<< p_s <<"\n D_n "<<D_n<<"\n Y " << Y_yield<<"\n Y_f " << Y_f<<"\n Y_r " << Y_r<<"\n D_n+1 " << D_n + del_lambda/e_p_f<< "\n******\n";
+            }
             _internal_vars[LAMBDA].Add(del_lambda, i);
             // Update damage variable or set to 1.
             _internal_vars[DAMAGE].Set(fmin(D_n+del_lambda/e_p_f,1.0), i);
@@ -257,7 +263,7 @@ public:
          * Combine deviatoric and volumetric stresses and apply stress rate
          **********************************************************************/
 
-        stress = mandel_to_matrix(s + 3. * T_vol * p);
+        stress = mandel_to_matrix(s - 3. * T_vol * p);
         
         stress += 0.5 * h * (stress * W_.transpose() + W_ * stress);
         

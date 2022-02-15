@@ -43,7 +43,8 @@ PYBIND11_MODULE(cpp, m)
             .value("LAMBDA", Q::LAMBDA)
             .value("DEEQ", Q::DEEQ)
             .value("DSIGMA_DE", Q::DSIGMA_DE)
-            .value("RHO", Q::RHO);
+            .value("RHO", Q::RHO)
+            .value("DAMAGE", Q::DAMAGE);
 
 
     m.def("g_dim", &Dim::G);
