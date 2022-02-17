@@ -159,9 +159,11 @@ def gogogo():
             d.assign(solver.u)
             c.function_set(q,law.get_internal_var(c.Q.LAMBDA))
             c.local_project(q,V0,dx,lam)
-            c.function_set(q,law.get_internal_var(c.Q.DAMAGE))
-            c.local_project(q,V0,dx,damage)
 
+            c.function_set(q,law.get_internal_var(c.Q.DAMAGE))
+            
+            #c.local_project(q,V0,dx,damage)
+            df.project(q,V0,function=damage)
             xdmf_file.write(d, solver.t[0])
             xdmf_file.write(lam, solver.t[0])
             xdmf_file.write(damage, solver.t[0])

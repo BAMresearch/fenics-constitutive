@@ -44,7 +44,8 @@ PYBIND11_MODULE(cpp, m)
             .value("DEEQ", Q::DEEQ)
             .value("DSIGMA_DE", Q::DSIGMA_DE)
             .value("RHO", Q::RHO)
-            .value("DAMAGE", Q::DAMAGE);
+            .value("DAMAGE", Q::DAMAGE)
+            .value("PRESSURE", Q::PRESSURE);
 
 
     m.def("g_dim", &Dim::G);
@@ -198,9 +199,27 @@ PYBIND11_MODULE(cpp, m)
     jh2_parameters.def(pybind11::init<>());
     jh2_parameters.def_readwrite("RHO", &JH2Parameters::RHO);
     jh2_parameters.def_readwrite("SHEAR_MODULUS", &JH2Parameters::SHEAR_MODULUS);
+    jh2_parameters.def_readwrite("A", &JH2Parameters::A);
+    jh2_parameters.def_readwrite("B", &JH2Parameters::B);
+    jh2_parameters.def_readwrite("C", &JH2Parameters::C);
+    jh2_parameters.def_readwrite("M", &JH2Parameters::M);
+    jh2_parameters.def_readwrite("N", &JH2Parameters::N);
+    jh2_parameters.def_readwrite("EPS0", &JH2Parameters::EPS0);
+    jh2_parameters.def_readwrite("T", &JH2Parameters::T);
+    jh2_parameters.def_readwrite("SIGMAHEL", &JH2Parameters::SIGMAHEL);
+    jh2_parameters.def_readwrite("PHEL", &JH2Parameters::PHEL);
+    jh2_parameters.def_readwrite("D1", &JH2Parameters::D1);
+    jh2_parameters.def_readwrite("D2", &JH2Parameters::D2);
+    jh2_parameters.def_readwrite("K1", &JH2Parameters::K1);
+    jh2_parameters.def_readwrite("K2", &JH2Parameters::K2);
+    jh2_parameters.def_readwrite("K3", &JH2Parameters::K3);
+    jh2_parameters.def_readwrite("BETA", &JH2Parameters::BETA);
 
     pybind11::class_<JH2, std::shared_ptr<JH2>, LawInterface> jh2(m, "JH2");
     jh2.def(pybind11::init<std::shared_ptr<JH2Parameters>>(), py::arg("JH2Parameters"));
     jh2.def("get_internal_var", &JH2::GetInternalVar);
 
+    pybind11::class_<JH2Simple, std::shared_ptr<JH2Simple>, LawInterface> jh2_simple(m, "JH2Simple");
+    jh2_simple.def(pybind11::init<std::shared_ptr<JH2Parameters>>(), py::arg("JH2Parameters"));
+    jh2_simple.def("get_internal_var", &JH2Simple::GetInternalVar);
 }
