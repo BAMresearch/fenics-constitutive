@@ -134,31 +134,26 @@ public:
 
         Y_f = fmax(_param->A * pow(p_s + t_s, _param->N) * _param->SIGMAHEL, 0.0);
         Y_r = fmax(_param->B * pow(p_s,_param->M) * _param->SIGMAHEL,0.0);
-        //cout << p_s<< " p_s\n";
-        //cout << pow(p_s,_param->M)<< " p_s**M\n";
-        //cout << Y_r <<" Y_r \n";
-        //cout << Y_f <<" Y_f \n";
         if (D_n == 0.0){
             //Y_y = Y_f;
             Y_yield = Y_f;
         } else {
-            //cout << "help, I am damaged";
-            //Y_y = Y_f*(1.-D_n) + D_n * Y_r;
             Y_yield = Y_f*(1.-D_n) + D_n * Y_r;
         }
         
-        //if (s_tr_eq >= Y_y.real()){
-        if (s_tr_eq >= Y_yield){
+        if (s_tr_eq > Y_yield){
             //cout << "help, i am plastic\n";
             //plastic flow initiated
-            const double e_p_f = fmax(_param->D1 * pow(p_s + t_s, _param->D2), 1e-200);
-            double rate_factor_f;
-            double rate_factor_df;
+            const double e_p_f = fmax(_param->D1 * pow(p_s + t_s, _param->D2),1e-200);
+            double rate_factor_f=0.0;
+            double rate_factor_df=0.0;
             double f = 0.0;
-            double df = 0.0;
+            double df = 1.0;
             int j = 0;
             do  {
-                del_lambda += del_lambda - f/df;
+                if (j > 0)
+                    del_lambda = del_lambda - f/df;
+                
                 if (del_lambda/h >= _param->EPS0){
                     rate_factor_f = 1. + _param->C * log((del_lambda/h)/_param->EPS0);
                     rate_factor_df = _param->C / del_lambda;
@@ -166,9 +161,15 @@ public:
                     rate_factor_f = 1.;
                     rate_factor_df = 0.0;
                 }
+                //if (e_p_f==0.){
+                
+                    //Y_yield = Y_r * rate_factor_f;
+                    //dY_yield = Y_r * rate_factor_df;
+                //} else 
                 if (D_n + del_lambda/e_p_f < 1) {
                     Y_yield = (Y_f + (D_n+del_lambda/e_p_f) * (Y_r - Y_f)) * rate_factor_f;
                     dY_yield = Y_f * rate_factor_df + (1./e_p_f) * (Y_r - Y_f) * rate_factor_f + (D_n+del_lambda/e_p_f) * (Y_r - Y_f) * rate_factor_df;
+                    cout <<"jaaa, I am plastic, but not damaged\n";
                 } else {
                     Y_yield = Y_r * rate_factor_f;
                     dY_yield = Y_r * rate_factor_df;
@@ -176,14 +177,16 @@ public:
                 f = s_tr_eq - 3.*_param->SHEAR_MODULUS * del_lambda - Y_yield;
                 df =  -3.*_param->SHEAR_MODULUS - dY_yield;
                 j++;
-            } while (abs(f)> 1e-4 && j < maxit);
+                cout << Y_yield << "     "<<del_lambda<<"    "<< D_n + del_lambda/e_p_f<<"\n";
+            } while (abs(f)> 1e-8 && j < maxit);
             //if (j>1) {
                 //cout << j << "\n";
             //}
             alpha = (1. - 3.*_param->SHEAR_MODULUS * del_lambda / s_tr_eq);
-            if (j==maxit){
-                cout <<"******\n abs(f) " << abs(f)<< " not converged\n p_s "<< p_s <<"\n D_n "<<D_n<<"\n Y " << Y_yield<<"\n Y_f " << Y_f<<"\n Y_r " << Y_r<<"\n D_n+1 " << D_n + del_lambda/e_p_f<< "\n******\n";
-            }
+            //cout << alpha << "     "<<del_lambda<<"    "<< f<<"\n";
+            //if (j==maxit){
+                //cout <<"******\n abs(f) " << abs(f)<< " not converged\n p_s "<< p_s <<"\n D_n "<<D_n<<"\n Y " << Y_yield<<"\n Y_f " << Y_f<<"\n Y_r " << Y_r<<"\n D_n+1 " << D_n + del_lambda/e_p_f<< "\n******\n";
+            //}
             _internal_vars[LAMBDA].Add(del_lambda, i);
             // Update damage variable or set to 1.
             _internal_vars[DAMAGE].Set(fmin(D_n+del_lambda/e_p_f,1.0), i);
@@ -218,17 +221,31 @@ public:
         
         const auto mu = _internal_vars[RHO].GetScalar(i)/_param->RHO -1.;
         
-        const double U = _internal_vars[E].GetScalar(i);
-        _internal_vars[E].Set((Y_yield * Y_yield) / (6. * _param->SHEAR_MODULUS),i);
-        if (_internal_vars[DAMAGE].GetScalar(i) > D_n){
-            const double del_U = U - _internal_vars[E].GetScalar(i);
-            if (del_U > 0){
+        const double D_new = _internal_vars[DAMAGE].GetScalar(i);
+        if (D_new > D_n){
+            const double Y_old = D_n * Y_r + (1-D_n)*Y_f;
+            const double Y_new = D_new * Y_r + (1-D_new) * Y_f;
+            const double U_old = (Y_old*Y_old) /(6*_param->SHEAR_MODULUS);
+            const double U_new =(Y_new * Y_new) / (6. * _param->SHEAR_MODULUS);
+            const double del_U = U_old-U_new;
+            //const double del_U = U - _internal_vars[E].GetScalar(i);
                 const double del_P_n = _internal_vars[PRESSURE].GetScalar(i);
                 double K1 = _param->K1;
                 double del_P = -K1 * mu + sqrt(pow(K1 * mu + del_P_n,2)+2*_param->BETA*K1*del_U);
                 _internal_vars[PRESSURE].Set(del_P,i);
-            }
+            //cout <<"help I hve been damaged and I bulked by " << D_n  <<"   "<< _internal_vars[DAMAGE].GetScalar(i)<<"\n";
         }
+        //const double U = _internal_vars[E].GetScalar(i);
+        //_internal_vars[E].Set((Y_yield * Y_yield) / (6. * _param->SHEAR_MODULUS),i);
+        //if (_internal_vars[DAMAGE].GetScalar(i) > D_n){
+            //const double del_U = U - _internal_vars[E].GetScalar(i);
+            //if (del_U > 0){
+                //const double del_P_n = _internal_vars[PRESSURE].GetScalar(i);
+                //double K1 = _param->K1;
+                //double del_P = -K1 * mu + sqrt(pow(K1 * mu + del_P_n,2)+2*_param->BETA*K1*del_U);
+                //_internal_vars[PRESSURE].Set(del_P,i);
+            //}
+        //}
         const auto p = (mu > 0) ? _param->K1 * mu + _param->K2 * mu * mu + _param->K3 * mu * mu * mu + _internal_vars[PRESSURE].GetScalar(i): _param->K1 * mu;
 
         /***********************************************************************
@@ -308,10 +325,6 @@ public:
     {
         return _internal_vars.at(which).data;
     }
-    //std::complex<double> Y_f(double p_s, double lam, std::complex<double> del_lam)
-    //{
-       //return _sig0 + _H * (lam + del_lam); 
-    //}
     void Evaluate(const std::vector<QValues>& input, std::vector<QValues>& output, int i) override
     {
         int maxit = 1;
@@ -338,83 +351,52 @@ public:
          * 1) Calculate failure surface Y_failure
          * 2) Calculate Yield surface Y_yield = f(Y_failure)
          **********************************************************************/
-        double p_n = - T_vol.dot(sigma_n) + _internal_vars[PRESSURE].GetScalar(i);
+        double p_n = - T_vol.dot(sigma_n);// + _internal_vars[PRESSURE].GetScalar(i);
         auto s_n = T_dev * matrix_to_mandel(stress);
         auto s_tr = s_n + 2. * _param->SHEAR_MODULUS * T_dev * d_eps * h;
         double s_tr_eq = sqrt(1.5 * s_tr.transpose() * s_tr);
         double alpha = 0.0;
 
         double p_s = p_n / _param->PHEL;
-        //p_s = p_n /p_hel;
         double t_s = _param->T / _param->PHEL;
-        //t_s = _param->T / p_hel;
         double del_lambda = 0.0;
         double Y_yield = 0.0;
         double dY_yield = 0.0;
         double Y_f;
         double Y_r;
-        //std::complex<double> rate_factor;
 
 
         Y_f = fmax(_param->A * pow(p_s + t_s, _param->N) * _param->SIGMAHEL, 0.0);
         Y_r = fmax(_param->B * pow(p_s,_param->M) * _param->SIGMAHEL,0.0);
-        //Y_f = fmax(_param->A * pow(p_s + t_s, _param->N) * s_hel, 0.0);
-        //Y_r = fmax(_param->B * pow(p_s,_param->M) * s_hel, 0.0);
+        Y_f = fmax(_param->A * pow(p_s + t_s, _param->N) , 0.0);
+        Y_r = fmax(_param->B * pow(p_s,_param->M),0.0);
+        auto s_tr_eq_s = s_tr_eq / _param->SIGMAHEL;
+        auto s_tr_s = s_tr / _param->SIGMAHEL;
         if (D_n == 0.0){
             Y_yield = Y_f;
         } else {
             Y_yield = Y_f*(1.-D_n) + D_n * Y_r;
         }
-        //cout << Y_yield << "\n";
-        if (s_tr_eq > Y_yield){
+        //if (s_tr_eq > Y_yield){
+        if (s_tr_eq_s > Y_yield){
             const double e_p_f = fmax(_param->D1 * pow(p_s + t_s, _param->D2), 1e-200);
-            double rate_factor_f;
-            double rate_factor_df;
-            double f = 0.0;
-            double df = 0.0;
-            int j = 0;
-            do  {
-                //if (del_lambda/h >= _param->EPS0){
-                    //rate_factor_f = 1. + _param->C * log((del_lambda/h)/_param->EPS0);
-                    //rate_factor_df = _param->C / del_lambda;
-                //} else {
-                    //rate_factor_f = 1.;
-                    //rate_factor_df = 0.0;
-                //}
-                //if (D_n < 1) {
-                    //Y_yield = (Y_f + (D_n+del_lambda/e_p_f) * (Y_r - Y_f)) * rate_factor_f;
-                    //dY_yield = Y_f * rate_factor_df + (1./e_p_f) * (Y_r - Y_f) * rate_factor_f + (D_n+del_lambda/e_p_f) * (Y_r - Y_f) * rate_factor_df;
-                //} else {
-                    ////cout << "help, I am broken\n";
-                    ////Y_y = Y_r * rate_factor;
-                    //Y_yield = Y_r * rate_factor_f;
-                    //dY_yield = Y_r * rate_factor_df;
-                //}
-                //cout << Y_r <<"\n";
-                //cout << Y_f <<"\n";
-                // do the newton step
-                //f = s_tr_eq - 3.*_param->SHEAR_MODULUS * del_lambda - Y_y.real();
-                //df =  -3.*_param->SHEAR_MODULUS - Y_y.imag()/complex_step;
-                f = s_tr_eq - 3.*_param->SHEAR_MODULUS * del_lambda - Y_yield;
-                df =  -3.*_param->SHEAR_MODULUS;// - dY_yield;
-                del_lambda += del_lambda - f/df;
-                //cout << del_lambda <<"\n";
-                //del_lambda += del_lambda - (s_tr_eq - 3*_mu*del_lambda - Y)/(-3*_mu-dY);
-                //cout << del_lambda / h << " strain rate\n"; 
+            //double rate_factor_f;
+            //double rate_factor_df;
+            //double f = 0.0;
+            //double df = 0.0;
+                //f = s_tr_eq - 3.*_param->SHEAR_MODULUS * del_lambda - Y_yield;
+                //df =  -3.*_param->SHEAR_MODULUS;// - dY_yield;
+                //del_lambda = del_lambda - f/df;
+            //alpha = (1. - 3.*_param->SHEAR_MODULUS * del_lambda / s_tr_eq);
+            
+            
+            
+            
+            alpha = Y_yield/s_tr_eq;
+            alpha = Y_yield/s_tr_eq_s;
 
-                //cout<< df <<"\n";
-
-                //cout << -3.*_param->SHEAR_MODULUS<< "\n";
-                j++;
-            } while (abs(f)> 1e-4 && j < maxit);
-            //if (j>1) {
-                //cout << j << "\n";
-            //}
-            alpha = (1. - 3.*_param->SHEAR_MODULUS * del_lambda / s_tr_eq);
-            //cout << alpha << "\n";
-            //if (j==maxit){
-                //cout <<"******\n abs(f) " << abs(f)<< " not converged\n p_s "<< p_s <<"\n D_n "<<D_n<<"\n Y " << Y_yield<<"\n Y_f " << Y_f<<"\n Y_r " << Y_r<<"\n D_n+1 " << D_n + del_lambda/e_p_f<< "\n******\n";
-            //}
+            del_lambda = s_tr_eq*(1.-alpha) / (3.*_param->SHEAR_MODULUS);
+            
             _internal_vars[LAMBDA].Add(del_lambda, i);
             // Update damage variable or set to 1.
             _internal_vars[DAMAGE].Set(fmin(D_n+del_lambda/e_p_f,1.0), i);
@@ -425,7 +407,7 @@ public:
         }
 
         //Update deviatoric stress s
-        auto s = alpha * s_tr;
+        auto s = alpha * s_tr_s * _param->SIGMAHEL;
         //cout << s << "\n";        
         /***********************************************************************
          * END CONSTITUTIVE MODEL HERE
@@ -451,21 +433,17 @@ public:
         
         const auto p = (mu > 0) ? _param->K1 * mu + _param->K2 * mu * mu + _param->K3 * mu * mu * mu + _internal_vars[PRESSURE].GetScalar(i): _param->K1 * mu;
         
-        //const double U = _internal_vars[E].GetScalar(i);
-        //_internal_vars[E].Set((s_tr_eq*alpha * s_tr_eq*alpha) / (6. * _param->SHEAR_MODULUS),i);
         const double D_new = _internal_vars[DAMAGE].GetScalar(i);
         if (D_new > D_n){
-            const double Y_old = D_n * Y_r + (1-D_n)*Y_f;
-            const double Y_new = D_new * Y_r + (1-D_new) * Y_f;
-            const double U_old = (Y_old*Y_old) /(6*_param->SHEAR_MODULUS);
-            const double U_new =(Y_new * Y_new) / (6. * _param->SHEAR_MODULUS);
-            const double del_U = U_old-U_new;
-            //const double del_U = U - _internal_vars[E].GetScalar(i);
-                const double del_P_n = _internal_vars[PRESSURE].GetScalar(i);
-                double K1 = _param->K1;
-                double del_P = -K1 * mu + sqrt(pow(K1 * mu + del_P_n,2)+2*_param->BETA*K1*del_U);
-                _internal_vars[PRESSURE].Set(del_P,i);
-            //cout <<"help I hve been damaged and I bulked by " << D_n  <<"   "<< _internal_vars[DAMAGE].GetScalar(i)<<"\n";
+            const double Y_old = (D_n * Y_r + (1-D_n) * Y_f) * _param->SIGMAHEL;
+            const double Y_new = (D_new * Y_r + (1-D_new) * Y_f) * _param->SIGMAHEL;
+            const double U_old = (Y_old * Y_old) / (6. * _param->SHEAR_MODULUS);
+            const double U_new = (Y_new * Y_new) / (6. * _param->SHEAR_MODULUS);
+            const double del_U = U_old - U_new;
+            const double del_P_n = _internal_vars[PRESSURE].GetScalar(i);
+            double K1 = _param->K1;
+            double del_P = -K1 * mu + sqrt(pow(K1 * mu + del_P_n,2)+2.*_param->BETA * K1 * del_U);
+            _internal_vars[PRESSURE].Set(del_P,i);
         }
 
         /***********************************************************************
