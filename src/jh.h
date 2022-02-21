@@ -29,6 +29,7 @@ struct JH2Parameters
     double K2 = 73.19;
     double K3 = -236.2;
     double BETA = 1.0;
+    double MOGEL = 1.0;
 
 };
 
@@ -355,6 +356,7 @@ public:
         auto s_n = T_dev * matrix_to_mandel(stress);
         auto s_tr = s_n + 2. * _param->SHEAR_MODULUS * T_dev * d_eps * h;
         double s_tr_eq = sqrt(1.5 * s_tr.transpose() * s_tr);
+        double d_eps_eq = sqrt((2./3.) * d_eps.transpose() * d_eps);
         double alpha = 0.0;
 
         double p_s = p_n / _param->PHEL;
@@ -364,21 +366,27 @@ public:
         double dY_yield = 0.0;
         double Y_f;
         double Y_r;
+        double rate_factor;
 
 
         Y_f = fmax(_param->A * pow(p_s + t_s, _param->N) * _param->SIGMAHEL, 0.0);
         Y_r = fmax(_param->B * pow(p_s,_param->M) * _param->SIGMAHEL,0.0);
-        Y_f = fmax(_param->A * pow(p_s + t_s, _param->N) , 0.0);
-        Y_r = fmax(_param->B * pow(p_s,_param->M),0.0);
-        auto s_tr_eq_s = s_tr_eq / _param->SIGMAHEL;
-        auto s_tr_s = s_tr / _param->SIGMAHEL;
-        if (D_n == 0.0){
-            Y_yield = Y_f;
+        //Y_f = fmax(_param->A * pow(p_s + t_s, _param->N) , 0.0);
+        //Y_r = fmax(_param->B * pow(p_s,_param->M),0.0);
+        //auto s_tr_eq_s = s_tr_eq / _param->SIGMAHEL;
+        //auto s_tr_s = s_tr / _param->SIGMAHEL;
+        if (d_eps_eq >= _param->EPS0){
+            rate_factor = 1. + _param->C * log(d_eps_eq/_param->EPS0);
         } else {
-            Y_yield = Y_f*(1.-D_n) + D_n * Y_r;
+            rate_factor = 1.;
         }
-        //if (s_tr_eq > Y_yield){
-        if (s_tr_eq_s > Y_yield){
+        if (D_n == 0.0){
+            Y_yield = Y_f*rate_factor;
+        } else {
+            Y_yield = (Y_f*(1.-D_n) + D_n * Y_r)*rate_factor;
+        }
+        if (s_tr_eq > Y_yield){
+        //if (s_tr_eq_s > Y_yield){
             const double e_p_f = fmax(_param->D1 * pow(p_s + t_s, _param->D2), 1e-200);
             //double rate_factor_f;
             //double rate_factor_df;
@@ -391,11 +399,12 @@ public:
             
             
             
+            del_lambda =_param->MOGEL *  (s_tr_eq-Y_yield) / (3.*_param->SHEAR_MODULUS);
             
             alpha = Y_yield/s_tr_eq;
-            alpha = Y_yield/s_tr_eq_s;
+            //alpha = Y_yield/s_tr_eq;
 
-            del_lambda = s_tr_eq*(1.-alpha) / (3.*_param->SHEAR_MODULUS);
+            //del_lambda =_param->MOGEL *  s_tr_eq*(1.-alpha) / (3.*_param->SHEAR_MODULUS);
             
             _internal_vars[LAMBDA].Add(del_lambda, i);
             // Update damage variable or set to 1.
@@ -407,7 +416,7 @@ public:
         }
 
         //Update deviatoric stress s
-        auto s = alpha * s_tr_s * _param->SIGMAHEL;
+        auto s = alpha * s_tr;//_s * _param->SIGMAHEL;
         //cout << s << "\n";        
         /***********************************************************************
          * END CONSTITUTIVE MODEL HERE
@@ -431,21 +440,25 @@ public:
         
         const auto mu = _internal_vars[RHO].GetScalar(i)/_param->RHO -1.;
         
-        const auto p = (mu > 0) ? _param->K1 * mu + _param->K2 * mu * mu + _param->K3 * mu * mu * mu + _internal_vars[PRESSURE].GetScalar(i): _param->K1 * mu;
         
         const double D_new = _internal_vars[DAMAGE].GetScalar(i);
         if (D_new > D_n){
-            const double Y_old = (D_n * Y_r + (1-D_n) * Y_f) * _param->SIGMAHEL;
-            const double Y_new = (D_new * Y_r + (1-D_new) * Y_f) * _param->SIGMAHEL;
+            const double Y_old = (D_n * Y_r + (1-D_n) * Y_f);// * _param->SIGMAHEL;
+            const double Y_new = (D_new * Y_r + (1-D_new) * Y_f);// * _param->SIGMAHEL;
             const double U_old = (Y_old * Y_old) / (6. * _param->SHEAR_MODULUS);
             const double U_new = (Y_new * Y_new) / (6. * _param->SHEAR_MODULUS);
             const double del_U = U_old - U_new;
+            if (del_U < 0){
+                cout << "help, this is wrong\n";
+            } else {
             const double del_P_n = _internal_vars[PRESSURE].GetScalar(i);
             double K1 = _param->K1;
             double del_P = -K1 * mu + sqrt(pow(K1 * mu + del_P_n,2)+2.*_param->BETA * K1 * del_U);
             _internal_vars[PRESSURE].Set(del_P,i);
+            }
         }
 
+        const auto p = (mu > 0) ? _param->K1 * mu + _param->K2 * mu * mu + _param->K3 * mu * mu * mu + _internal_vars[PRESSURE].GetScalar(i): _param->K1 * mu;
         /***********************************************************************
          * Combine deviatoric and volumetric stresses and apply stress rate
          **********************************************************************/

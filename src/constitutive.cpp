@@ -214,6 +214,7 @@ PYBIND11_MODULE(cpp, m)
     jh2_parameters.def_readwrite("K2", &JH2Parameters::K2);
     jh2_parameters.def_readwrite("K3", &JH2Parameters::K3);
     jh2_parameters.def_readwrite("BETA", &JH2Parameters::BETA);
+    jh2_parameters.def_readwrite("MOGEL", &JH2Parameters::MOGEL);
 
     pybind11::class_<JH2, std::shared_ptr<JH2>, LawInterface> jh2(m, "JH2");
     jh2.def(pybind11::init<std::shared_ptr<JH2Parameters>>(), py::arg("JH2Parameters"));

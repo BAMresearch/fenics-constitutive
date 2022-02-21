@@ -1,10 +1,12 @@
 """
 WARNING: DOES NOT RUN WITH MPI
 """
+import pandas as pd
 import numpy as np
 import dolfin as df
 import constitutive as c
 import matplotlib.pyplot as plt
+
 def set_parameters(parameters,dic):
     for key, value in dic.items():
         parameters.__setattr__(key, value)
@@ -68,6 +70,7 @@ case3 = {"RHO": 3.7e-6,
 
 # "one element test"
 
+# print(solution.head())
 
 mesh = df.BoxMesh(
     df.Point(0.0, 0.0, 0.0), df.Point(1000.0, 1000.0, 1000.0), 1, 1, 1
@@ -93,7 +96,7 @@ expr_y_1 = df.Expression("0.0", degree=1)
 expr_z_0 = df.Expression("0.0", degree=1)
 expr_z_1 = df.Expression("u", u = 50, degree=1)
 
-bc_x_0 = df.DirichletBC(V0.sub(0), expr_x_0, x_0)
+bc_x_0 = df.DirichletBC(V0.sub(0), 0., x_0)
 bc_x_1 = df.DirichletBC(V0.sub(0), expr_x_1, x_1)
 bc_y_0 = df.DirichletBC(V0.sub(1), expr_y_0, y_0)
 bc_y_1 = df.DirichletBC(V0.sub(1), expr_y_1, y_1)
@@ -104,6 +107,10 @@ parameters = c.JH2Parameters()
 law = c.JH2Simple(parameters)
 
 set_parameters(parameters, case3)
+set_parameters(parameters, {"MOGEL": 1.})
+set_parameters(parameters, {"D1": 0.00815})
+
+solution = pd.read_csv("CaseC.csv",header=0,decimal=",",sep =';')
 
 v_ = df.TestFunction(V)
 u_ = df.TrialFunction(V)
@@ -172,6 +179,7 @@ while solver.t[0]< t_end*2:
     counter += 1
 # print(s_eq_)
 plt.plot(p_,s_eq_)
+plt.scatter(solution.values[:, 0], solution.values[:, 1])
 plt.title("JH2 Validation: Case C")
 plt.xlabel("Pressure [GPa]")
 plt.ylabel("Equiv. Stress [GPa]")
