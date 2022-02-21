@@ -341,10 +341,7 @@ public:
         const auto d_eps = matrix_to_mandel(D_);
         const auto d_eps_vol = T_vol.dot(d_eps);
         
-        //const auto p_hel = _param->PHEL + _internal_vars[PRESSURE].GetScalar(i);        
-        //const auto s_hel = (3./2.) * (2.79 - p_hel);
         auto stress = mandel_to_matrix(sigma_n);
-        //stress += 0.5 * h * (stress * W_.transpose() + W_ * stress);
         stress += h * (stress * W_.transpose() + W_ * stress);
 
         /***********************************************************************
@@ -371,10 +368,6 @@ public:
 
         Y_f = fmax(_param->A * pow(p_s + t_s, _param->N) * _param->SIGMAHEL, 0.0);
         Y_r = fmax(_param->B * pow(p_s,_param->M) * _param->SIGMAHEL,0.0);
-        //Y_f = fmax(_param->A * pow(p_s + t_s, _param->N) , 0.0);
-        //Y_r = fmax(_param->B * pow(p_s,_param->M),0.0);
-        //auto s_tr_eq_s = s_tr_eq / _param->SIGMAHEL;
-        //auto s_tr_s = s_tr / _param->SIGMAHEL;
         if (d_eps_eq >= _param->EPS0){
             rate_factor = 1. + _param->C * log(d_eps_eq/_param->EPS0);
         } else {
@@ -386,26 +379,12 @@ public:
             Y_yield = (Y_f*(1.-D_n) + D_n * Y_r)*rate_factor;
         }
         if (s_tr_eq > Y_yield){
-        //if (s_tr_eq_s > Y_yield){
             const double e_p_f = fmax(_param->D1 * pow(p_s + t_s, _param->D2), 1e-200);
-            //double rate_factor_f;
-            //double rate_factor_df;
-            //double f = 0.0;
-            //double df = 0.0;
-                //f = s_tr_eq - 3.*_param->SHEAR_MODULUS * del_lambda - Y_yield;
-                //df =  -3.*_param->SHEAR_MODULUS;// - dY_yield;
-                //del_lambda = del_lambda - f/df;
-            //alpha = (1. - 3.*_param->SHEAR_MODULUS * del_lambda / s_tr_eq);
-            
-            
             
             del_lambda =_param->MOGEL *  (s_tr_eq-Y_yield) / (3.*_param->SHEAR_MODULUS);
             
             alpha = Y_yield/s_tr_eq;
-            //alpha = Y_yield/s_tr_eq;
 
-            //del_lambda =_param->MOGEL *  s_tr_eq*(1.-alpha) / (3.*_param->SHEAR_MODULUS);
-            
             _internal_vars[LAMBDA].Add(del_lambda, i);
             // Update damage variable or set to 1.
             _internal_vars[DAMAGE].Set(fmin(D_n+del_lambda/e_p_f,1.0), i);
@@ -416,8 +395,7 @@ public:
         }
 
         //Update deviatoric stress s
-        auto s = alpha * s_tr;//_s * _param->SIGMAHEL;
-        //cout << s << "\n";        
+        auto s = alpha * s_tr;
         /***********************************************************************
          * END CONSTITUTIVE MODEL HERE
          **********************************************************************/
@@ -463,11 +441,11 @@ public:
          * Combine deviatoric and volumetric stresses and apply stress rate
          **********************************************************************/
 
-        stress = mandel_to_matrix(s - 3. * T_vol * p);
+        //stress = mandel_to_matrix(s - 3. * T_vol * p);
         
-        //stress += 0.5 * h * (stress * W_.transpose() + W_ * stress);
         
-        output[SIGMA].Set(matrix_to_mandel(stress),i);
+        //output[SIGMA].Set(matrix_to_mandel(stress),i);
+        output[SIGMA].Set(s - 3. * T_vol * p, i);
     }
 
 
