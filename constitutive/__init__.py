@@ -4,7 +4,7 @@ import dolfin as df
 from ffc.quadrature.deprecation import \
     QuadratureRepresentationDeprecationWarning
 
-from .explicit_dynamics import CDM
+from .explicit_dynamics import *
 from .helper import *
 from .mechanics_problem import *
 

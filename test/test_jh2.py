@@ -107,7 +107,7 @@ parameters = c.JH2Parameters()
 law = c.JH2Simple(parameters)
 
 set_parameters(parameters, case3)
-set_parameters(parameters, {"MOGEL": 1.})
+# set_parameters(parameters, {"MOGEL": 0.5*(1.5)**0.5})
 set_parameters(parameters, {"D1": 0.00815})
 
 solution = pd.read_csv("CaseC.csv",header=0,decimal=",",sep =';')
@@ -119,7 +119,7 @@ u_ = df.TrialFunction(V)
 # K_form = df.inner(c.as_mandel(df.sym(df.grad(u_))), df.dot(D, c.as_mandel(df.sym(df.grad(v_))))) * df.dx
 # M_form = rho * df.inner(u_, v_) * df.dx
 
-h = 1e-1 #c.critical_timestep(K_form, M_form, mesh)
+h = 1e-2 #c.critical_timestep(K_form, M_form, mesh)
 t_end = 100.
 expr_z_1.u = -50. / t_end
 
@@ -142,7 +142,7 @@ counter = 0
 total_mass = 1000.0**3 * parameters.RHO
 while solver.t[0] < t_end:# and counter <= 2000:
     solver.step(h)
-    if counter % 10 == 0:
+    if counter % 1 == 0:
         u_ = max(abs(solver.u.vector().get_local()))
 
         density = total_mass / (1000.**2 * (1000.-u_))

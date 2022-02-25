@@ -381,8 +381,8 @@ public:
         if (s_tr_eq > Y_yield){
             const double e_p_f = fmax(_param->D1 * pow(p_s + t_s, _param->D2), 1e-200);
             
-            del_lambda =_param->MOGEL *  (s_tr_eq-Y_yield) / (3.*_param->SHEAR_MODULUS);
-            
+            del_lambda =_param->MOGEL *  (s_tr_eq-Y_yield) / (3.*_param->SHEAR_MODULUS);// + (Y_r-Y_f)/e_p_f);
+            //Y_yield += del_lambda * (Y_r-Y_f)/e_p_f;
             alpha = Y_yield/s_tr_eq;
 
             _internal_vars[LAMBDA].Add(del_lambda, i);

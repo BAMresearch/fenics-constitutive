@@ -24,8 +24,8 @@ except:
     #ht = 1e-4
     l_x = 1000
     l_y = 1000
-    l_z = 200
-    res = 50
+    l_z = 100
+    res = 25
 
 E = 27000 #MPa
 nu = 0.2 #
@@ -51,7 +51,12 @@ def pressure(t):
 mesh = df.BoxMesh(
     df.Point(0.0, 0.0, 0.0), df.Point(l_x, l_y, l_z), l_x//res, l_y//res, l_z//res
 )
-xdmf_file = df.XDMFFile(f"jh2_example_{l_x}x{l_y}x{l_z}_res_{l_x//res}x{l_y//res}x{l_z//res}_{t_end}ms.xdmf")
+mesh_file = "1000x1000x100_refine"
+mesh = df.Mesh(mesh_file+".xml")
+# mesh = df.refine(mesh)
+xdmf_file = df.XDMFFile(f"gmsh_file_{mesh_file}_{t_end}ms.xdmf")
+
+#xdmf_file = df.XDMFFile(f"jh2_example_{l_x}x{l_y}x{l_z}_res_{l_x//res}x{l_y//res}x{l_z//res}_{t_end}ms.xdmf")
 #mesh_file = "random_plate_1"
 #mesh = df.Mesh(mesh_file+".xml")
 #xdmf_file = df.XDMFFile(f"plastic_2_sides_{mesh_file}_{t_end}ms_MPI.xdmf")
@@ -112,7 +117,7 @@ bcs = [df.DirichletBC(V, (0.0, 0.0, 0.0), fixed)]
 # law = c.HookesLaw(E, nu, False, False)
 # stress_rate = c.JaumannStressRate()
 parameters = c.JH2Parameters()
-law = c.JH2(parameters)
+law = c.JH2Simple(parameters)
 stress_rate = None
 # D = df.as_matrix(law.C.tolist())
 # K_form = df.inner(c.as_mandel(df.sym(df.grad(u_))), df.dot(D, c.as_mandel(df.sym(df.grad(v_))))) * df.dx
@@ -150,7 +155,7 @@ xdmf_file.write(damage, solver.t[0])
 # a = df.Function(V, name="Acceleration")
 #@profile
 
-n_steps_ms = int(0.1 / h) 
+n_steps_ms = int(0.05 / h) 
 def gogogo():
     count = 0
     while np.any(solver.t < t_end):

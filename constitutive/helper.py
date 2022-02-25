@@ -200,6 +200,24 @@ def as_mandel(T):
         ]
     )
 
+def _2d_tensor_as_mandel(T):
+    """
+    T: 
+        Symmetric 2x2 tensor
+    Returns:
+        Vector representation of T with factor sqrt(2) for shear components
+    """
+    factor = 2 ** 0.5
+    return df.as_vector(
+        [
+            T[0, 0],
+            T[1, 1],
+            0.0,
+            0.0, 
+            0.0,
+            factor * T[0, 1],
+        ]
+    )
 """
 Calculate the critical timestep
 -------------------------------
