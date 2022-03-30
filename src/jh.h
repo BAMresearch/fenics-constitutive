@@ -418,6 +418,7 @@ public:
         
         const auto mu = _internal_vars[RHO].GetScalar(i)/_param->RHO -1.;
         
+        const auto p = (mu > 0) ? _param->K1 * mu + _param->K2 * mu * mu + _param->K3 * mu * mu * mu + _internal_vars[PRESSURE].GetScalar(i): _param->K1 * mu;
         
         const double D_new = _internal_vars[DAMAGE].GetScalar(i);
         if (D_new > D_n){
@@ -436,7 +437,6 @@ public:
             }
         }
 
-        const auto p = (mu > 0) ? _param->K1 * mu + _param->K2 * mu * mu + _param->K3 * mu * mu * mu + _internal_vars[PRESSURE].GetScalar(i): _param->K1 * mu;
         /***********************************************************************
          * Combine deviatoric and volumetric stresses and apply stress rate
          **********************************************************************/

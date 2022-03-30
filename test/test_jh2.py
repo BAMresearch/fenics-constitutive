@@ -110,7 +110,7 @@ set_parameters(parameters, case3)
 # set_parameters(parameters, {"MOGEL": 0.5*(1.5)**0.5})
 set_parameters(parameters, {"D1": 0.00815})
 
-solution = pd.read_csv("CaseC.csv",header=0,decimal=",",sep =';')
+solution = pd.read_csv("CaseC2.csv",header=0,decimal=",",sep =';')
 
 v_ = df.TestFunction(V)
 u_ = df.TrialFunction(V)
@@ -119,7 +119,7 @@ u_ = df.TrialFunction(V)
 # K_form = df.inner(c.as_mandel(df.sym(df.grad(u_))), df.dot(D, c.as_mandel(df.sym(df.grad(v_))))) * df.dx
 # M_form = rho * df.inner(u_, v_) * df.dx
 
-h = 1e-2 #c.critical_timestep(K_form, M_form, mesh)
+h = 0.5e-2 #c.critical_timestep(K_form, M_form, mesh)
 t_end = 100.
 expr_z_1.u = -50. / t_end
 
@@ -178,11 +178,13 @@ while solver.t[0]< t_end*2:
         del_p.append(law.get_internal_var(c.Q.PRESSURE)[0])
     counter += 1
 # print(s_eq_)
-plt.plot(p_,s_eq_)
-plt.scatter(solution.values[:, 0], solution.values[:, 1])
-plt.title("JH2 Validation: Case C")
+plt.plot(p_,s_eq_, label = "fenics-constitutive")
+plt.scatter(solution.values[:, 0], solution.values[:, 1], label = "Paper values")
+plt.title("JH2 Validation: Case C from another paper with D1=0.00815")
 plt.xlabel("Pressure [GPa]")
 plt.ylabel("Equiv. Stress [GPa]")
 # plt.plot(p_,damage)
 # plt.plot(p_,del_p)
-plt.show()
+#plt.show()
+plt.legend()
+plt.savefig("validation_case_C_other_paper.svg")
