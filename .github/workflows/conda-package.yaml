@@ -11,11 +11,18 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v2
-      - name: build-and-publish
-        uses: MichaelsJP/conda-package-publish-action@v1.1.0
+      - uses: conda-incubator/setup-miniconda@v2
         with:
-          subDir: ".conda"
-          AnacondaToken: ${{ secrets.ANACONDA_TOKEN }}
-          platforms: "linux-aarch64"
-          override: true  # override uploaded package
-          dry_run: false  # If true, only build without publishing
+          auto-update-conda: true
+
+      - name: Build conda package
+        # may add matrix to build for macos as well ...
+        # properly activate shell
+        shell: bash -l {0}
+        env:
+          ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
+        run: |
+          conda install conda-build anaconda-client conda-verify
+          conda config --set anaconda_upload yes
+          cd $GITHUB_WORKSPACE/.conda
+          conda build --token "$ANACONDA_TOKEN" .
