@@ -14,9 +14,11 @@ jobs:
       - uses: conda-incubator/setup-miniconda@v2
         with:
           auto-update-conda: true
+          # add channel pdiercks for `fenics_helpers`
+          channels: conda-forge,pdiercks,defaults
+          channel-priority: true
 
       - name: Build conda package
-        # may add matrix to build for macos as well ...
         # properly activate shell
         shell: bash -l {0}
         env:
