@@ -1,0 +1,21 @@
+name: Conda package
+
+on: 
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/chekout@v2
+      - name: build-and-publish
+        uses: MichaelsJP/conda-package-publish-action@v1.0.0
+        with:
+          subDir: ".conda"
+          AnacondaToken: ${{ secrets.ANACONDA_TOKEN }}
+          platforms: "linux-aarch64"
+          override: true  # override uploaded package
+          dry_run: false  # If true, only build without publishing
