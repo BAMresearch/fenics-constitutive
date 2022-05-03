@@ -26,6 +26,31 @@ mechanics modeling, this is a limitation, as it cannot be used to
 Additionally, there is this feeling of less control over the actual code, as it
 is automatically generated and not designed to be human-readable.
 
+Installation
+------------
+
+*FEniCS Constitutive* provides an interface between [FEniCS](https://fenicsproject.org/) and a C++ implementation of user-defined constitutive models. The interface can also act as a shortcut to the user material subroutines UMAT of the [ABAQUS](https://www.3ds.com/products-services/simulia/products/abaqus/) finite element program. Whether a single UMAT subroutine or a collection of the material subroutines must be precompiled into a static library, and further linked to the *FEniCS Constitutive* interface.
+
+### Installation with *labtools*
+
+*labtools* is a collection of tools and subroutines written in Fortran 90 for a user-friendly modular implementation of constitutive laws (for isotropic responses, single-crystals plasticity etc.), including a library of UMATs. A shortened version of *labtools* can be cloned from `<https://git.bam.de/chaftaog/labtools-fenics.git>`. For further details see the Manual.pdf file. The compilation requires the Intel compiler `ifort`. Once cloned, execute the `make all` command in the /labtools-fenics folder.
+
+In the second step clone the respective branch of *FEniCS Constitutive*
+
+`git clone -b umat https://github.com/BAMresearch/fenics-constitutive.git`
+
+The further installation requires [eigen3]( https://eigen.tuxfamily.org/), [NumPy](https://numpy.org/), [meshio](https://github.com/nschloe/meshio) and installation of helpers
+
+`pip3 install git+https://github.com/BAMResearch/fenics_helpers`
+
+Now configurate the /fenics-consitutive/CMakeLists.txt file. When setting `CMAKE_CXX_FLAGS` adjust the path to the static Intel libraries in the /lib/intel64 directory. Further, provide the location of the *labtools* library /labtools-fenics/lib/libumat.a within the `set_target_properties` command. Finally install the interface by starting
+
+`pip install --user -e .`
+
+from the /fenics-constitutive folder. To verify the installation, perform the tests in /fenics-consitutive/test and /fenics-consitutive/test/umat by `python3 test_*.py`.
+
+The implementation of some constitutive laws within the interface is also given for demonstration purposes.
+
 References
 ----------
 

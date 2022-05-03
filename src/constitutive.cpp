@@ -130,4 +130,5 @@ PYBIND11_MODULE(cpp, m)
     pybind11::class_<Umat, std::shared_ptr<Umat>, MechanicsLaw> umat(m, "Umat");
     umat.def(pybind11::init<char*, Constraint, const std::vector<double>*>(), py::arg("cmname"), py::arg("constraint"),
 	     py::arg("EulerAngles") = std::vector<double>());
+    umat.def("q_statev", &Umat::statev);
 }

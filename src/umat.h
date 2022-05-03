@@ -38,6 +38,12 @@ using namespace std;
      		      int*,int*,int*,int*,double[],int*,double[constants::dim],double (*drot)[constants::dim],double*,
      		      double*,double (*dfgrd0)[constants::dim],double (*dfgrd1)[constants::dim],int*,int*,int*,int*,int*,int*,
      		      int);
+     void umat_(double[],double[],double (*ddsdde)[constants::ntens],double*,double*,double*,
+		      double*,double[],double[],double*,
+     		      double[],double[],double[],double*,double*,double*,double*,double*,char[],
+     		      int*,int*,int*,int*,double[],int*,double[constants::dim],double (*drot)[constants::dim],double*,
+     		      double*,double (*dfgrd0)[constants::dim],double (*dfgrd1)[constants::dim],int*,int*,int*,int*,int*,int*,
+     		      int);
    }
 
 class Umat : public MechanicsLaw
@@ -105,6 +111,10 @@ public:
 	{
 	  param0_sdcrcry_(cmname,&initMat,strlen(cmname));
 	}
+      else if (cmnameStr == "UMAT")
+	{
+	  std::cout << "... material parameters via props()." << std::endl;
+	}
       else
 	{
 	  std::cout << "ERROR at param0_ call: Unknown UMAT "<< cmnameStr <<std::endl;
@@ -124,6 +134,10 @@ public:
        else if (_cmname == "SDCRCRY")
 	{
 	  return 37;
+	}
+       else if (_cmname == "UMAT")
+	{
+	  return 0;
 	}
       else
 	{
@@ -268,6 +282,11 @@ public:
       //      std::cout << _stressPrev.Get(i) << std::endl;
     }
 
+  Eigen::VectorXd statev() const
+  {
+    return _statevPrev.data;
+  }
+
   std::pair<Eigen::VectorXd, Eigen::MatrixXd> Evaluate(const Eigen::VectorXd& strain, int i) override
     {
       // for plain_strain we transform a strain vectors of length 3 to the full vectors of length 6
@@ -366,6 +385,14 @@ public:
 		   &ndi,&nshr,&ntens,&nstatv,props,&nprops,coords,drot,&pnewdt,
 		   &celent,dfgrd0,dfgrd1,&noel,&npt,&layer,&kspt,&kstep,&kinc,strlen(cmname));
 	}
+      else if (_cmname == "UMAT")
+	{
+	  umat_(stress,statev,ddsdde,&sse,&spd,&scd,
+		   &rpl,ddsddt,drplde,&drpldt,
+		   stran,dstran,time,&dtime,&temp,&dtemp,&predef,&dpred,cmname,
+		   &ndi,&nshr,&ntens,&nstatv,props,&nprops,coords,drot,&pnewdt,
+		   &celent,dfgrd0,dfgrd1,&noel,&npt,&layer,&kspt,&kstep,&kinc,strlen(cmname));
+	}
       else
 	{
 	  std::cout << "ERROR at evaluate: Unknown UMAT "<< _cmname <<std::endl;
@@ -396,6 +423,5 @@ private:
     std::string _cmname;
 
     // orientation, optional
-  //2710    double _EulerAngles[3];
     std::vector<double> _EulerAngles; 
 };

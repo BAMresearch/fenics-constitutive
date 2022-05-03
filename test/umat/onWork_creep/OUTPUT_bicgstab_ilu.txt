@@ -1,0 +1,42 @@
+Newton iteration 0: r (abs) = 0.000e+00 (tol = 1.000e-10) r (rel) = -nan (tol = 1.000e-09)
+Newton solver finished in 0 iterations and 0 linear solver iterations.
+True
+good!
+<Parameter set "newton_solver" containing 11 parameter(s) and parameter set(s)>
+
+  newton_solver            |    type         value    range  access  change
+  -------------------------------------------------------------------------
+  absolute_tolerance       |  double      0.000000  Not set       0       0
+  convergence_criterion    |  string      residual  Not set       0       0
+  error_on_nonconvergence  |    bool             0  Not set       0       0
+  linear_solver            |  string         mumps  Not set       0       0
+  maximum_iterations       |     int            10  Not set       0       0
+  preconditioner           |  string  user_defined  Not set       0       0
+  relative_tolerance       |  double      0.000000  Not set       0       0
+  relaxation_parameter     |  double       <unset>  Not set       0       0
+  report                   |    bool             1  Not set       0       0
+
+  <Parameter set "krylov_solver" containing 8 parameter(s) and parameter set(s)>
+  
+    krylov_solver            |    type    value    range  access  change
+    --------------------------------------------------------------------
+    absolute_tolerance       |  double  <unset>  Not set       0       0
+    divergence_limit         |  double  <unset>  Not set       0       0
+    error_on_nonconvergence  |    bool  <unset>  Not set       0       0
+    maximum_iterations       |     int  <unset>  Not set       0       0
+    monitor_convergence      |    bool  <unset>  Not set       0       0
+    nonzero_initial_guess    |    bool  <unset>  Not set       0       0
+    relative_tolerance       |  double  <unset>  Not set       0       0
+    report                   |    bool  <unset>  Not set       0       0
+
+  <Parameter set "lu_solver" containing 3 parameter(s) and parameter set(s)>
+  
+    lu_solver  |  type  value    range  access  change
+    --------------------------------------------------
+    report     |  bool      1  Not set       0       0
+    symmetric  |  bool      0  Not set       0       0
+    verbose    |  bool      0  Not set       0       0
+Traceback (most recent call last):
+  File "test_umat_grains_3D.py", line 289, in <module>
+    stop
+NameError: name 'stop' is not defined

@@ -8,6 +8,8 @@ Examples
    :glob:
    
    examples/*
+   examples/polycrystal/*
+   examples/ChaboX/*
    src/README.rst
 
 

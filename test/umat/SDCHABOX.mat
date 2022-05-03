@@ -1,24 +1,6 @@
 # Materialparameterwerte
 # des Chaboche-Modells und der Lebensdauerregel in sdchaboX
-# für TMF von SiMo 4.05
-# ermittelt an bearbeiteten Proben ohne Gusshaut.
-#
-# Die Materialparameterwerte des Spannungs-Verformungs-Modells (Chaboche)
-# wurden allein durch isotherme Versuche bestimmt.
-#
-# Die Materialparameterwerte der Lebensdauerregel
-# wurden anhand der Versagenslastspielzahlen
-# der folgenden LCF-Versuche ermittelt:
-# bis einschl. 500C:
-# ausschließlich isotherme LCF-Versuche ohne und mit Haltezeiten,
-# oberhalb von 500C:
-# isotherme LCF-Versuche ohne Haltezeiten und
-# als kritischste Ermüdungsversuche mit Haltezeiten
-# 180 Grad außer Phase TMF-Versuche mit Haltezeiten bei Obertemperatur.
-#
-# 13. Oktober 2008
-# Werte wie 27.August, ausser:
-# Lebensdauer-Parameter >= 600 Grad
+
 
 ***integration
 #runge_kutta dSigdEps
@@ -34,144 +16,17 @@ tolI 1.000e-6
 tolCut 0.5d0
 
 ***material
-#temp0 293.15
-temp0  973.15
-
-
-# RT, 19.85°C:
-temp 293.00
-young 166900.
-nu 0.29036
-bk 100.
-sn 8.5
-sk 305.
-bq 0.
-sb 3000.
-sf 3.e-6
-sq 1.
-sa1 110.
-sc1 3200.
-sa2 65.
-sc2 125.
-sd1 0.
-sm1 30.
-sd2 0.
-sm2 30.
-ba_life 347.
-sm_life 1.1
-sn_life 1.
-p0_life 1.e-3
-alpha_th 1.17611e-5
-
-# RT, 20°C:
-temp 293.00
-young 166900.
-nu 0.29036
-bk 100.
-sn 8.5
-sk 305.
-bq 0.
-sb 3000.
-sf 3.e-6
-sq 1.
-sa1 110.
-sc1 3200.
-sa2 65.
-sc2 125.
-sd1 0.
-sm1 30.
-sd2 0.
-sm2 30.
-ba_life 347.
-sm_life 1.1
-sn_life 1.
-p0_life 1.e-3
-alpha_th 1.17611e-5
-
-# temp 300.°C:
-temp 573.15
-young 155870.
-nu 0.2939
-bk 100.
-sn 8.5
-sk 250.
-bq 0.
-sb 3000.
-sf 3.e-6
-sq 1.
-sa1 112.
-sc1 3100.
-sa2 310.
-sc2 30.
-sd1 1.e-2
-sm1 30.
-sd2 1.e-2
-sm2 30.
-ba_life 101.
-sm_life 1.12
-sn_life 0.81
-p0_life 1.e-3
-alpha_th 1.244095e-5
-
-# temp 400.°C:
-temp 673.15
-young 151350.
-nu 0.297
-bk 140.
-sn 8.5
-sk 135.
-bq 25.
-sb 3000.
-sf 3.e-6
-sq 1.
-sa1 152.
-sc1 4200.
-sa2 250.
-sc2 50.
-sd1 1.e-6
-sm1 12.
-sd2 0.2
-sm2 5.2
-ba_life 110.
-sm_life 2.3
-sn_life 1.
-p0_life 1.e-3
-alpha_th 1.26875e-5
-
-# temp 500.°C:
-temp 773.15
-young 145600.
-nu 0.301
-bk 580.
-sn 6.5
-sk 0.
-bq 30.
-sb 3000.
-sf 3.e-6
-sq 0.8
-sa1 111.
-sc1 3300.
-sa2 235.
-sc2 15.
-sd1 5.e-4
-sm1 10.
-sd2 0.1
-sm2 1.4
-ba_life 460.
-sm_life 1.1
-sn_life 0.64
-p0_life 1.e-3
-alpha_th 1.29696e-5
+temp0 293.15
 
 # temp 600.°C:
 temp 873.15
-young 131490.
-nu 0.3061
-bk 550.
+young 130000.
+nu 0.3
+bk 520.
 sn 5.
 sk 0.
 bq 0.
-sb 3000.
+sb 2500.
 sf 3.e-6
 sq 0.8
 sa1 25.
@@ -181,59 +36,59 @@ sc2 60.
 sd1 1.e-3
 sm1 9.5
 sd2 0.3
-sm2 3.2
-ba_life 179.
+sm2 3.
+ba_life 180.
 sm_life 1.8
-sn_life 0.19
+sn_life 0.2
 p0_life 1.e-3
-alpha_th 1.32517e-5
+alpha_th 0.
 
 # temp 700.°C:
 temp 973.15
-young 110100.
-nu 0.3122
-bk 350.
+young 110000.
+nu 0.31
+bk 320.
 sn 4.
 sk 0.
 bq 0.
-sb 3000.
+sb 2500.
 sf 3.e-6
 sq 0.8
 sa1 10.
 sc1 3300.
 sa2 80.
-sc2 45.
+sc2 50.
 sd1 2.e-3
 sm1 9.
 sd2 0.4
 sm2 3.5
-ba_life 85.3
+ba_life 85.
 sm_life 1.7
-sn_life 0.16
+sn_life 0.2
 p0_life 1.e-3
-alpha_th 1.34679e-5
+alpha_th 0.
 
 # temp 800.°C:
 temp 1073.15
-young 78530.
-nu 0.3195
+young 80000.
+nu 0.32
 bk 220.
 sn 3.5
 sk 0.
 bq 0.
-sb 3000.
+sb 2500.
 sf 3.e-6
 sq 0.8
 sa1 9.
 sc1 3000.
-sa2 44.
+sa2 45.
 sc2 75.
 sd1 0.3
 sm1 6.
 sd2 0.5
-sm2 3.1
-ba_life 44.3
+sm2 3.
+ba_life 45
 sm_life 2.
-sn_life 0.07
+sn_life 0.1
 p0_life 1.e-3
-alpha_th 1.36841e-5
+alpha_th 0.

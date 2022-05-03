@@ -165,3 +165,24 @@ def set_q(q, values):
     v.add_local(values.flat)
     v.apply("insert")
 
+
+"""
+.. _target-orient:
+
+Reading orientations from Abaqus input file(s)
+----------------------------------------------
+
++ Create an orientation class (for example class `ori`) ``ori = OrientationFromAbaqus()``.
+
++ Read the Abaqus input file(s) in the created class ``ori.read_orientations_from("AbaqusInputFile.inp")``.
+
++ If the Abaqus options \*ORIENTATION and \*SOLID SECTION are in different input files, then the call 
+  must be performed for each of these files ``ori.read_orientations_from("AbaqusInputFileContainingOrientations.inp")`` and ``ori.read_orientations_from("AbaqusInputFileContainingSolidSections.inp")``.
+
++ Call ``ori.isComplete()`` to ensure that the computation from \*ORIANTATION to Euler 
+  angles has been internally done within the `ori` class. The computation cannot be carried out if the 
+  input data are incomplete.
+
++ Access the Euler angles via the dictionary ``ori.orientation_data_Euler``, which provides 
+  `np.array([phi, theta, rho])` in degrees for a given solid section name.
+"""

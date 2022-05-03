@@ -1,0 +1,102 @@
+Newton iteration 0: r (abs) = 0.000e+00 (tol = 1.000e-10) r (rel) = -nan (tol = 1.000e-09)
+Newton solver finished in 0 iterations and 0 linear solver iterations.
+time step 0.000  finished
+Newton iteration 0: r (abs) = 2.945e-02 (tol = 1.000e-10) r (rel) = 1.000e+00 (tol = 1.000e-09)
+Newton iteration 1: r (abs) = 7.260e-08 (tol = 1.000e-10) r (rel) = 2.465e-06 (tol = 1.000e-09)
+Newton iteration 2: r (abs) = 6.458e-14 (tol = 1.000e-10) r (rel) = 2.193e-12 (tol = 1.000e-09)
+Newton solver finished in 2 iterations and 209 linear solver iterations.
+time step 0.200  finished
+Newton iteration 0: r (abs) = 2.290e-07 (tol = 1.000e-10) r (rel) = 1.000e+00 (tol = 1.000e-09)
+Newton iteration 1: r (abs) = 7.490e-13 (tol = 1.000e-10) r (rel) = 3.270e-06 (tol = 1.000e-09)
+Newton solver finished in 1 iterations and 102 linear solver iterations.
+time step 0.400  finished
+Newton iteration 0: r (abs) = 1.784e-05 (tol = 1.000e-10) r (rel) = 1.000e+00 (tol = 1.000e-09)
+Newton iteration 1: r (abs) = 5.338e-09 (tol = 1.000e-10) r (rel) = 2.993e-04 (tol = 1.000e-09)
+Newton iteration 2: r (abs) = 1.171e-14 (tol = 1.000e-10) r (rel) = 6.563e-10 (tol = 1.000e-09)
+Newton solver finished in 2 iterations and 207 linear solver iterations.
+time step 0.700  finished
+Newton iteration 0: r (abs) = 1.148e-04 (tol = 1.000e-10) r (rel) = 1.000e+00 (tol = 1.000e-09)
+Newton iteration 1: r (abs) = 7.415e-10 (tol = 1.000e-10) r (rel) = 6.458e-06 (tol = 1.000e-09)
+Newton iteration 2: r (abs) = 2.856e-15 (tol = 1.000e-10) r (rel) = 2.488e-11 (tol = 1.000e-09)
+Newton solver finished in 2 iterations and 213 linear solver iterations.
+time step 1.000  finished
+Newton iteration 0: r (abs) = 3.254e-03 (tol = 1.000e-10) r (rel) = 1.000e+00 (tol = 1.000e-09)
+Newton iteration 1: r (abs) = 3.809e-06 (tol = 1.000e-10) r (rel) = 1.171e-03 (tol = 1.000e-09)
+Newton iteration 2: r (abs) = 7.787e-10 (tol = 1.000e-10) r (rel) = 2.393e-07 (tol = 1.000e-09)
+Newton iteration 3: r (abs) = 2.343e-13 (tol = 1.000e-10) r (rel) = 7.200e-11 (tol = 1.000e-09)
+Newton solver finished in 3 iterations and 317 linear solver iterations.
+time step 1.675  finished
+Newton iteration 0: r (abs) = 2.105e-03 (tol = 1.000e-10) r (rel) = 1.000e+00 (tol = 1.000e-09)
+Newton iteration 1: r (abs) = 1.302e-06 (tol = 1.000e-10) r (rel) = 6.185e-04 (tol = 1.000e-09)
+Newton iteration 2: r (abs) = 2.600e-10 (tol = 1.000e-10) r (rel) = 1.235e-07 (tol = 1.000e-09)
+Newton iteration 3: r (abs) = 6.934e-14 (tol = 1.000e-10) r (rel) = 3.294e-11 (tol = 1.000e-09)
+Newton solver finished in 3 iterations and 315 linear solver iterations.
+time step 2.000  finished
+Newton iteration 0: r (abs) = 3.641e-02 (tol = 1.000e-10) r (rel) = 1.000e+00 (tol = 1.000e-09)
+Newton iteration 1: r (abs) = 1.049e-03 (tol = 1.000e-10) r (rel) = 2.882e-02 (tol = 1.000e-09)
+Newton iteration 2: r (abs) = 3.022e-06 (tol = 1.000e-10) r (rel) = 8.298e-05 (tol = 1.000e-09)
+Newton iteration 3: r (abs) = 3.840e-10 (tol = 1.000e-10) r (rel) = 1.055e-08 (tol = 1.000e-09)
+Newton iteration 4: r (abs) = 1.182e-13 (tol = 1.000e-10) r (rel) = 3.245e-12 (tol = 1.000e-09)
+Newton solver finished in 4 iterations and 442 linear solver iterations.
+time step 3.000  finished
+Newton iteration 0: r (abs) = 6.558e-02 (tol = 1.000e-10) r (rel) = 1.000e+00 (tol = 1.000e-09)
+Newton iteration 1: r (abs) = 4.408e-03 (tol = 1.000e-10) r (rel) = 6.722e-02 (tol = 1.000e-09)
+Newton iteration 2: r (abs) = 2.136e-05 (tol = 1.000e-10) r (rel) = 3.256e-04 (tol = 1.000e-09)
+Newton iteration 3: r (abs) = 6.256e-09 (tol = 1.000e-10) r (rel) = 9.539e-08 (tol = 1.000e-09)
+Newton iteration 4: r (abs) = 1.753e-12 (tol = 1.000e-10) r (rel) = 2.672e-11 (tol = 1.000e-09)
+Newton solver finished in 4 iterations and 464 linear solver iterations.
+time step 4.000  finished
+Newton iteration 0: r (abs) = 9.225e-02 (tol = 1.000e-10) r (rel) = 1.000e+00 (tol = 1.000e-09)
+Newton iteration 1: r (abs) = 9.851e-03 (tol = 1.000e-10) r (rel) = 1.068e-01 (tol = 1.000e-09)
+Newton iteration 2: r (abs) = 1.051e-04 (tol = 1.000e-10) r (rel) = 1.139e-03 (tol = 1.000e-09)
+Newton iteration 3: r (abs) = 1.393e-06 (tol = 1.000e-10) r (rel) = 1.510e-05 (tol = 1.000e-09)
+Newton iteration 4: r (abs) = 7.280e-11 (tol = 1.000e-10) r (rel) = 7.891e-10 (tol = 1.000e-09)
+Newton solver finished in 4 iterations and 499 linear solver iterations.
+time step 5.000  finished
+Newton iteration 0: r (abs) = 1.188e-01 (tol = 1.000e-10) r (rel) = 1.000e+00 (tol = 1.000e-09)
+Newton iteration 1: r (abs) = 1.588e-02 (tol = 1.000e-10) r (rel) = 1.337e-01 (tol = 1.000e-09)
+Newton iteration 2: r (abs) = 2.486e-04 (tol = 1.000e-10) r (rel) = 2.092e-03 (tol = 1.000e-09)
+Newton iteration 3: r (abs) = 9.238e-07 (tol = 1.000e-10) r (rel) = 7.773e-06 (tol = 1.000e-09)
+Newton iteration 4: r (abs) = 4.091e-11 (tol = 1.000e-10) r (rel) = 3.442e-10 (tol = 1.000e-09)
+Newton solver finished in 4 iterations and 564 linear solver iterations.
+time step 6.000  finished
+Newton iteration 0: r (abs) = 1.476e-01 (tol = 1.000e-10) r (rel) = 1.000e+00 (tol = 1.000e-09)
+Newton iteration 1: r (abs) = 2.097e-02 (tol = 1.000e-10) r (rel) = 1.421e-01 (tol = 1.000e-09)
+Newton iteration 2: r (abs) = 3.782e-04 (tol = 1.000e-10) r (rel) = 2.563e-03 (tol = 1.000e-09)
+Newton iteration 3: r (abs) = 1.096e-06 (tol = 1.000e-10) r (rel) = 7.430e-06 (tol = 1.000e-09)
+Newton iteration 4: r (abs) = 4.198e-11 (tol = 1.000e-10) r (rel) = 2.845e-10 (tol = 1.000e-09)
+Newton solver finished in 4 iterations and 648 linear solver iterations.
+time step 7.000  finished
+Newton iteration 0: r (abs) = 1.767e-01 (tol = 1.000e-10) r (rel) = 1.000e+00 (tol = 1.000e-09)
+Newton iteration 1: r (abs) = 2.440e-02 (tol = 1.000e-10) r (rel) = 1.381e-01 (tol = 1.000e-09)
+Newton iteration 2: r (abs) = 4.414e-04 (tol = 1.000e-10) r (rel) = 2.498e-03 (tol = 1.000e-09)
+Newton iteration 3: r (abs) = 6.575e-07 (tol = 1.000e-10) r (rel) = 3.721e-06 (tol = 1.000e-09)
+Newton iteration 4: r (abs) = 2.150e-11 (tol = 1.000e-10) r (rel) = 1.217e-10 (tol = 1.000e-09)
+Newton solver finished in 4 iterations and 781 linear solver iterations.
+time step 8.000  finished
+Newton iteration 0: r (abs) = 2.013e-01 (tol = 1.000e-10) r (rel) = 1.000e+00 (tol = 1.000e-09)
+Newton iteration 1: r (abs) = 2.633e-02 (tol = 1.000e-10) r (rel) = 1.308e-01 (tol = 1.000e-09)
+Traceback (most recent call last):
+  File "test_umat_grains_3D.py", line 278, in <module>
+    converged = solver.solve(problem, problem.u.vector())
+RuntimeError: 
+
+*** -------------------------------------------------------------------------
+*** DOLFIN encountered an error. If you are not able to resolve this issue
+*** using the information listed below, you can ask for help at
+***
+***     fenics-support@googlegroups.com
+***
+*** Remember to include the error message listed below and, if possible,
+*** include a *minimal* running example to reproduce the error.
+***
+*** -------------------------------------------------------------------------
+*** Error:   Unable to solve linear system using PETSc Krylov solver.
+*** Reason:  Solution failed to converge in 4 iterations (PETSc reason DIVERGED_INDEFINITE_PC, residual norm ||r|| = 7.548591e-05).
+*** Where:   This error was encountered inside PETScKrylovSolver.cpp.
+*** Process: 0
+*** 
+*** DOLFIN version: 2019.1.0
+*** Git changeset:  77c758717da1cb8017bf95109363bb1a91a4f8e5
+*** -------------------------------------------------------------------------
+

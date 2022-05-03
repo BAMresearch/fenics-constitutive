@@ -1,0 +1,35 @@
+% material parameters for SDCRCRY model
+% Kupfer - 550°C - aus <111>-Anpassung
+
+***integration
+#runge_kutta elastic 
+#hminRk 1.000e-12 
+#tolRk 1.000e-6 
+#hstartRk 1.000e-0
+implicit analytic
+tolI 1.000e-6 
+tolCut 0.1d0
+
+***material
+alphap  0.0 
+theta   0.0 
+rho     0.0 
+c11   148454
+c12   111883
+c44   61618
+
+% octahedral systems
+bk_oct   8.00+01
+sn_oct   4.00e+00
+r0_oct   5.0e-01
+sq_oct   2.5e+01
+sb_oct   4.e+00
+
+% interaction matrix
+h1   1.0
+h2   0.0
+h3   0.0  
+h4   0.0
+
+alpha_th 0.0
+

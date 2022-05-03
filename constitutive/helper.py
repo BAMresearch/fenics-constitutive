@@ -186,29 +186,27 @@ def spaces(mesh, deg_q, qdim):
 
 
 """
-Read orientations from Abaqus *.inp file(s)
+.. _target-orient:
 
-1. create orientation class:
-   ori = OrientationFromAbaqus()
+Reading orientations from Abaqus input file(s)
+----------------------------------------------
 
-2. read Abaqus *.inp files
-   ori.read_orientations_from("AbaqusInputFile.inp")
++ Create an orientation class (for example class `ori`) ``ori = OrientationFromAbaqus()``.
 
-3. If *ORIENTATION & *SOLID SECTION are in different *.inp files, then the call
-   must be performed for each file
-   ori.read_orientations_from("AbaqusInputFileContainingOrientations.inp")
-   ori.read_orientations_from("AbaqusInputFileContainingSolidSections.inp")
++ Read the Abaqus input file(s) in the created class ``ori.read_orientations_from("AbaqusInputFile.inp")``.
 
-4. Call:
-   ori.isComplete()
-   to ensure that recalculation from *ORIANTATION to Euler angles has been done
++ If the Abaqus options \*ORIENTATION and \*SOLID SECTION are in different input files, then the call 
+  must be performed for each of these files ``ori.read_orientations_from("AbaqusInputFileContainingOrientations.inp")`` and ``ori.read_orientations_from("AbaqusInputFileContainingSolidSections.inp")``.
 
-5. Access the Euler angles via the dictionary:
-   ori.orientation_data_Euler
-   which for a given solid section name
-   provides np.array([phi, theta, rho]) in degrees
++ Call ``ori.isComplete()`` to ensure that the computation from \*ORIANTATION to Euler 
+  angles has been internally done within the `ori` class. The computation cannot be carried out if the 
+  input data are incomplete.
+
++ Access the Euler angles via the dictionary ``ori.orientation_data_Euler``, which provides 
+  `np.array([phi, theta, rho])` in degrees for a given solid section name.
 
 """
+
 import os.path
 import sys
 
@@ -222,7 +220,7 @@ class OrientationFromAbaqus:
         # Reads Abaqus orientations from an inp file, which contains
         # *ORIENT and/or *SOLID SECTION
         # if *ORIENT and *SOLID SECTION are in different files,
-        # the function must be calles sequentially
+        # the function must be called sequentially
         if not os.path.isfile(filename):
             print("**ERROR: file with orientations ", filename, " was not found.")
             raise Exception()
