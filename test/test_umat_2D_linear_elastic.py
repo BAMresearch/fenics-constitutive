@@ -1,7 +1,6 @@
 import unittest
 from fenics import *
 from mshr import *
-import matplotlib.pyplot as plt
 import numpy as np
 import constitutive as c
 
@@ -18,9 +17,6 @@ class TestUniaxial(unittest.TestCase):
             f.read(mesh)
 
         LsizeY = mesh.coordinates()[:,:].max()
-
-        # plot(mesh)
-        # plt.show()
 
         # ===== Define Boundaries =====
 
