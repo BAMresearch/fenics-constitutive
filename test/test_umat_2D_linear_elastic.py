@@ -5,13 +5,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 import constitutive as c
 
+from pathlib import Path
+
 set_log_active(False)
 
 class TestUniaxial(unittest.TestCase):
     def test_2d_notch(self):
         # ===== CREATE MESH =====
         mesh = Mesh()
-        with XDMFFile("mesh2D.xdmf") as f:
+        mesh_path = Path(__file__).absolute().parent / "umat" / "mesh2D.xdmf"
+        with XDMFFile(str(mesh_path)) as f:
             f.read(mesh)
 
         LsizeY = mesh.coordinates()[:,:].max()

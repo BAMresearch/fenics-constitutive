@@ -118,17 +118,17 @@ PYBIND11_MODULE(cpp, m)
     normVM.def(pybind11::init<Constraint>());
     normVM.def("__call__", &NormVM::Call);
     normVM.def_readonly("P", &NormVM::_P);
-    
+
     pybind11::class_<RateIndependentHistory> RateIndependentHistory(m, "RateIndependentHistory");
     RateIndependentHistory.def(pybind11::init<>());
     RateIndependentHistory.def("__call__", &RateIndependentHistory::Call);
-//     RateIndependentHistory.def_readonly("P", &RateIndependentHistory::_p);
+    //     RateIndependentHistory.def_readonly("P", &RateIndependentHistory::_p);
 
     /*************************************************************************
      **   UMAT
      *************************************************************************/
     pybind11::class_<Umat, std::shared_ptr<Umat>, MechanicsLaw> umat(m, "Umat");
     umat.def(pybind11::init<char*, Constraint, const std::vector<double>*>(), py::arg("cmname"), py::arg("constraint"),
-	     py::arg("EulerAngles") = std::vector<double>());
+             py::arg("EulerAngles") = std::vector<double>());
     umat.def("q_statev", &Umat::statev);
 }
