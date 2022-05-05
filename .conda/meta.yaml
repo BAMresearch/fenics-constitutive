@@ -12,8 +12,11 @@ source:
 
 build:
   number: 0
-  skip: true   # [py2k]
-  script: {{ PYTHON }} -m pip install . -vv
+  skip: true  # [py2k]
+  skip: true  # [py<37]
+  skip: true  # [win or osx]
+  script: 
+    - {{ PYTHON }} -m pip install . --no-deps --ignore-installed -vvv
 
 requirements:
   build:
@@ -22,15 +25,16 @@ requirements:
   host:
     - pip
     - python
-    - cmake >=3.5
+    - setuptools
+    - cmake >=3.21
     - eigen
     - pybind11
 
   run:
     - python
-    - numpy >=1.9
-    - fenics=2019.1.0
-    - mshr=2019.1.0
+    - numpy
+    - fenics >=2019.1.0
+    - mshr >=2019.1.0
     - matplotlib  
     - fenics_helpers
 
@@ -40,10 +44,8 @@ test:
     - dolfin
   source_files:
     - test
-  requires:
-    - pytest
   commands:
-    - pytest test
+    - python -m unittest discover -v -s test
 
 about:
   home: https://github.com/BAMresearch/fenics-constitutive

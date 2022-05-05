@@ -26,5 +26,5 @@ jobs:
         run: |
           conda install conda-build anaconda-client conda-verify
           conda config --set anaconda_upload yes
-          cd $GITHUB_WORKSPACE/.conda
-          conda build --token "$ANACONDA_TOKEN" .
+          cd $GITHUB_WORKSPACE
+          conda build --token "$ANACONDA_TOKEN" .conda -m .conda/conda_build_config.yaml
