@@ -3,6 +3,7 @@ website
 .doit.*
 
 *build*
+!conda_build_config.yaml
 
 cpp.*.so
 *.egg-info/
