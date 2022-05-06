@@ -45,7 +45,9 @@ class TestUniaxial(unittest.TestCase):
         prm.deg_d = 1
         prm.deg_q = 1
 
-        law = c.Umat("UMAT",constraint_type,np.array([1e6,0.3,0.]))
+        abaqus = c.AbaqusInterface()
+
+        law = c.Umat(abaqus, "UMAT",constraint_type,np.array([1e6,0.3,0.]))
         #law = c.LinearElastic(1e6, 0.3, constraint_type)
 
         problem = c.MechanicsProblem(mesh, prm, law)

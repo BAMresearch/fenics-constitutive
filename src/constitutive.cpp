@@ -127,8 +127,13 @@ PYBIND11_MODULE(cpp, m)
     /*************************************************************************
      **   UMAT
      *************************************************************************/
+    pybind11::class_<AbaqusInterface, std::shared_ptr<AbaqusInterface>> abaqus(m, "AbaqusInterface");
+    abaqus.def(pybind11::init<>());
+
+
     pybind11::class_<Umat, std::shared_ptr<Umat>, MechanicsLaw> umat(m, "Umat");
-    umat.def(pybind11::init<char*, Constraint, const std::vector<double>*>(), py::arg("cmname"), py::arg("constraint"),
+    umat.def(pybind11::init<std::shared_ptr<AbaqusInterface>, char*, Constraint, const std::vector<double>*>(),
+             py::arg("abaqus_interface"), py::arg("cmname"), py::arg("constraint"),
              py::arg("EulerAngles") = std::vector<double>());
     umat.def("q_statev", &Umat::statev);
 }

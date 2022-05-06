@@ -3,7 +3,7 @@
 
 //#include <iostream>
 #include <fstream>
-//#include <string.h>
+#include <string.h>
 //#include <vector>
 using namespace std;
 
@@ -13,6 +13,24 @@ namespace constants
 const int ntens = 6;
 const int dim = 3;
 } // namespace constants
+
+struct AbaqusInterface
+{
+    virtual std::string Name()
+    {
+        return "";
+    };
+    virtual void param(char[], bool*, int){};
+    virtual int NumberStatev()
+    {
+        return 0;
+    };
+    virtual void eval(double[], double[], double (*ddsdde)[constants::ntens], double*, double*, double*, double*,
+                      double[], double[], double*, double[], double[], double[], double*, double*, double*, double*,
+                      double*, char[], int*, int*, int*, int*, double[], int*, double[constants::dim],
+                      double (*drot)[constants::dim], double*, double*, double (*dfgrd0)[constants::dim],
+                      double (*dfgrd1)[constants::dim], int*, int*, int*, int*, int*, int*, int){};
+};
 
 extern "C"
 {
@@ -46,7 +64,8 @@ extern "C"
 class Umat : public MechanicsLaw
 {
 public:
-    Umat(char cmname[], Constraint c, const std::vector<double>* EulerAngles = 0)
+    Umat(std::shared_ptr<AbaqusInterface> abaqus, char cmname[], Constraint c,
+         const std::vector<double>* EulerAngles = 0)
         : MechanicsLaw(c)
         , _C(C(1., 0., c))
         , _stranPrev(Dim::Q(c))
