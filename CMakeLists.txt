@@ -19,10 +19,10 @@ pybind11_add_module(cpp src/constitutive.cpp)
 #target_link_libraries(cpp PRIVATE pybind11::module Eigen3::Eigen labtoolsLib)
 
 # example of a umat compiled by gfortran
-add_library(umatLib STATIC src/umat_linear_elastic.f)
+add_library(umat SHARED src/umat_linear_elastic.f)
 set(CMAKE_Fortran_FLAGS  "${CMAKE_Fortran_FLAGS} -fPIC -lgfortran")
 #target_link_libraries(cpp PRIVATE umatLib)
-target_link_libraries(cpp PRIVATE pybind11::module Eigen3::Eigen umatLib)
+target_link_libraries(cpp PRIVATE pybind11::module Eigen3::Eigen umat)
 
 #add_library(umatLib STATIC IMPORTED)
 #set_target_properties(umatLib PROPERTIES IMPORTED_LOCATION /home/zit.bam.de/vkindrac/fenics-constitutive/src/umat_linear_elastic.a)
