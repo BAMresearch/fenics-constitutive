@@ -68,7 +68,7 @@ class TestUniaxial(unittest.TestCase):
         prm.deg_d = 1
         prm.deg_q = 1
 
-        law = c.Umat("SDCHABOX",constraint_type)
+        law = c.Umat(constraint_type, "SDCHABOX", "/home/ttitsche/Tools/labtools/lib/libumat.so",29 , "kusdchabox_", "param0_sdchabox_")
         #law = c.LinearElastic(1e9, 0.3, constraint_type)
         
         problem = c.MechanicsProblem(mesh, prm, law)
@@ -232,7 +232,7 @@ class TestUniaxial(unittest.TestCase):
         prm.deg_d = 2
         prm.deg_q = 2
 
-        law = c.Umat("SDCHABOX",constraint_type)
+        law = c.Umat(constraint_type, "SDCHABOX", "/home/ttitsche/Tools/labtools/lib/libumat.so",29 , "kusdchabox_", "param0_sdchabox_")
         #law = c.LinearElastic(1e6, 0.3, constraint_type)
 
         problem = c.MechanicsProblem(mesh, prm, law)

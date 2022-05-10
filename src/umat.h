@@ -84,6 +84,10 @@ public:
             // std::cout << (*EulerAngles).at(0) << std::endl;
         }
 
+        if (access(libName.c_str(), F_OK) == -1)
+        {
+            throw std::runtime_error("Library at " + libName + " does not exist!");
+        }
         // load a shared fortran library
         _libHandle = dlopen(libName.c_str(), RTLD_LAZY);
         if (!_libHandle)
