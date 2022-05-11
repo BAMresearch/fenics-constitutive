@@ -48,6 +48,50 @@ typedef void (*t_Eval)(double[], double[], double (*ddsdde)[constants::ntens], d
 //           double*, double*, double (*dfgrd0)[constants::dim], double (*dfgrd1)[constants::dim], int*, int*, int*,
 //           int*, int*, int*, int);
 //}
+//
+
+class LibHandle
+{
+public:
+    LibHandle(std::string libName)
+        : _libName(libName)
+    {
+        if (access(libName.c_str(), F_OK) == -1)
+        {
+            throw std::runtime_error("Library at " + libName + " does not exist!");
+        }
+        // load a shared fortran library
+        _libHandle = dlopen(libName.c_str(), RTLD_LAZY);
+        if (!_libHandle)
+        {
+            std::cerr << dlerror() << std::endl;
+            dlclose(_libHandle);
+            throw std::runtime_error("Cannot load library " + libName + "!");
+        }
+    }
+
+    template <typename T>
+    T Load(std::string name)
+    {
+        T f = (T)dlsym(_libHandle, name.c_str());
+        if (!f)
+        {
+            std::cerr << dlerror() << std::endl;
+            throw std::runtime_error("Cannot load function " + name + " from " + _libName + "!");
+        }
+        return f;
+    }
+
+    ~LibHandle()
+    {
+        dlclose(_libHandle);
+    }
+
+private:
+    void* _libHandle;
+    std::string _libName;
+};
+
 
 class Umat : public MechanicsLaw
 {
@@ -60,6 +104,7 @@ public:
         , _stressPrev(Dim::Q(c))
         , _cmname(cmname)
         , _nstatv(nstatv)
+        , _libHandle(libName)
     {
         bool initMat = true;
 
@@ -84,36 +129,12 @@ public:
             // std::cout << (*EulerAngles).at(0) << std::endl;
         }
 
-        if (access(libName.c_str(), F_OK) == -1)
-        {
-            throw std::runtime_error("Library at " + libName + " does not exist!");
-        }
-        // load a shared fortran library
-        _libHandle = dlopen(libName.c_str(), RTLD_LAZY);
-        if (!_libHandle)
-        {
-            std::cerr << dlerror() << std::endl;
-            throw std::runtime_error("Cannot load library " + libName + "!");
-        }
-
-        _f_eval = (t_Eval)dlsym(_libHandle, fEval.c_str());
-        if (!_f_eval)
-        {
-            std::cerr << dlerror() << std::endl;
-            throw std::runtime_error("Cannot load function " + fEval + " from " + libName + "!");
-        }
+        _f_eval = _libHandle.Load<t_Eval>(fEval);
 
         if (fParam != "")
         {
-            _f_param = (t_Param)dlsym(_libHandle, fParam.c_str());
-            if (!_f_param)
-            {
-                std::cerr << dlerror() << std::endl;
-                throw std::runtime_error("Cannot load function " + fParam + " from " + libName + "!");
-            }
-            char n[_cmname.length() + 1];
-            strcpy(n, _cmname.c_str());
-            _f_param(n, &initMat, strlen(n));
+            _f_param = _libHandle.Load<t_Param>(fParam);
+            _f_param(&_cmname[0], &initMat, _cmname.length());
         }
 
         // not all constraints are implemented
@@ -130,30 +151,7 @@ public:
             throw std::exception();
         }
     }
-    // int getNumberStatev()
-    //{
-    //    if (_cmname == "SDCHABOX")
-    //    {
-    //        return 29;
-    //    }
-    //    else if (_cmname == "SDGDP")
-    //    {
-    //        return 45;
-    //    }
-    //    else if (_cmname == "SDCRCRY")
-    //    {
-    //        return 37;
-    //    }
-    //    else if (_cmname == "UMAT")
-    //    {
-    //        return 0;
-    //    }
-    //    else
-    //    {
-    //        std::cout << "ERROR at getNumberStatev: Unknown UMAT " << _cmname << std::endl;
-    //        throw std::exception();
-    //    }
-    //    }
+
     void Resize(int n) override
     {
         _statevPrev.Resize(n);
@@ -397,7 +395,7 @@ private:
     // orientation, optional
     std::vector<double> _EulerAngles;
 
-    void* _libHandle;
+    LibHandle _libHandle;
     t_Eval _f_eval;
     t_Param _f_param;
 };
