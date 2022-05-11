@@ -5,8 +5,10 @@ from mshr import *
 import matplotlib.pyplot as plt
 import numpy as np
 import constitutive as c
+from pathlib import Path
 
 set_log_active(False)
+
 
 def get_ip_flags(mesh, prm, mesh_function):
     # generic quadrature function spaces
@@ -22,6 +24,7 @@ def get_ip_flags(mesh, prm, mesh_function):
 
     return ip_flags
 
+
 class TestUniaxial(unittest.TestCase):
     def test_3d_small_grains(self):
         # ===== READ ABAQUS INPUT FILE(S) =====
@@ -32,7 +35,7 @@ class TestUniaxial(unittest.TestCase):
         # it(they) must be omitted;
         # provide this (these) set name(s) or use 'None' instead:
         # ElSetAllElements = ['None']
-        ElSetAllElements = ['Eall']
+        ElSetAllElements = ["Eall"]
 
         # get nodes
         pointsAba = meshAba.points
@@ -48,12 +51,12 @@ class TestUniaxial(unittest.TestCase):
 
         editor = MeshEditor()
         tdim = gdim = 3
-        editor.open(mesh, 'tetrahedron', tdim, gdim)
-        
+        editor.open(mesh, "tetrahedron", tdim, gdim)
+
         editor.init_vertices(pointsAba.shape[0])
         vertex = 0
         for node in pointsAba:
-            editor.add_vertex(vertex,node)
+            editor.add_vertex(vertex, node)
             vertex += 1
 
         editor.init_cells(elementsAba.shape[0])
@@ -68,29 +71,29 @@ class TestUniaxial(unittest.TestCase):
         # plt.show()
 
         # introduce the grains into the mesh
-        cell_domains = MeshFunction('size_t', mesh, mesh.topology().dim())
+        cell_domains = MeshFunction("size_t", mesh, mesh.topology().dim())
         cell_domains.set_all(0)
 
         grainID = 1
         for instance in cell_setsAba:
             cellIDs = cell_setsAba[instance][elType]
-            if (instance in ElSetAllElements):
+            if instance in ElSetAllElements:
                 continue
-    
+
             for cellID in cellIDs:
                 cell_domains[cellID] = grainID
 
             grainID += 1
 
-        LminSizeZ = mesh.coordinates()[:,2].min()
-        LmaxSizeZ = mesh.coordinates()[:,2].max()
-        LmaxSizeX = mesh.coordinates()[:,0].max()
+        LminSizeZ = mesh.coordinates()[:, 2].min()
+        LmaxSizeZ = mesh.coordinates()[:, 2].max()
+        LmaxSizeX = mesh.coordinates()[:, 0].max()
 
         # print(dir(cell_domains))
         # print(cell_domains.array())
         # print(mesh.cells())
         # print(cell_setsAba)
-        
+
         # ===== read grain orientations =====
         ori = c.helper.OrientationFromAbaqus()
         ori.read_orientations_from("64_orientations.inp")
@@ -98,13 +101,16 @@ class TestUniaxial(unittest.TestCase):
 
         # check whether each grain (solid section) has a
         # model to be assigned
-        if (ori.isComplete()):
+        if ori.isComplete():
             for instance in cell_setsAba:
                 if (instance in ori.solid_section_data.keys(), ElSetAllElements):
                     continue
                 else:
-                    print("ERROR: any material law and orientation can be",
-                    " assigned to the solid section ", instance)
+                    print(
+                        "ERROR: any material law and orientation can be",
+                        " assigned to the solid section ",
+                        instance,
+                    )
                     exit()
         else:
             print("ERROR: computation of Euler angles was not complete.")
@@ -113,7 +119,7 @@ class TestUniaxial(unittest.TestCase):
         # ===== UMAT constitutive law =====
         constraint_type = c.Constraint.FULL
         prm = c.Parameters(constraint_type)
-        prm.deg_d = 1   # if not given, quadrature order prm.deg_q = 2
+        prm.deg_d = 1  # if not given, quadrature order prm.deg_q = 2
 
         # get the array of all ips, with a marker from cell_domains
         ip_flags = get_ip_flags(mesh, prm, cell_domains)
@@ -122,7 +128,7 @@ class TestUniaxial(unittest.TestCase):
         iploop = c.IpLoop()
         grainID = 1
         for instance in cell_setsAba:
-            if (instance in ElSetAllElements):
+            if instance in ElSetAllElements:
                 continue
             law_name = ori.solid_section_data[instance][0]
             grain_orientation = ori.solid_section_data[instance][1]
@@ -130,7 +136,19 @@ class TestUniaxial(unittest.TestCase):
 
             # create law and add to iploop, with the ids of ips, where the
             # law holds
-            law = c.Umat(law_name, constraint_type, euler_angles)
+
+            law = c.Umat(
+                constraint_type,
+                "SDCRCRY",
+                str(Path.home() / "Tools" / "labtools-fenics" / "lib" / "libumat.so"),
+                37,
+                "kusdcrcry_",
+                "param0_sdcrcry_",
+                euler_angles,
+            )
+            # law = c.LinearElastic(1e6, 0.3, constraint_type)
+
+            # law = c.Umat(law_name, constraint_type, euler_angles)
             iploop.add_law(law, np.where(ip_flags == grainID)[0])
 
             grainID += 1
@@ -139,37 +157,41 @@ class TestUniaxial(unittest.TestCase):
         problem = c.MechanicsProblem(mesh, prm, law, iploop)
 
         # ===== Define Boundaries =====
-        V = VectorFunctionSpace(mesh, 'CG', 1)
-            
+        V = VectorFunctionSpace(mesh, "CG", 1)
+
         def top(x, on_boundary):
             tol = 1e-14
-            return (x[2] >  LmaxSizeZ - tol) and on_boundary
-            
+            return (x[2] > LmaxSizeZ - tol) and on_boundary
+
         def bottom(x, on_boundary):
             tol = 1e-14
             return x[2] < LminSizeZ + tol and on_boundary
-            
+
         def origin(x, on_boundary):
             # vertex at the origin
             tol = 1e-14
             return x[0] < tol and x[1] < tol and x[2] < LminSizeZ + tol
-        
+
         def pointX(x, on_boundary):
             # vertex on the edge along the x-axis
             tol = 1e-14
             return (x[0] > LmaxSizeX - tol) and x[1] < tol and x[2] < LminSizeZ + tol
-            
+
         # ===== Dirichlet BC =====
-        load     = Expression("topDisplacement", topDisplacement=0.,degree = 1)
-        bcLoad   = DirichletBC(problem.Vd.sub(2),load, top)
-        bcBottom = DirichletBC(problem.Vd.sub(2), Constant(0.), bottom)
-        bcOrigin = DirichletBC(problem.Vd, Constant((0.,0.,0.)), origin, method='pointwise')
-        bcPointX = DirichletBC(problem.Vd.sub(1), Constant(0.), pointX, method='pointwise')
-        
-        bcs =[bcBottom, bcLoad, bcOrigin, bcPointX]
-        
+        load = Expression("topDisplacement", topDisplacement=0.0, degree=1)
+        bcLoad = DirichletBC(problem.Vd.sub(2), load, top)
+        bcBottom = DirichletBC(problem.Vd.sub(2), Constant(0.0), bottom)
+        bcOrigin = DirichletBC(
+            problem.Vd, Constant((0.0, 0.0, 0.0)), origin, method="pointwise"
+        )
+        bcPointX = DirichletBC(
+            problem.Vd.sub(1), Constant(0.0), pointX, method="pointwise"
+        )
+
+        bcs = [bcBottom, bcLoad, bcOrigin, bcPointX]
+
         problem.set_bcs(bcs)
-        
+
         # ===== Output =====
         ld = c.helper.LoadDisplacementCurve(bcLoad)
         # ld.show()
@@ -181,66 +203,68 @@ class TestUniaxial(unittest.TestCase):
 
         # ===== adjust solver =====
         linear_solver = LUSolver("mumps")
-        solver = NewtonSolver(
-            MPI.comm_world, linear_solver, PETScFactory.instance())
+        solver = NewtonSolver(MPI.comm_world, linear_solver, PETScFactory.instance())
         solver.parameters["linear_solver"] = "mumps"
         solver.parameters["maximum_iterations"] = 10
         solver.parameters["error_on_nonconvergence"] = False
 
         # ===== solve over the time =====
         # Step in time
-        t  = 0.0
-        t_old = -1.e-12
-        dt = 1.e-03
-        T  = 20*dt
-        loadRate = 0.01*(LmaxSizeZ - LminSizeZ)/T     # 1% within interval [0;T]
-        
+        t = 0.0
+        t_old = -1.0e-12
+        dt = 1.0e-03
+        T = 20 * dt
+        loadRate = 0.01 * (LmaxSizeZ - LminSizeZ) / T  # 1% within interval [0;T]
+
         V0 = FunctionSpace(mesh, "DG", 0)  # vizualization of stress
 
-        while (t < T + 1e-14):
-            load.topDisplacement = loadRate*t
+        while t < T + 1e-14:
+            load.topDisplacement = loadRate * t
 
-            problem.iploop.updateTime(t_old,t)
-            
+            problem.iploop.updateTime(t_old, t)
+
             converged = solver.solve(problem, problem.u.vector())
             # assert converged
 
             problem.update()
-            
+
             # this fixes XDMF time stamps
             import locale
-            
+
             # locale.setlocale(locale.LC_NUMERIC, "en_US.UTF-8")
             # fff.write(problem.u, t)
             q_sigma_0 = project(problem.q_sigma[0], V0)
             q_sigma_0.rename("sigma_0", "sigma_0")
             # fff.write(q_sigma_0, t)
-                        
+
             ld(t, assemble(problem.R))
-            
+
             print("time step %4.3f" % t, " finished")
-            
+
             t_old = t
             t += dt
 
-        ld_array = np.asarray([ld.ts,ld.disp,ld.load])
+        ld_array = np.asarray([ld.ts, ld.disp, ld.load])
         # np.savetxt('LoadDisplCurve_3Dsmall_grains.txt',ld_array.T)
         # ld.keep()
 
         # ld_correct has been validated by Abaqus
         # Implicit analytic
-        ld_correct = np.array([
-            [0.0e+00, 0.0e+00, 0.00000000000e+00],
-            [2.0e-03, 1.0e-03, 1.07810871252e+02],
-            [4.0e-03, 2.0e-03, 1.58831473899e+02],
-            [6.0e-03, 3.0e-03, 1.72401956707e+02],
-            [8.0e-03, 4.0e-03, 1.75966754452e+02],
-            [1.0e-02, 5.0e-03, 1.77205207354e+02],
-            [1.2e-02, 6.0e-03, 1.77828994406e+02],
-            [1.4e-02, 7.0e-03, 1.78248765082e+02],
-            [1.6e-02, 8.0e-03, 1.78583151617e+02],
-            [1.8e-02, 9.0e-03, 1.78874892417e+02],
-            [2.0e-02, 1.0e-02, 1.79142674504e+02]])
+        ld_correct = np.array(
+            [
+                [0.0e00, 0.0e00, 0.00000000000e00],
+                [2.0e-03, 1.0e-03, 1.07810871252e02],
+                [4.0e-03, 2.0e-03, 1.58831473899e02],
+                [6.0e-03, 3.0e-03, 1.72401956707e02],
+                [8.0e-03, 4.0e-03, 1.75966754452e02],
+                [1.0e-02, 5.0e-03, 1.77205207354e02],
+                [1.2e-02, 6.0e-03, 1.77828994406e02],
+                [1.4e-02, 7.0e-03, 1.78248765082e02],
+                [1.6e-02, 8.0e-03, 1.78583151617e02],
+                [1.8e-02, 9.0e-03, 1.78874892417e02],
+                [2.0e-02, 1.0e-02, 1.79142674504e02],
+            ]
+        )
         # Runge-Kutta
         #        ld_correct = np.array([
         #    [0.0e+00, 0.0e+00, 0.00000000000e+00],
@@ -257,17 +281,17 @@ class TestUniaxial(unittest.TestCase):
 
         # compare the reaction forces
         for ind in np.arange(ld_correct.shape[0]):
-            self.assertAlmostEqual(np.asarray(ld.load)[2*ind], ld_correct[ind][2])
+            self.assertAlmostEqual(np.asarray(ld.load)[2 * ind], ld_correct[ind][2])
 
         # remove the fort.7 file containing the parameters of
         # UMAT simulations
         import os
-        if (os.path.isfile("fort.7")):
+
+        if os.path.isfile("fort.7"):
             os.remove("fort.7")
 
         print("test_3D_small_grains ..... OK!")
-                
+
+
 if __name__ == "__main__":
     unittest.main()
-
-

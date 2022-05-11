@@ -75,7 +75,7 @@ public:
         {
             if ((*EulerAngles).size() != 3)
             {
-                std::cout << "ERROR: Orientation needs three Euler angles in °" << std::endl;
+                std::cerr << "ERROR: Orientation needs three Euler angles in °" << std::endl;
                 throw std::exception();
             }
             // _EulerAngles = &((*EulerAngles).at(0));
@@ -92,12 +92,14 @@ public:
         _libHandle = dlopen(libName.c_str(), RTLD_LAZY);
         if (!_libHandle)
         {
+            std::cerr << dlerror() << std::endl;
             throw std::runtime_error("Cannot load library " + libName + "!");
         }
 
         _f_eval = (t_Eval)dlsym(_libHandle, fEval.c_str());
         if (!_f_eval)
         {
+            std::cerr << dlerror() << std::endl;
             throw std::runtime_error("Cannot load function " + fEval + " from " + libName + "!");
         }
 
@@ -106,9 +108,12 @@ public:
             _f_param = (t_Param)dlsym(_libHandle, fParam.c_str());
             if (!_f_param)
             {
+                std::cerr << dlerror() << std::endl;
                 throw std::runtime_error("Cannot load function " + fParam + " from " + libName + "!");
             }
-            _f_param(&_cmname[0], &initMat, _cmname.length());
+            char n[_cmname.length() + 1];
+            strcpy(n, _cmname.c_str());
+            _f_param(n, &initMat, strlen(n));
         }
 
         // not all constraints are implemented

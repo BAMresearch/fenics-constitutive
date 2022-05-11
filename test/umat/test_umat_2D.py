@@ -5,8 +5,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import constitutive as c
 from time import time
+from pathlib import Path
 
 set_log_active(False)
+
 
 class TestUniaxial(unittest.TestCase):
     def test_2d_small(self):
@@ -15,14 +17,14 @@ class TestUniaxial(unittest.TestCase):
 
         editor = MeshEditor()
         tdim = gdim = 2
-        editor.open(mesh, 'triangle', tdim, gdim)
+        editor.open(mesh, "triangle", tdim, gdim)
 
-        Lsize = 1.
-        x = [0, 0.5*Lsize, Lsize]
-        y = [0, 0.5*Lsize, Lsize]
+        Lsize = 1.0
+        x = [0, 0.5 * Lsize, Lsize]
+        y = [0, 0.5 * Lsize, Lsize]
 
-        n = 3      # number of nodes in one dimension
-        editor.init_vertices(n*n)
+        n = 3  # number of nodes in one dimension
+        editor.init_vertices(n * n)
 
         vertex = 0
         for iy in range(n):
@@ -44,7 +46,7 @@ class TestUniaxial(unittest.TestCase):
 
         # plot(mesh)
         # plt.show()
-    
+
         # ===== Define Boundaries =====
 
         # V = VectorFunctionSpace(mesh, 'CG', 1)
@@ -52,81 +54,90 @@ class TestUniaxial(unittest.TestCase):
         def top(x, on_boundary):
             tol = 1e-14
             return (x[1] > Lsize - tol) and on_boundary
-        
+
         def bottom(x, on_boundary):
             tol = 1e-14
             return x[1] < tol and on_boundary
-        
+
         def origin(x, on_boundary):
             # vertex at the origin
             tol = 1e-14
             return x[0] < tol and x[1] < tol
-        
+
         # ===== UMAT constitutive law =====
         constraint_type = c.Constraint.PLANE_STRAIN
         prm = c.Parameters(constraint_type)
         prm.deg_d = 1
         prm.deg_q = 1
 
-        law = c.Umat(constraint_type, "SDCHABOX", "/home/ttitsche/Tools/labtools/lib/libumat.so",29 , "kusdchabox_", "param0_sdchabox_")
-        #law = c.LinearElastic(1e9, 0.3, constraint_type)
-        
+        law = c.Umat(
+            constraint_type,
+            "SDCHABOX",
+            str(Path.home() / "Tools" / "labtools-fenics" / "lib" / "libumat.so"),
+            29,
+            "kusdchabox_",
+            "param0_sdchabox_",
+        ) 
+        # return
+        # law = c.LinearElastic(1e9, 0.3, constraint_type)
+
         problem = c.MechanicsProblem(mesh, prm, law)
 
         # ===== Dirichlet BC =====
-        load     = Expression("topDisplacement", topDisplacement=0.,degree = 1)
-        bcLoad   = DirichletBC(problem.Vd.sub(1),load, top)
-        bcBottom = DirichletBC(problem.Vd.sub(1), Constant(0.), bottom)
-        bcOrigin = DirichletBC(problem.Vd, Constant((0.,0.)), origin, method='pointwise')
+        load = Expression("topDisplacement", topDisplacement=0.0, degree=1)
+        bcLoad = DirichletBC(problem.Vd.sub(1), load, top)
+        bcBottom = DirichletBC(problem.Vd.sub(1), Constant(0.0), bottom)
+        bcOrigin = DirichletBC(
+            problem.Vd, Constant((0.0, 0.0)), origin, method="pointwise"
+        )
 
-        bcs =[bcBottom, bcLoad, bcOrigin]
+        bcs = [bcBottom, bcLoad, bcOrigin]
 
         problem.set_bcs(bcs)
 
         # ===== Output =====
         ld = c.helper.LoadDisplacementCurve(bcLoad)
         # ld.show()
-        
-        fff = XDMFFile('test_umat2Dsmall.xdmf')
+
+        fff = XDMFFile("test_umat2Dsmall.xdmf")
         fff.parameters["functions_share_mesh"] = True
         fff.parameters["flush_output"] = True
 
         # ===== adjust solver =====
         linear_solver = LUSolver("mumps")
-        solver = NewtonSolver(
-            MPI.comm_world, linear_solver, PETScFactory.instance())
+        solver = NewtonSolver(MPI.comm_world, linear_solver, PETScFactory.instance())
         solver.parameters["linear_solver"] = "mumps"
         solver.parameters["maximum_iterations"] = 10
         solver.parameters["error_on_nonconvergence"] = False
 
         # ===== solve over the time =====
         # Step in time
-        t  = 0.0
+        t = 0.0
         t_old = 0.0
-        dt = 2.e-03
-        T  = 10*dt
-        loadRate = 0.01*Lsize/T     # 1% within the interval [0;T]
+        dt = 2.0e-03
+        T = 10 * dt
+        loadRate = 0.01 * Lsize / T  # 1% within the interval [0;T]
 
         V0 = FunctionSpace(mesh, "DG", 0)  # vizualization of stress & statevs
         statev0 = Function(V0, name="statev0")
         statev6 = Function(V0, name="statev6")
         nq = 1
 
-        #problem.update()
+        # problem.update()
         # vtkfile = File('test_umat2Dsmall.pvd')
-        
-        while (t < T + 1e-14):
-            load.topDisplacement = loadRate*t
 
-            law.updateTime(t_old,t)
-            
+        while t < T + 1e-14:
+            load.topDisplacement = loadRate * t
+
+            law.updateTime(t_old, t)
+
             converged = solver.solve(problem, problem.u.vector())
             # assert converged
             problem.update()
-            
+
             # this fixes XDMF time stamps
             import locale
-            
+
             locale.setlocale(locale.LC_NUMERIC, "en_US.UTF-8")
             fff.write(problem.u, t)
 
@@ -142,9 +153,9 @@ class TestUniaxial(unittest.TestCase):
             q_eps_1.rename("eps_1", "eps_1")
             q_eps_2 = project(problem.q_eps[2], V0)
             q_eps_2.rename("eps_2", "eps_2")
-            statev0.vector().set_local(law.q_statev()[ :: 29][ :: nq])
-            statev6.vector().set_local(law.q_statev()[6 :: 29][ :: nq])
-           
+            statev0.vector().set_local(law.q_statev()[::29][::nq])
+            statev6.vector().set_local(law.q_statev()[6::29][::nq])
+
             fff.write(q_sigma_0, t)
             fff.write(q_sigma_1, t)
             fff.write(q_sigma_2, t)
@@ -153,33 +164,36 @@ class TestUniaxial(unittest.TestCase):
             fff.write(q_eps_2, t)
             fff.write(statev0, t)
             fff.write(statev6, t)
-            
-         #   vtkfile << (problem.u, t)
-            
+
+            #   vtkfile << (problem.u, t)
+
             ld(t, assemble(problem.R))
-            
+
             print("time step ", t, " finished")
-            
+
             t_old = t
             t += dt
-            
-        ld_array = np.asarray([ld.ts,ld.disp,ld.load])
+
+        ld_array = np.asarray([ld.ts, ld.disp, ld.load])
         # np.savetxt('LoadDisplCurve2Dsmall.txt',ld_array.T)
         # ld.keep()
 
         # ld_correct has been validated by Abaqus
-        ld_correct = np.array([
-            [0.0e+00, 0.0e+00,  0.00000000000e+00],
-            [2.0e-03, 1.5e-03,  1.19213570630e+02],
-            [4.0e-03, 3.0e-03,  2.16619858436e+02],
-            [6.0e-03, 4.5e-03,  2.78153158023e+02],
-            [8.0e-03, 6.0e-03,  3.11548774073e+02],
-            [1.0e-02, 7.5e-03,  3.29362554205e+02],
-            [1.2e-02, 9.0e-03,  3.39728667352e+02],
-            [1.4e-02, 1.05e-03, 3.46665123644e+02],
-            [1.6e-02, 1.2e-03,  3.51971992090e+02],
-            [1.8e-02, 1.35e-03, 3.56436159793e+02],
-            [2.0e-02, 1.5e-02,  3.60406088751e+02]])
+        ld_correct = np.array(
+            [
+                [0.0e00, 0.0e00, 0.00000000000e00],
+                [2.0e-03, 1.5e-03, 1.19213570630e02],
+                [4.0e-03, 3.0e-03, 2.16619858436e02],
+                [6.0e-03, 4.5e-03, 2.78153158023e02],
+                [8.0e-03, 6.0e-03, 3.11548774073e02],
+                [1.0e-02, 7.5e-03, 3.29362554205e02],
+                [1.2e-02, 9.0e-03, 3.39728667352e02],
+                [1.4e-02, 1.05e-03, 3.46665123644e02],
+                [1.6e-02, 1.2e-03, 3.51971992090e02],
+                [1.8e-02, 1.35e-03, 3.56436159793e02],
+                [2.0e-02, 1.5e-02, 3.60406088751e02],
+            ]
+        )
 
         # compare the reaction forces
         for ind in np.arange(ld_correct.shape[0]):
@@ -188,7 +202,8 @@ class TestUniaxial(unittest.TestCase):
         # remove the fort.7 file containing the parameters of
         # UMAT simulations
         import os
-        if (os.path.isfile("fort.7")):
+
+        if os.path.isfile("fort.7"):
             os.remove("fort.7")
 
         print("test_2D_small ..... OK!")
@@ -200,7 +215,7 @@ class TestUniaxial(unittest.TestCase):
         with XDMFFile("mesh2D.xdmf") as f:
             f.read(mesh)
 
-        LsizeY = mesh.coordinates()[:,:].max()
+        LsizeY = mesh.coordinates()[:, :].max()
 
         # plot(mesh)
         # plt.show()
@@ -232,19 +247,28 @@ class TestUniaxial(unittest.TestCase):
         prm.deg_d = 2
         prm.deg_q = 2
 
-        law = c.Umat(constraint_type, "SDCHABOX", "/home/ttitsche/Tools/labtools/lib/libumat.so",29 , "kusdchabox_", "param0_sdchabox_")
-        #law = c.LinearElastic(1e6, 0.3, constraint_type)
+        law = c.Umat(
+            constraint_type,
+            "SDCHABOX",
+            str(Path.home() / "Tools" / "labtools-fenics" / "lib" / "libumat.so"),
+            29,
+            "kusdchabox_",
+            "param0_sdchabox_",
+        )
+        # law = c.LinearElastic(1e6, 0.3, constraint_type)
 
         problem = c.MechanicsProblem(mesh, prm, law)
 
         # ===== Dirichlet BC =====
-        load     = Expression("topDisplacement", topDisplacement=0.,degree = 1)
-        bcLoad   = DirichletBC(problem.Vd.sub(1),load, top)
-        bcBottom = DirichletBC(problem.Vd.sub(1), Constant(0.), bottom)
-        bcOrigin = DirichletBC(problem.Vd, Constant((0.,0.)), origin, method='pointwise')
-        bcSym    = DirichletBC(problem.Vd.sub(0), Constant(0.), sym_axis)
+        load = Expression("topDisplacement", topDisplacement=0.0, degree=1)
+        bcLoad = DirichletBC(problem.Vd.sub(1), load, top)
+        bcBottom = DirichletBC(problem.Vd.sub(1), Constant(0.0), bottom)
+        bcOrigin = DirichletBC(
+            problem.Vd, Constant((0.0, 0.0)), origin, method="pointwise"
+        )
+        bcSym = DirichletBC(problem.Vd.sub(0), Constant(0.0), sym_axis)
 
-        bcs =[bcBottom, bcLoad, bcOrigin, bcSym]
+        bcs = [bcBottom, bcLoad, bcOrigin, bcSym]
 
         problem.set_bcs(bcs)
 
@@ -261,14 +285,13 @@ class TestUniaxial(unittest.TestCase):
         ld = c.helper.LoadDisplacementCurve(bcLoad)
         # ld.show()
 
-        fff = XDMFFile('test_umat2Dfile.xdmf')
+        fff = XDMFFile("test_umat2Dfile.xdmf")
         fff.parameters["functions_share_mesh"] = True
         fff.parameters["flush_output"] = True
 
         # ===== adjust solver =====
         linear_solver = LUSolver("mumps")
-        solver = NewtonSolver(
-            MPI.comm_world, linear_solver, PETScFactory.instance())
+        solver = NewtonSolver(MPI.comm_world, linear_solver, PETScFactory.instance())
         solver.parameters["linear_solver"] = "mumps"
         solver.parameters["maximum_iterations"] = 10
         solver.parameters["relative_tolerance"] = 1e-10
@@ -277,11 +300,11 @@ class TestUniaxial(unittest.TestCase):
 
         # ===== solve over the time =====
         # Step in time
-        t  = 0.0
+        t = 0.0
         t_old = 0.0
-        dt = 2.e-03
-        T  = 10*dt
-        loadRate = 0.01*LsizeY/T     # 1% within interval [0;T]
+        dt = 2.0e-03
+        T = 10 * dt
+        loadRate = 0.01 * LsizeY / T  # 1% within interval [0;T]
 
         # problem.update()
         # vtkfile = File('test_umat2Dfile.pvd')
@@ -296,7 +319,7 @@ class TestUniaxial(unittest.TestCase):
         # eps1 = Function(V0, name="e1")
         # eqs2 = Function(V0, name="e2")
 
-        nq = 3 #3 for deg_q = 2 #1 for deg_q = 1 number of integration points per cell
+        nq = 3  # 3 for deg_q = 2 #1 for deg_q = 1 number of integration points per cell
         # print(len(law.q_statev()))
         # print(type(law.q_statev()))
         # print(dir(law.q_statev()))
@@ -307,10 +330,10 @@ class TestUniaxial(unittest.TestCase):
         # print(dir(q_stress))
         # print(len(q_stress[:: nq]))
 
-        while (t < T + 1e-14):
-            load.topDisplacement = loadRate*t
+        while t < T + 1e-14:
+            load.topDisplacement = loadRate * t
 
-            law.updateTime(t_old,t)
+            law.updateTime(t_old, t)
 
             converged = solver.solve(problem, problem.u.vector())
             #    assert converged
@@ -335,15 +358,15 @@ class TestUniaxial(unittest.TestCase):
             q_eps_2 = project(problem.q_eps[2], V0)
             q_eps_2.rename("eps_2", "eps_2")
             # statev0.vector().set_local(law.q_statev()[:: 29*nq])
-            statev0.vector().set_local(law.q_statev()[ :: 29][ :: nq])
+            statev0.vector().set_local(law.q_statev()[::29][::nq])
             # statev6.vector().set_local(law.q_statev()[6 :: 29*nq])
-            statev6.vector().set_local(law.q_statev()[6 :: 29][ :: nq])
+            statev6.vector().set_local(law.q_statev()[6::29][::nq])
 
             q_stress = problem.q_sigma.vector().get_local()
             # q_eps = problem.q_eps.vector().get_local()
-            s0.vector().set_local(q_stress[  :: 3][:: nq])
-            s1.vector().set_local(q_stress[1 :: 3][:: nq])
-            s2.vector().set_local(q_stress[2 :: 3][:: nq])
+            s0.vector().set_local(q_stress[::3][::nq])
+            s1.vector().set_local(q_stress[1::3][::nq])
+            s2.vector().set_local(q_stress[2::3][::nq])
             # print(q_stress[:18])
             # print(q_eps[:18])
             # print(statev0.vector().get_local()[:6])
@@ -352,7 +375,7 @@ class TestUniaxial(unittest.TestCase):
             # eps0.vector().set_local(problem.q_eps[0][:: nq])
             # eps1.vector().set_local(problem.q_eps[1][:: nq])
             # eps2.vector().set_local(problem.q_eps[2][:: nq])
-            
+
             fff.write(q_sigma_0, t)
             fff.write(q_sigma_1, t)
             fff.write(q_sigma_2, t)
@@ -368,39 +391,42 @@ class TestUniaxial(unittest.TestCase):
             # fff.write(eps0, t)
             # fff.write(eps1, t)
             # fff.write(eps2, t)
-            
+
             # vtkfile << (problem.u, t)
-    
+
             ld(t, assemble(problem.R))
 
             print("time step ", t, " finished")
             # here take only dofs, which are not attributed to any bcs, see helper for ld
             # print(np.absolute(assemble(problem.R).get_local()[dofs]).max())
-    
+
             t_old = t
             t += dt
 
         eval_time_end = time()
-        ld_array = np.asarray([ld.ts,ld.disp,ld.load])
+        ld_array = np.asarray([ld.ts, ld.disp, ld.load])
         # np.savetxt('LoadDisplCurve2Dfile.txt',ld_array.T)
-        print('Elapsed time {}'.format(eval_time_end - eval_time_start))
+        print("Elapsed time {}".format(eval_time_end - eval_time_start))
         # with open('LoadDisplCurve2Dfile.txt', 'a') as f:
         #    f.write('Elapsed time {}'.format(eval_time_end - eval_time_start))
         # ld.keep()
-        
+
         # ld_correct has been validated by Abaqus
-        ld_correct = np.array([
-            [0.0e+00, 0.0e+00,  0.00000000000e+00],
-            [2.0e-03, 1.5e-03,  8.25768896852e+01],
-            [4.0e-03, 3.0e-03,  1.49266529477e+02],
-            [6.0e-03, 4.5e-03,  1.91717795041e+02],
-            [8.0e-03, 6.0e-03,  2.15659692494e+02],
-            [1.0e-02, 7.5e-03,  2.29115128242e+02],
-            [1.2e-02, 9.0e-03,  2.37256148289e+02],
-            [1.4e-02, 1.05e-03, 2.42749678642e+02],
-            [1.6e-02, 1.2e-03,  2.46876796586e+02],
-            [1.8e-02, 1.35e-03, 2.50247807184e+02],
-            [2.0e-02, 1.5e-02,  2.53159912618e+02]])
+        ld_correct = np.array(
+            [
+                [0.0e00, 0.0e00, 0.00000000000e00],
+                [2.0e-03, 1.5e-03, 8.25768896852e01],
+                [4.0e-03, 3.0e-03, 1.49266529477e02],
+                [6.0e-03, 4.5e-03, 1.91717795041e02],
+                [8.0e-03, 6.0e-03, 2.15659692494e02],
+                [1.0e-02, 7.5e-03, 2.29115128242e02],
+                [1.2e-02, 9.0e-03, 2.37256148289e02],
+                [1.4e-02, 1.05e-03, 2.42749678642e02],
+                [1.6e-02, 1.2e-03, 2.46876796586e02],
+                [1.8e-02, 1.35e-03, 2.50247807184e02],
+                [2.0e-02, 1.5e-02, 2.53159912618e02],
+            ]
+        )
 
         # compare the reaction forces
         for ind in np.arange(ld_correct.shape[0]):
@@ -409,12 +435,12 @@ class TestUniaxial(unittest.TestCase):
         # remove the fort.7 file containing the parameters of
         # UMAT simulations
         import os
-        if (os.path.isfile("fort.7")):
+
+        if os.path.isfile("fort.7"):
             os.remove("fort.7")
 
         print("test_2D_notch ..... OK!")
-                
+
+
 if __name__ == "__main__":
     unittest.main()
-
-
