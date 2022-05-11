@@ -9,7 +9,6 @@ from pathlib import Path
 
 set_log_active(False)
 
-
 class TestUniaxial(unittest.TestCase):
     def test_2d_small(self):
         # ===== CREATE MESH =====
@@ -81,7 +80,7 @@ class TestUniaxial(unittest.TestCase):
         # return
         # law = c.LinearElastic(1e9, 0.3, constraint_type)
 
-        problem = c.MechanicsProblem(mesh, prm, law)
+        problem = c.MechanicsProblem_I(mesh, prm, law)
 
         # ===== Dirichlet BC =====
         load = Expression("topDisplacement", topDisplacement=0.0, degree=1)
@@ -104,9 +103,25 @@ class TestUniaxial(unittest.TestCase):
         fff.parameters["flush_output"] = True
 
         # ===== adjust solver =====
-        linear_solver = LUSolver("mumps")
-        solver = NewtonSolver(MPI.comm_world, linear_solver, PETScFactory.instance())
-        solver.parameters["linear_solver"] = "mumps"
+        pc = PETScPreconditioner("petsc_amg")
+
+        # Use Chebyshev smoothing for multigrid
+        PETScOptions.set("mg_levels_ksp_type", "chebyshev")
+        PETScOptions.set("mg_levels_pc_type", "jacobi")
+
+        # Improve estimate of eigenvalues for Chebyshev smoothing
+        PETScOptions.set("mg_levels_esteig_ksp_type", "gmres")
+        PETScOptions.set("mg_levels_ksp_chebyshev_esteig_steps", 50)
+
+        lin_solver = PETScKrylovSolver("bicgstab", pc)
+        lin_solver.parameters["nonzero_initial_guess"] = True
+        lin_solver.parameters["maximum_iterations"] = 15000
+        lin_solver.parameters["relative_tolerance"] = 1.0e-5
+        lin_solver.parameters["error_on_nonconvergence"] = False
+
+        # linear_solver = LUSolver("mumps")
+        solver = NewtonSolver(MPI.comm_world, lin_solver, PETScFactory.instance())
+        # solver.parameters["linear_solver"] = "mumps"
         solver.parameters["maximum_iterations"] = 10
         solver.parameters["error_on_nonconvergence"] = False
 

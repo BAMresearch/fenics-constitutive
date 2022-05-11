@@ -2,6 +2,7 @@ import dolfin as df
 from . import helper as h
 from .cpp import *
 
+
 class Parameters:
     def __init__(self, constraint):
         self.constraint = constraint
@@ -12,12 +13,12 @@ class Parameters:
         # quadrature degree
         self.deg_q = 2
 
-        self.E = 20000.
+        self.E = 20000.0
         self.nu = 0.2
-        self.ft = 4.
+        self.ft = 4.0
         self.alpha = 0.99
         self.gf = 0.1
-        self.k = 10.
+        self.k = 10.0
 
 
 class MechanicsProblem(df.NonlinearProblem):
@@ -52,7 +53,7 @@ class MechanicsProblem(df.NonlinearProblem):
         self.q_dsigma_deps = df.Function(VQT, name="stress-strain tangent")
 
         n_gauss_points = len(self.q_eps.vector().get_local()) // q_dim(prm.constraint)
-        self.iploop.resize(n_gauss_points);
+        self.iploop.resize(n_gauss_points)
 
         dd, d_ = df.TrialFunction(self.V), df.TestFunction(self.V)
 
@@ -82,7 +83,7 @@ class MechanicsProblem(df.NonlinearProblem):
     @property
     def u(self):
         """
-        Return the full (for all dofs) solution field. 
+        Return the full (for all dofs) solution field.
         """
         return self.d
 
@@ -114,8 +115,8 @@ class MechanicsProblem(df.NonlinearProblem):
         self.calculate_eps(self.q_eps)
         self.iploop.update(self.q_eps.vector().get_local())
 
-    def updateTime(self,timePrev,time):
-        self.iploop.updateTime(timePrev,time)
+    def updateTime(self, timePrev, time):
+        self.iploop.updateTime(timePrev, time)
 
     def set_bcs(self, bcs):
         # Only now (with the bcs) can we initialize the _assembler
@@ -136,3 +137,59 @@ class MechanicsProblem(df.NonlinearProblem):
             solver = df.NewtonSolver()
         solver.solve(self, self.u.vector())
         return self.u
+
+
+class MechanicsProblem_I(MechanicsProblem):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.null_space = self.build_nullspace(self.V, self.d.vector())
+
+    def J(self, A, x):
+        super().J(A, x)
+        df.as_backend_type(A).set_near_nullspace(self.null_space)
+
+    def F(self, b, x):
+        super().F(b, x)
+            # self.null_space.orthogonalize(b)
+
+    def build_nullspace(self, V, u):
+        """Function to build null space for 2D elasticity"""
+        dim = self.mesh.geometric_dimension()
+        if dim == 1:
+            return False
+
+        if dim == 2:
+            # Create list of vectors for null space
+            nullspace_basis = [u.copy() for i in range(3)]
+            # Build translational null space basis
+            V.sub(0).dofmap().set(nullspace_basis[0], 1.0)
+            V.sub(1).dofmap().set(nullspace_basis[1], 1.0)
+
+            # Build rotational null space basis
+            V.sub(0).set_x(nullspace_basis[2], -1.0, 1)
+            V.sub(1).set_x(nullspace_basis[2], 1.0, 0)
+
+        if dim == 3:
+            # Create list of vectors for null space
+            nullspace_basis = [u.copy() for i in range(6)]
+
+            # Build translational null space basis
+            V.sub(0).dofmap().set(nullspace_basis[0], 1.0)
+            V.sub(1).dofmap().set(nullspace_basis[1], 1.0)
+            V.sub(2).dofmap().set(nullspace_basis[2], 1.0)
+
+            # Build rotational null space basis
+            V.sub(0).set_x(nullspace_basis[3], -1.0, 1)
+            V.sub(1).set_x(nullspace_basis[3], 1.0, 0)
+            V.sub(0).set_x(nullspace_basis[4], 1.0, 2)
+            V.sub(2).set_x(nullspace_basis[4], -1.0, 0)
+            V.sub(2).set_x(nullspace_basis[5], 1.0, 1)
+            V.sub(1).set_x(nullspace_basis[5], -1.0, 2)
+
+        for x in nullspace_basis:
+            x.apply("insert")
+
+        # Create vector space basis and orthogonalize
+        basis = df.VectorSpaceBasis(nullspace_basis)
+        basis.orthonormalize()
+        return basis

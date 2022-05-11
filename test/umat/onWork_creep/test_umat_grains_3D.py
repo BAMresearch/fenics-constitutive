@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import constitutive as c
 from time import time
+from pathlib import Path
 
 # set_log_active(False)
 
@@ -156,13 +157,21 @@ for instance in cell_setsAba:
     
     # create law and add to iploop, with the ids of ips, where the
     # law holds
-    law = c.Umat(law_name, constraint_type, euler_angles)
+    law = c.Umat(
+        constraint_type,
+        "SDCRCRY",
+        str(Path.home() / "Tools" / "labtools-fenics" / "lib" / "libumat.so"),
+        37,
+        "kusdcrcry_",
+        "param0_sdcrcry_",
+        euler_angles,
+    )
     iploop.add_law(law, np.where(ip_flags == grainID)[0])
     
     grainID += 1
 
 # define problem, need a "template" law, which will be ommited
-problem = c.MechanicsProblem(mesh, prm, law, iploop)
+problem = c.MechanicsProblem_I(mesh, prm, law, iploop)
 
 # ===== Define Boundaries =====
 V = VectorFunctionSpace(mesh, 'CG', 1)
@@ -226,15 +235,25 @@ locale.setlocale(locale.LC_NUMERIC, "en_US.UTF-8")
 fff.write(cell_domains)
 
 # ===== adjust solver =====
-parameters['krylov_solver']['monitor_convergence'] = False
-linear_solver = KrylovSolver('bicgstab', 'jacobi')
-linear_solver.parameters["maximum_iterations"] = 15000
-linear_solver.parameters["relative_tolerance"] = 1.0e-5
-linear_solver.parameters["error_on_nonconvergence"] = False
+pc = PETScPreconditioner("petsc_amg")
+
+# Use Chebyshev smoothing for multigrid
+PETScOptions.set("mg_levels_ksp_type", "chebyshev")
+PETScOptions.set("mg_levels_pc_type", "jacobi")
+
+# Improve estimate of eigenvalues for Chebyshev smoothing
+PETScOptions.set("mg_levels_esteig_ksp_type", "gmres")
+PETScOptions.set("mg_levels_ksp_chebyshev_esteig_steps", 50)
+
+lin_solver = PETScKrylovSolver("gmres", pc)
+lin_solver.parameters["nonzero_initial_guess"] = True
+lin_solver.parameters["maximum_iterations"] = 15000
+lin_solver.parameters["relative_tolerance"] = 1.0e-8
+lin_solver.parameters["error_on_nonconvergence"] = False
 
 #linear_solver = LUSolver("mumps")
 solver = NewtonSolver(
-    MPI.comm_world, linear_solver, PETScFactory.instance())
+    MPI.comm_world, lin_solver, PETScFactory.instance())
 #solver.parameters["linear_solver"] = "mumps"
 solver.parameters["maximum_iterations"] = 10
 solver.parameters["error_on_nonconvergence"] = False
