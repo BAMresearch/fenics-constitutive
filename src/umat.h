@@ -167,18 +167,12 @@ public:
 
         if (_ntens == 6)
         {
-            // FULL
-            for (int j = 0; j != 3; j++)
-            {
-                value[j] = valueXd(j);
-            }
+            value[0] = valueXd(0);
+            value[1] = valueXd(1);
+            value[2] = valueXd(2);
             value[3] = valueXd(5);
             value[4] = valueXd(4);
             value[5] = valueXd(3);
-            // for ( int j = 0; j != 6; j++ )
-            // {
-            //   std::cout << j << " " << value[j] << " " << valueXd(j) << std::endl;
-            // }
         }
         else if (_ntens == 3)
         {
@@ -189,32 +183,18 @@ public:
             value[3] = valueXd(2); // 2*eps12
             value[4] = 0.; // 2*eps13
             value[5] = 0.; // 2*eps23
-
-            //       for ( int j = 0; j != 3; j++ )
-            // 	  {
-            // 	    value[j] = valueXd(j);
-            //  	  }
         }
-        //   std::cout << " what is value " << value << std::endl;
     }
 
     // converts the order of strain/stress components in UMAT array to VectorXd in FeniCS
-    Eigen::VectorXd ConvertVoigtArr2vectorXd(const double value[], const int sizeOfValue)
+    Eigen::VectorXd ConvertVoigtArr2vectorXd(double value[])
     {
-        assert(sizeOfValue == _ntens);
-
         Eigen::VectorXd valueXd(_ntens);
 
         if (_ntens == 6)
         {
-            // FULL
-            for (int j = 0; j != 3; j++)
-            {
-                valueXd(j) = value[j];
-            }
-            valueXd(3) = value[5];
-            valueXd(4) = value[4];
-            valueXd(5) = value[3];
+            valueXd = Eigen::Map<Eigen::VectorXd>(&value[0], _ntens);
+            valueXd.row(3).swap(valueXd.row(5)); // swap 3th and 5th cols and rows
         }
         else if (_ntens == 3)
         {
@@ -222,37 +202,25 @@ public:
             valueXd(0) = value[0]; // eps11
             valueXd(1) = value[1]; // eps22
             valueXd(2) = value[3]; // 2*eps12
-
-            // for ( int j = 0; j != 3; j++ )
-            //  {
-            //  valueXd(j) = value[j];
-            //}
         }
 
         return valueXd;
     }
 
-    Eigen::MatrixXd ConvertDdsdde2matrixXd(const double (*ddsdde)[constants::ntens])
+    Eigen::MatrixXd ConvertDdsdde2matrixXd(double (*ddsdde)[constants::ntens])
     {
-        assert(constants::ntens < _ntens);
-
+        assert(constants::ntens < _ntens); // TODO: if both is 6 this would fail in debug ???
         Eigen::MatrixXd ddsddeXd(_ntens, _ntens);
-
         if (_ntens == 6)
         {
-            // FULL
-            for (int i = 0; i != _ntens; i++)
-            {
-                for (int j = 0; j != _ntens; j++)
-                {
-                    ddsddeXd(i, j) = ddsdde[j][i]; // c++ array = tr(fortran array)
-                }
-            }
+            ddsddeXd = Eigen::Map<Eigen::MatrixXd>(&ddsdde[0][0], constants::ntens, constants::ntens);
             ddsddeXd.row(3).swap(ddsddeXd.row(5)); // swap 3th and 5th cols and rows
             ddsddeXd.col(3).swap(ddsddeXd.col(5)); // UMAT to fenics convention
         }
         else if (_ntens == 3)
         {
+            // Eigen 3.4: could be
+            // ddsdde =  Eigen::Map<Eigen::MatrixXd>(&ddsdde[0][0], ntens, ntens)({0, 1, 3}, {0, 1, 3});
             // PLANE_STRAIN
             ddsddeXd(0, 0) = ddsdde[0][0];
             ddsddeXd(1, 1) = ddsdde[1][1];
@@ -262,15 +230,9 @@ public:
             ddsddeXd(0, 2) = ddsdde[3][0];
             ddsddeXd(1, 2) = ddsdde[3][1];
 
-            ddsddeXd(1, 0) = ddsddeXd(0, 1);
-            ddsddeXd(2, 0) = ddsddeXd(0, 2);
-            ddsddeXd(2, 1) = ddsddeXd(1, 2);
-
-            // for ( int i = 0; i != _ntens; i++){
-            //     for ( int j = 0; j != _ntens; j++){
-            // 	ddsddeXd(i,j) = ddsdde[j][i];     // c++ array = tr(fortran array)
-            //     }
-            //   }
+            ddsddeXd(1, 0) = ddsdde[0][1];
+            ddsddeXd(2, 0) = ddsdde[0][3];
+            ddsddeXd(2, 1) = ddsdde[1][3];
         }
 
         return ddsddeXd;
@@ -376,7 +338,7 @@ public:
 
         _statevEvaluate.Set(statevXd, i);
 
-        return {ConvertVoigtArr2vectorXd(stress, _ntens), ConvertDdsdde2matrixXd(ddsdde)};
+        return {ConvertVoigtArr2vectorXd(stress), ConvertDdsdde2matrixXd(ddsdde)};
     }
 
 private:
