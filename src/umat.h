@@ -12,7 +12,7 @@ const int ntens = 6;
 const int dim = 3;
 } // namespace constants
 
-typedef void (*t_Param)(char[], bool*, int);
+typedef void (*t_Param)(char[], int);
 typedef void (*t_Eval)(double[], double[], double (*ddsdde)[constants::ntens], double*, double*, double*, double*,
                        double[], double[], double*, double[], double[], double[], double*, double*, double*, double*,
                        double*, char[], int*, int*, int*, int*, double[], int*, double[constants::dim],
@@ -134,7 +134,7 @@ public:
         if (fParam != "")
         {
             _f_param = _libHandle.Load<t_Param>(fParam);
-            _f_param(&_cmname[0], &initMat, _cmname.length());
+            _f_param(&_cmname[0], _cmname.length());
         }
 
         // not all constraints are implemented

@@ -72,7 +72,7 @@ class TestUniaxial(unittest.TestCase):
         law = c.Umat(
             constraint_type,
             "SDCHABOX",
-            str(Path.home() / "Tools" / "labtools-fenics" / "lib" / "libumat.so"),
+            str(Path.home() / "Tools" / "labtools" / "lib" / "libumat.so"),
             29,
             "kusdchabox_",
             "param0_sdchabox_",
@@ -265,7 +265,7 @@ class TestUniaxial(unittest.TestCase):
         law = c.Umat(
             constraint_type,
             "SDCHABOX",
-            str(Path.home() / "Tools" / "labtools-fenics" / "lib" / "libumat.so"),
+            str(Path.home() / "Tools" / "labtools" / "lib" / "libumat.so"),
             29,
             "kusdchabox_",
             "param0_sdchabox_",
