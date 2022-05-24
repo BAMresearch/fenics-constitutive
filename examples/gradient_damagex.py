@@ -221,7 +221,9 @@ def convergence_test():
     ns = [50, 100, 200, 400]
     errors = []
     for n in ns:
-        errors.append(gdm_error(n))
+        error = gdm_error(n)
+        print(f"Error to analytic solution with {n} elements is {error}.")
+        errors.append(error)
 
     ps = []
     for i in range(len(ns) - 1):
