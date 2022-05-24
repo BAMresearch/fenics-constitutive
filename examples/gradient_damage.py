@@ -1,4 +1,6 @@
 """
+.. _gdm-label:
+
 Implicit gradient-enhanced damage model
 =======================================
 
@@ -49,196 +51,14 @@ Next, we will discuss the building blocks of the constitutive model with the cod
 simultaneously. So instead of evaluating a function once per scalar, we group 
 the scalars in a (possibly huge) vector and apply the function once. This may
 explain some strange syntax and slicing in the code below.**
+
+.. include:: gdm_constitutive.rst
+
 """
+
+from gdm_constitutive import *
 from helper import *
 from dolfin.cpp.log import log
-
-"""
-Damage law
-**********
-
-The simplest case that is used in Peerlings et al. for an analytic solution is
-the perfect damage model that, if inserted in the stress-strain relationship, 
-looks like
-::
-
-    stress
- ft |   _______________
-    |  /
-    | /:
-    |/ :
-    0--:--------------> strain
-       k0 
-"""
-
-
-def damage_perfect(mat, kappa):
-    k0 = mat.ft / mat.E
-    return 1.0 - k0 / kappa, k0 / kappa ** 2
-
-
-"""
-For the characteristic strain softening, an exponential damage law is commonly
-used. After reaching the peak load - the tensile strength $f_t$, the curve
-shows an exponential drop to the residual stress $(1-\alpha)f_t$.
-::
-
-    stress
- ft |   
-    |  /\
-    | /: ` .
-    |/ :     ` .. _____ (1-alpha)*ft
-    0--:--------------> strain
-       k0 
-"""
-
-
-def damage_exponential(mat, k):
-    k0 = mat.ft / mat.E
-    a = mat.alpha
-    b = mat.beta
-
-    w = 1.0 - k0 / k * (1.0 - a + a * np.exp(b * (k0 - k)))
-    dw = k0 / k * ((1.0 / k + b) * a * np.exp(b * (k0 - k)) + (1.0 - a) / k)
-
-    return w, dw
-
-
-"""
-Constitutive law
-****************
-
-Basically `Hooke's law in plane strain <https://en.wikipedia.org/wiki/Hooke%27s_law#Plane_strain>`_ with the factor $(1-\omega)$. 
-
-.. math ::
-    \bm \sigma &= (1 - \omega(\kappa)) \bm C : \bm \varepsilon \\
-    \frac{\partial \bm \sigma}{\partial \bm \varepsilon} &= (1 - \omega) \bm C  \\
-    \frac{\partial \bm \sigma}{\partial \bar \varepsilon} &= - \omega \bm C : \bm \varepsilon \frac{\mathrm d \omega}{\mathrm d\kappa}\frac{\mathrm d\kappa}{\mathrm d \bar \varepsilon}
-
-"""
-
-
-def hooke(mat, eps, kappa, dkappa_de):
-    """
-    mat:
-        material parameters
-    eps:
-        vector of Nx3 where each of the N rows is a 2D strain in Voigt notation
-    kappa:
-        current value of the history variable kappa
-    dkappa_de:
-        derivative of kappa w.r.t the nonlocal equivalent strains e
-    """
-    E, nu = mat.E, mat.nu
-    l = E * nu / (1 + nu) / (1 - 2 * nu)
-    m = E / (2.0 * (1 + nu))
-    C = np.array([[2 * m + l, l, 0], [l, 2 * m + l, 0], [0, 0, m]])
-
-    w, dw = mat.dmg(mat, kappa)
-
-    sigma = eps @ C * (1 - w)[:, None]
-    dsigma_deps = np.tile(C.flatten(), (len(kappa), 1)) * (1 - w)[:, None]
-
-    dsigma_de = -eps @ C * dw[:, None] * dkappa_de[:, None]
-
-    return sigma, dsigma_deps, dsigma_de
-
-
-"""
-Strain norm
-***********
-
-The local equivalent strain $\| \bm \varepsilon \|$ is defined as
-
-.. math::
-  \|\bm \varepsilon\| = \frac{k-1}{2k(1-2\nu)}I_1 + \frac{1}{2k}\sqrt{\left(\frac{k-1}{1-2\nu}I_1\right)^2 + \frac{2k}{(1+\nu)^2}J_2}.
-
-$I_1$ is the first strain invariant and $J_2$ is the second deviatoric strain invariant. 
-The parameter $k=f_c/f_t$ controls different material responses in compression (compressive strength $f_c$) and tension (tensile strength $f_t$).
-
-See: `Comparison of nonlocal approaches in continuum damage mechanics, de Vree et al., 1995 <http://dx.doi.org/10.1016/0045-7949(94)00501-S>`_
-
-Note that the implementation here is only valid for 2D plane strain!
-"""
-
-
-def modified_mises_strain_norm(mat, eps):
-    nu, k = mat.nu, mat.k
-
-    K1 = (k - 1.0) / (2.0 * k * (1.0 - 2.0 * nu))
-    K2 = 3.0 / (k * (1.0 + nu) ** 2)
-
-    exx, eyy, exy = eps[0::3], eps[1::3], eps[2::3]
-    I1 = exx + eyy
-    J2 = 1.0 / 6.0 * ((exx - eyy) ** 2 + exx ** 2 + eyy ** 2) + (0.5 * exy) ** 2
-
-    A = np.sqrt(K1 ** 2 * I1 ** 2 + K2 * J2) + 1.0e-14
-    eeq = K1 * I1 + A
-
-    dJ2dexx = 1.0 / 3.0 * (2 * exx - eyy)
-    dJ2deyy = 1.0 / 3.0 * (2 * eyy - exx)
-    dJ2dexy = 0.5 * exy
-
-    deeq = np.empty_like(eps)
-    deeq[0::3] = K1 + 1.0 / (2 * A) * (2 * K1 * K1 * I1 + K2 * dJ2dexx)
-    deeq[1::3] = K1 + 1.0 / (2 * A) * (2 * K1 * K1 * I1 + K2 * dJ2deyy)
-    deeq[2::3] = 1.0 / (2 * A) * (K2 * dJ2dexy)
-    return eeq, deeq
-
-
-"""
-Complete constitutive class
-***************************
-
-* contains the material parameters
-* stores the values of all integration points
-* calculates those fields for given $\bm \varepsilon, \bar \varepsilon$
-
-"""
-
-
-class GDMPlaneStrain:
-    def __init__(self):
-        # Young's modulus          [N/mm²]
-        self.E = 20000.0
-        # Poisson's ratio            [-]
-        self.nu = 0.2
-        # nonlocal length parameter [mm]
-        self.l = 200 ** 0.5
-        # tensile strength          [N/mm²]
-        self.ft = 2.0
-        # compressive-tensile ratio   [-]
-        self.k = 10.0
-        # residual strength factor   [-]
-        self.alpha = 0.99
-        # fracture energy parameters [-]
-        self.beta = 100.0
-        # history variable           [-]
-        self.kappa = None
-        # damage law
-        self.dmg = damage_exponential
-
-    def eps(self, v):
-        e = sym(grad(v))
-        return as_vector([e[0, 0], e[1, 1], 2 * e[0, 1]])
-
-    def kappa_kkt(self, e):
-        if self.kappa is None:
-            self.kappa = self.ft / self.E
-        return np.maximum(e, self.kappa)
-
-    def integrate(self, eps_flat, e):
-        kappa = self.kappa_kkt(e)
-        dkappa_de = (e >= kappa).astype(int)
-
-        eps = eps_flat.reshape(-1, 3)
-        self.sigma, self.dsigma_deps, self.dsigma_de = hooke(
-            self, eps, kappa, dkappa_de
-        )
-        self.eeq, self.deeq = modified_mises_strain_norm(self, eps_flat)
-
-    def update(self, e):
-        self.kappa = self.kappa_kkt(e)
 
 """
 Quadrature space formulation
@@ -347,7 +167,7 @@ class GDM(NonlinearProblem):
         e = self.q_e.vector().get_local()
 
         # ... "manually" evaluate_material the material ...
-        self.mat.integrate(eps_flat, e)
+        self.mat.evaluate(eps_flat, e)
 
         # ... and write the calculated values into their quadrature spaces.
         set_q(self.q_eeq, self.mat.eeq)
@@ -405,91 +225,17 @@ and the authors provide a solution of the PDE system for each of the regions.
 Finding the remaining integration constants is left to the reader. Here, it
 is solved using ``sympy``. We also subclass from ``dolfin.UserExpression`` to
 interpolate the analytic solution into function spaces or calculate error norms.
+
+.. include:: gdm_analytic.rst
+
 """
 
-class PeerlingsAnalytic(UserExpression):
+from gdm_analytic import PeerlingsAnalytic
+
+class PeerlingsAnalyticExpr(UserExpression, PeerlingsAnalytic):
     def __init__(self, **kwargs):
-        self.L, self.W, self.deltaL, self.alpha = 100.0, 10.0, 0.05, 0.1
-        self.E, self.kappa0, self.l = 20000.0, 1.0e-4, 1.0
-
-        self._calculate_coeffs()
-        super().__init__(**kwargs)
-
-    def _calculate_coeffs(self):
-        """
-        The analytic solution is following Peerlings paper (1996) but with
-        b(paper) = b^2 (here)
-        g(paper) = g^2 (here)
-        c(paper) = l^2 (here)
-        This modification eliminates all the sqrts in the formulations.
-        Plus: the formulation of the GDM in terms of l ( = sqrt(c) ) is 
-        more common in modern publications.
-        """
-
-        # imports only used here...
-        from sympy import Symbol, symbols, N, integrate, cos, exp, lambdify
-        import scipy.optimize
-
-        # unknowns
-        x = Symbol("x")
-        unknowns = symbols("A1, A2, B1, B2, C, b, g, w")
-        A1, A2, B1, B2, C, b, g, w = unknowns
-
-        l = self.l
-        kappa0 = self.kappa0
-
-        # 0 <= x <= W/2
-        e1 = C * cos(g / l * x)
-        # W/2 <  x <= w/2
-        e2 = B1 * exp(b / l * x) + B2 * exp(-b / l * x)
-        # w/2 <  x <= L/2
-        e3 = A1 * exp(x / l) + A2 * exp(-x / l) + (1 - b * b) * kappa0
-
-        de1, de2, de3 = e1.diff(x), e2.diff(x), e3.diff(x)
-
-        eq1 = N(e1.subs(x, self.W / 2) - e2.subs(x, self.W / 2))
-        eq2 = N(de1.subs(x, self.W / 2) - de2.subs(x, self.W / 2))
-        eq3 = N(e2.subs(x, w / 2) - kappa0)
-        eq4 = N(de2.subs(x, w / 2) - de3.subs(x, w / 2))
-        eq5 = N(e3.subs(x, w / 2) - kappa0)
-        eq6 = N(de3.subs(x, self.L / 2))
-        eq7 = N((1 - self.alpha) * (1 + g * g) - (1 - b * b))
-        eq8 = N(
-            integrate(e1, (x, 0, self.W / 2))
-            + integrate(e2, (x, self.W / 2, w / 2))
-            + integrate(e3, (x, w / 2, self.L / 2))
-            - self.deltaL / 2
-        )
-
-        eqs = [
-            lambdify(unknowns, eq) for eq in [eq1, eq2, eq3, eq4, eq5, eq6, eq7, eq8]
-        ]
-
-        def global_func(x):
-            return np.array([eqs[i](*x) for i in range(8)])
-
-        result = scipy.optimize.root(
-            global_func, [0.0, 5e2, 3e-7, 7e-3, 3e-3, 3e-1, 2e-1, 4e1]
-        )
-        if not result["success"]:
-            raise RuntimeError(
-                "Could not find the correct coefficients. Try to tweak the initial values."
-            )
-
-        self.coeffs = result["x"]
-
-    def e(self, x):
-        A1, A2, B1, B2, C, b, g, w = self.coeffs
-        if x <= self.W / 2.0:
-            return C * np.cos(g / self.l * x)
-        elif x <= w / 2.0:
-            return B1 * np.exp(b / self.l * x) + B2 * np.exp(-b / self.l * x)
-        else:
-            return (
-                (1.0 - b * b) * self.kappa0
-                + A1 * np.exp(x / self.l)
-                + A2 * np.exp(-x / self.l)
-            )
+        PeerlingsAnalytic.__init__(self)
+        UserExpression.__init__(self, **kwargs)
 
     def eval(self, value, x):
         value[0] = self.e(x[0])
@@ -503,24 +249,19 @@ def gdm_error(n_elements):
     """
     ... evaluated in 2D
     """
-    e_exact = PeerlingsAnalytic(degree=4)
+    e = PeerlingsAnalyticExpr(degree=4)
 
-    mesh = RectangleMesh(Point(0.0, 0.0), Point(e_exact.L / 2.0, 1), n_elements, 1)
-    mat = GDMPlaneStrain()
-    mat.E = e_exact.E
-    mat.nu = 0.0
-    mat.ft = e_exact.E * e_exact.kappa0
-    mat.l = e_exact.l
-    mat.dmg = damage_perfect
+    mesh = RectangleMesh(Point(0.0, 0.0), Point(e.L / 2.0, 1), n_elements, 1)
+    mat = GDMPlaneStrain(E=e.E, nu=0.0, ft=e.E * e.kappa0, l=e.l, dmg=damage_perfect)
 
     area = Expression(
-        "x[0] <= W/2. ? 10.0 * (1. - a) : 10.0", W=e_exact.W, a=e_exact.alpha, degree=0
+        "x[0] <= W/2. ? 10.0 * (1. - a) : 10.0", W=e.W, a=e.alpha, degree=0
     )
     gdm = GDM(mesh, mat, f_d=area)
 
-    bc_expr = Expression("t*d", degree=0, t=0, d=e_exact.deltaL / 2)
+    bc_expr = Expression("t*d", degree=0, t=0, d=e.deltaL / 2)
     bc0 = DirichletBC(gdm.Vd, (0.0, 0.0), plane_at(0.0))
-    bc1 = DirichletBC(gdm.Vd.sub(0), bc_expr, plane_at(e_exact.L / 2.0))
+    bc1 = DirichletBC(gdm.Vd.sub(0), bc_expr, plane_at(e.L / 2.0))
     gdm.set_bcs([bc0, bc1])
 
     solver = NewtonSolver()
@@ -533,7 +274,7 @@ def gdm_error(n_elements):
         assert solver.solve(gdm, gdm.u.vector())[1]
 
     e_fem = gdm.u.split()[1]
-    return errornorm(e_exact, e_fem)
+    return errornorm(e, e_fem)
 
 """
 This error should converge to zero upon mesh refinement and can be used to 
@@ -640,8 +381,8 @@ def three_point_bending(problem=GDM, linear_solver=LUSolver("mumps")):
 
 
 if __name__ == "__main__":
-    # assert gdm_error(200) < 1.0e-8
-    # convergence_test()
+    assert gdm_error(200) < 1.0e-8
+    convergence_test()
     three_point_bending()
     # list_timings(TimingClear.keep, [TimingType.wall])
 

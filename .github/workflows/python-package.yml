@@ -35,3 +35,14 @@ jobs:
         BRANCH: gh-pages # The branch the action should deploy to.
         FOLDER: website # The folder the action should deploy.
         CLEAN: true # Automatically remove deleted files from the deploy branch
+  dolfinx:
+      runs-on: ubuntu-20.04
+      container: dolfinx/dolfinx
+      steps:
+        - uses: actions/checkout@v2
+        - name: Install dependencies
+          run: |
+            pip3 install sympy
+        - name: run dolfinx example
+          run:
+            python3 examples/gradient_damagex.py
