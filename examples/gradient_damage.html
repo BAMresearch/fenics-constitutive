@@ -43,7 +43,8 @@
 <li class="toctree-l1"><a class="reference internal" href="example.html">Material models</a></li>
 <li class="toctree-l1"><a class="reference internal" href="example.html#drucker-prager-yield-condition">Drucker-Prager yield condition</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Implicit gradient-enhanced damage model</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#introduction-and-governing-equations">Introduction and governing equations</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#introduction-and-governing-equations">Introduction and governing equations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#gradient-damage-constitutive-law">Gradient damage constitutive law</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#damage-law">Damage law</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#constitutive-law">Constitutive law</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#strain-norm">Strain norm</a></li>
@@ -53,6 +54,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#quadrature-space-formulation">Quadrature space formulation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#examples">Examples</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#comparison-with-the-analytic-solution">Comparison with the analytic solution</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id1">Comparison with the analytic solution</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#three-point-bending-test">Three-point bending test</a></li>
@@ -60,6 +62,7 @@
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="gradient_damage_iterative.html">Note on iterative solvers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="gradient_damagex.html">Implicit gradient-enhanced damage model in dolfinx</a></li>
 <li class="toctree-l1"><a class="reference internal" href="helper.html">Helper classes and functions</a></li>
 <li class="toctree-l1"><a class="reference internal" href="plate_with_hole.html">Plate with hole</a></li>
 <li class="toctree-l1"><a class="reference internal" href="ramberg_osgood.html">Ramberg Osgood material law</a></li>
@@ -91,7 +94,7 @@
            <div itemprop="articleBody">
              
   <section id="implicit-gradient-enhanced-damage-model">
-<h1>Implicit gradient-enhanced damage model<a class="headerlink" href="#implicit-gradient-enhanced-damage-model" title="Permalink to this headline"></a></h1>
+<span id="gdm-label"></span><h1>Implicit gradient-enhanced damage model<a class="headerlink" href="#implicit-gradient-enhanced-damage-model" title="Permalink to this headline"></a></h1>
 <section id="introduction-and-governing-equations">
 <h2>Introduction and governing equations<a class="headerlink" href="#introduction-and-governing-equations" title="Permalink to this headline"></a></h2>
 <p>A local isotropic damage model…</p>
@@ -134,8 +137,12 @@ limits its curvature. Now, the full model reads</p>
 simultaneously. So instead of evaluating a function once per scalar, we group
 the scalars in a (possibly huge) vector and apply the function once. This may
 explain some strange syntax and slicing in the code below.</strong></p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">helper</span> <span class="kn">import</span> <span class="o">*</span>
-<span class="kn">from</span> <span class="nn">dolfin.cpp.log</span> <span class="kn">import</span> <span class="n">log</span>
+</section>
+<section id="gradient-damage-constitutive-law">
+<h2>Gradient damage constitutive law<a class="headerlink" href="#gradient-damage-constitutive-law" title="Permalink to this headline"></a></h2>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">ufl</span>
+<span class="kn">from</span> <span class="nn">dataclasses</span> <span class="kn">import</span> <span class="n">dataclass</span>
 </pre></div>
 </div>
 <section id="damage-law">
@@ -256,37 +263,37 @@ The parameter <span class="math notranslate nohighlight">\(k=f_c/f_t\)</span> co
 <li><p>stores the values of all integration points</p></li>
 <li><p>calculates those fields for given <span class="math notranslate nohighlight">\(\boldsymbol \varepsilon, \bar \varepsilon\)</span></p></li>
 </ul>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">GDMPlaneStrain</span><span class="p">:</span>
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="c1"># Young&#39;s modulus          [N/mm²]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">E</span> <span class="o">=</span> <span class="mf">20000.0</span>
-        <span class="c1"># Poisson&#39;s ratio            [-]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">nu</span> <span class="o">=</span> <span class="mf">0.2</span>
-        <span class="c1"># nonlocal length parameter [mm]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">l</span> <span class="o">=</span> <span class="mi">200</span> <span class="o">**</span> <span class="mf">0.5</span>
-        <span class="c1"># tensile strength          [N/mm²]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">ft</span> <span class="o">=</span> <span class="mf">2.0</span>
-        <span class="c1"># compressive-tensile ratio   [-]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">k</span> <span class="o">=</span> <span class="mf">10.0</span>
-        <span class="c1"># residual strength factor   [-]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">alpha</span> <span class="o">=</span> <span class="mf">0.99</span>
-        <span class="c1"># fracture energy parameters [-]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">beta</span> <span class="o">=</span> <span class="mf">100.0</span>
-        <span class="c1"># history variable           [-]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">kappa</span> <span class="o">=</span> <span class="kc">None</span>
-        <span class="c1"># damage law</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">dmg</span> <span class="o">=</span> <span class="n">damage_exponential</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="nd">@dataclass</span>
+<span class="k">class</span> <span class="nc">GDMPlaneStrain</span><span class="p">:</span>
+    <span class="c1"># Young&#39;s modulus          [N/mm²]</span>
+    <span class="n">E</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">20000.0</span>
+    <span class="c1"># Poisson&#39;s ratio            [-]</span>
+    <span class="n">nu</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.2</span>
+    <span class="c1"># nonlocal length parameter [mm]</span>
+    <span class="n">l</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">200</span> <span class="o">**</span> <span class="mf">0.5</span>
+    <span class="c1"># tensile strength          [N/mm²]</span>
+    <span class="n">ft</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">2.0</span>
+    <span class="c1"># compressive-tensile ratio   [-]</span>
+    <span class="n">k</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">10.0</span>
+    <span class="c1"># residual strength factor   [-]</span>
+    <span class="n">alpha</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.99</span>
+    <span class="c1"># fracture energy parameters [-]</span>
+    <span class="n">beta</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">100.0</span>
+    <span class="c1"># history variable           [-]</span>
+    <span class="n">kappa</span><span class="p">:</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="c1"># damage law</span>
+    <span class="n">dmg</span><span class="p">:</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">damage_exponential</span>
 
     <span class="k">def</span> <span class="nf">eps</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">v</span><span class="p">):</span>
-        <span class="n">e</span> <span class="o">=</span> <span class="n">sym</span><span class="p">(</span><span class="n">grad</span><span class="p">(</span><span class="n">v</span><span class="p">))</span>
-        <span class="k">return</span> <span class="n">as_vector</span><span class="p">([</span><span class="n">e</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">e</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">e</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]])</span>
+        <span class="n">e</span> <span class="o">=</span> <span class="n">ufl</span><span class="o">.</span><span class="n">sym</span><span class="p">(</span><span class="n">ufl</span><span class="o">.</span><span class="n">grad</span><span class="p">(</span><span class="n">v</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">ufl</span><span class="o">.</span><span class="n">as_vector</span><span class="p">([</span><span class="n">e</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">e</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">e</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]])</span>
 
     <span class="k">def</span> <span class="nf">kappa_kkt</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">e</span><span class="p">):</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">kappa</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">kappa</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ft</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">E</span>
         <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">kappa</span><span class="p">)</span>
 
-    <span class="k">def</span> <span class="nf">integrate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">eps_flat</span><span class="p">,</span> <span class="n">e</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">evaluate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">eps_flat</span><span class="p">,</span> <span class="n">e</span><span class="p">):</span>
         <span class="n">kappa</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">kappa_kkt</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
         <span class="n">dkappa_de</span> <span class="o">=</span> <span class="p">(</span><span class="n">e</span> <span class="o">&gt;=</span> <span class="n">kappa</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
 
@@ -298,6 +305,11 @@ The parameter <span class="math notranslate nohighlight">\(k=f_c/f_t\)</span> co
 
     <span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">e</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">kappa</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">kappa_kkt</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">gdm_constitutive</span> <span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span> <span class="nn">helper</span> <span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span> <span class="nn">dolfin.cpp.log</span> <span class="kn">import</span> <span class="n">log</span>
 </pre></div>
 </div>
 </section>
@@ -404,7 +416,7 @@ are calculated in the <code class="docutils literal notranslate"><span class="pr
         <span class="n">e</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">q_e</span><span class="o">.</span><span class="n">vector</span><span class="p">()</span><span class="o">.</span><span class="n">get_local</span><span class="p">()</span>
 
         <span class="c1"># ... &quot;manually&quot; evaluate_material the material ...</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">mat</span><span class="o">.</span><span class="n">integrate</span><span class="p">(</span><span class="n">eps_flat</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mat</span><span class="o">.</span><span class="n">evaluate</span><span class="p">(</span><span class="n">eps_flat</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
 
         <span class="c1"># ... and write the calculated values into their quadrature spaces.</span>
         <span class="n">set_q</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">q_eeq</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">mat</span><span class="o">.</span><span class="n">eeq</span><span class="p">)</span>
@@ -466,13 +478,34 @@ over the length of <span class="math notranslate nohighlight">\(W\)</span> and i
 Finding the remaining integration constants is left to the reader. Here, it
 is solved using <code class="docutils literal notranslate"><span class="pre">sympy</span></code>. We also subclass from <code class="docutils literal notranslate"><span class="pre">dolfin.UserExpression</span></code> to
 interpolate the analytic solution into function spaces or calculate error norms.</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">PeerlingsAnalytic</span><span class="p">(</span><span class="n">UserExpression</span><span class="p">):</span>
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+</section>
+<section id="id1">
+<h3>Comparison with the analytic solution<a class="headerlink" href="#id1" title="Permalink to this headline"></a></h3>
+<p>The Peerlings paper cited above includes a discussion on an analytic solution
+of the model for the <code class="docutils literal notranslate"><span class="pre">damage_perfect</span></code> damage law. A 1D bar of length <span class="math notranslate nohighlight">\(L\)</span>
+(here modeled as a thin 2D structure) has a cross section reduction <span class="math notranslate nohighlight">\(\alpha\)</span>
+over the length of <span class="math notranslate nohighlight">\(W\)</span> and is loaded by a displacement BC <span class="math notranslate nohighlight">\(\Delta L\)</span>.</p>
+<dl class="simple">
+<dt>Three regions form:</dt><dd><ul class="simple">
+<li><p>damage in the weakened cross section</p></li>
+<li><p>damage in the unweakened cross section</p></li>
+<li><p>no damage</p></li>
+</ul>
+</dd>
+</dl>
+<p>and the authors provide a solution of the PDE system for each of the regions.
+Finding the remaining integration constants is left to the reader. Here, it
+is solved using <code class="docutils literal notranslate"><span class="pre">sympy</span></code>. We also subclass from <code class="docutils literal notranslate"><span class="pre">dolfin.UserExpression</span></code> to
+interpolate the analytic solution into function spaces or calculate error norms.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+
+<span class="k">class</span> <span class="nc">PeerlingsAnalytic</span><span class="p">:</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">L</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">W</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">deltaL</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">alpha</span> <span class="o">=</span> <span class="mf">100.0</span><span class="p">,</span> <span class="mf">10.0</span><span class="p">,</span> <span class="mf">0.05</span><span class="p">,</span> <span class="mf">0.1</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">E</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">kappa0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">l</span> <span class="o">=</span> <span class="mf">20000.0</span><span class="p">,</span> <span class="mf">1.0e-4</span><span class="p">,</span> <span class="mf">1.0</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">_calculate_coeffs</span><span class="p">()</span>
-        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">_calculate_coeffs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
@@ -549,6 +582,14 @@ interpolate the analytic solution into function spaces or calculate error norms.
                 <span class="o">+</span> <span class="n">A1</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">x</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">l</span><span class="p">)</span>
                 <span class="o">+</span> <span class="n">A2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">x</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">l</span><span class="p">)</span>
             <span class="p">)</span>
+</pre></div>
+</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">gdm_analytic</span> <span class="kn">import</span> <span class="n">PeerlingsAnalytic</span>
+
+<span class="k">class</span> <span class="nc">PeerlingsAnalyticExpr</span><span class="p">(</span><span class="n">UserExpression</span><span class="p">,</span> <span class="n">PeerlingsAnalytic</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">PeerlingsAnalytic</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="n">UserExpression</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">eval</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
         <span class="n">value</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">e</span><span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
@@ -560,24 +601,19 @@ compare.</p>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    ... evaluated in 2D</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">e_exact</span> <span class="o">=</span> <span class="n">PeerlingsAnalytic</span><span class="p">(</span><span class="n">degree</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
+    <span class="n">e</span> <span class="o">=</span> <span class="n">PeerlingsAnalyticExpr</span><span class="p">(</span><span class="n">degree</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
 
-    <span class="n">mesh</span> <span class="o">=</span> <span class="n">RectangleMesh</span><span class="p">(</span><span class="n">Point</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span> <span class="n">Point</span><span class="p">(</span><span class="n">e_exact</span><span class="o">.</span><span class="n">L</span> <span class="o">/</span> <span class="mf">2.0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">n_elements</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
-    <span class="n">mat</span> <span class="o">=</span> <span class="n">GDMPlaneStrain</span><span class="p">()</span>
-    <span class="n">mat</span><span class="o">.</span><span class="n">E</span> <span class="o">=</span> <span class="n">e_exact</span><span class="o">.</span><span class="n">E</span>
-    <span class="n">mat</span><span class="o">.</span><span class="n">nu</span> <span class="o">=</span> <span class="mf">0.0</span>
-    <span class="n">mat</span><span class="o">.</span><span class="n">ft</span> <span class="o">=</span> <span class="n">e_exact</span><span class="o">.</span><span class="n">E</span> <span class="o">*</span> <span class="n">e_exact</span><span class="o">.</span><span class="n">kappa0</span>
-    <span class="n">mat</span><span class="o">.</span><span class="n">l</span> <span class="o">=</span> <span class="n">e_exact</span><span class="o">.</span><span class="n">l</span>
-    <span class="n">mat</span><span class="o">.</span><span class="n">dmg</span> <span class="o">=</span> <span class="n">damage_perfect</span>
+    <span class="n">mesh</span> <span class="o">=</span> <span class="n">RectangleMesh</span><span class="p">(</span><span class="n">Point</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span> <span class="n">Point</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">L</span> <span class="o">/</span> <span class="mf">2.0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">n_elements</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">mat</span> <span class="o">=</span> <span class="n">GDMPlaneStrain</span><span class="p">(</span><span class="n">E</span><span class="o">=</span><span class="n">e</span><span class="o">.</span><span class="n">E</span><span class="p">,</span> <span class="n">nu</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">ft</span><span class="o">=</span><span class="n">e</span><span class="o">.</span><span class="n">E</span> <span class="o">*</span> <span class="n">e</span><span class="o">.</span><span class="n">kappa0</span><span class="p">,</span> <span class="n">l</span><span class="o">=</span><span class="n">e</span><span class="o">.</span><span class="n">l</span><span class="p">,</span> <span class="n">dmg</span><span class="o">=</span><span class="n">damage_perfect</span><span class="p">)</span>
 
     <span class="n">area</span> <span class="o">=</span> <span class="n">Expression</span><span class="p">(</span>
-        <span class="s2">&quot;x[0] &lt;= W/2. ? 10.0 * (1. - a) : 10.0&quot;</span><span class="p">,</span> <span class="n">W</span><span class="o">=</span><span class="n">e_exact</span><span class="o">.</span><span class="n">W</span><span class="p">,</span> <span class="n">a</span><span class="o">=</span><span class="n">e_exact</span><span class="o">.</span><span class="n">alpha</span><span class="p">,</span> <span class="n">degree</span><span class="o">=</span><span class="mi">0</span>
+        <span class="s2">&quot;x[0] &lt;= W/2. ? 10.0 * (1. - a) : 10.0&quot;</span><span class="p">,</span> <span class="n">W</span><span class="o">=</span><span class="n">e</span><span class="o">.</span><span class="n">W</span><span class="p">,</span> <span class="n">a</span><span class="o">=</span><span class="n">e</span><span class="o">.</span><span class="n">alpha</span><span class="p">,</span> <span class="n">degree</span><span class="o">=</span><span class="mi">0</span>
     <span class="p">)</span>
     <span class="n">gdm</span> <span class="o">=</span> <span class="n">GDM</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">mat</span><span class="p">,</span> <span class="n">f_d</span><span class="o">=</span><span class="n">area</span><span class="p">)</span>
 
-    <span class="n">bc_expr</span> <span class="o">=</span> <span class="n">Expression</span><span class="p">(</span><span class="s2">&quot;t*d&quot;</span><span class="p">,</span> <span class="n">degree</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">t</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">d</span><span class="o">=</span><span class="n">e_exact</span><span class="o">.</span><span class="n">deltaL</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="n">bc_expr</span> <span class="o">=</span> <span class="n">Expression</span><span class="p">(</span><span class="s2">&quot;t*d&quot;</span><span class="p">,</span> <span class="n">degree</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">t</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">d</span><span class="o">=</span><span class="n">e</span><span class="o">.</span><span class="n">deltaL</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span>
     <span class="n">bc0</span> <span class="o">=</span> <span class="n">DirichletBC</span><span class="p">(</span><span class="n">gdm</span><span class="o">.</span><span class="n">Vd</span><span class="p">,</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span> <span class="n">plane_at</span><span class="p">(</span><span class="mf">0.0</span><span class="p">))</span>
-    <span class="n">bc1</span> <span class="o">=</span> <span class="n">DirichletBC</span><span class="p">(</span><span class="n">gdm</span><span class="o">.</span><span class="n">Vd</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span> <span class="n">bc_expr</span><span class="p">,</span> <span class="n">plane_at</span><span class="p">(</span><span class="n">e_exact</span><span class="o">.</span><span class="n">L</span> <span class="o">/</span> <span class="mf">2.0</span><span class="p">))</span>
+    <span class="n">bc1</span> <span class="o">=</span> <span class="n">DirichletBC</span><span class="p">(</span><span class="n">gdm</span><span class="o">.</span><span class="n">Vd</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span> <span class="n">bc_expr</span><span class="p">,</span> <span class="n">plane_at</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">L</span> <span class="o">/</span> <span class="mf">2.0</span><span class="p">))</span>
     <span class="n">gdm</span><span class="o">.</span><span class="n">set_bcs</span><span class="p">([</span><span class="n">bc0</span><span class="p">,</span> <span class="n">bc1</span><span class="p">])</span>
 
     <span class="n">solver</span> <span class="o">=</span> <span class="n">NewtonSolver</span><span class="p">()</span>
@@ -590,7 +626,7 @@ compare.</p>
         <span class="k">assert</span> <span class="n">solver</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">gdm</span><span class="p">,</span> <span class="n">gdm</span><span class="o">.</span><span class="n">u</span><span class="o">.</span><span class="n">vector</span><span class="p">())[</span><span class="mi">1</span><span class="p">]</span>
 
     <span class="n">e_fem</span> <span class="o">=</span> <span class="n">gdm</span><span class="o">.</span><span class="n">u</span><span class="o">.</span><span class="n">split</span><span class="p">()[</span><span class="mi">1</span><span class="p">]</span>
-    <span class="k">return</span> <span class="n">errornorm</span><span class="p">(</span><span class="n">e_exact</span><span class="p">,</span> <span class="n">e_fem</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">errornorm</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">e_fem</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>This error should converge to zero upon mesh refinement and can be used to
@@ -690,8 +726,8 @@ These can be modified to use an <a class="reference external" href="gradient_dam
 
 
 <span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
-    <span class="c1"># assert gdm_error(200) &lt; 1.0e-8</span>
-    <span class="c1"># convergence_test()</span>
+    <span class="k">assert</span> <span class="n">gdm_error</span><span class="p">(</span><span class="mi">200</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mf">1.0e-8</span>
+    <span class="n">convergence_test</span><span class="p">()</span>
     <span class="n">three_point_bending</span><span class="p">()</span>
     <span class="c1"># list_timings(TimingClear.keep, [TimingType.wall])</span>
 </pre></div>
