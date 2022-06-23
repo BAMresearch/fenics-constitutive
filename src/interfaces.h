@@ -36,6 +36,7 @@ enum Q
     RHO,
     POROSITY,
     PRESSURE,
+    NONLOCAL,
     LAST,
 
 

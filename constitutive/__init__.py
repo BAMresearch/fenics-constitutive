@@ -1,11 +1,11 @@
+from .cpp import *
 
-import warnings
 try:
     import dolfinx as dfx
-    from .cpp import *
 except ModuleNotFoundError:
     import dolfin as df
 
+    import warnings
 
     from ffc.quadrature.deprecation import \
         QuadratureRepresentationDeprecationWarning
@@ -15,7 +15,6 @@ except ModuleNotFoundError:
     from .explicit_dynamics import *
     from .helper import *
     from .mechanics_problem import *
-    from .cpp import *
 
     try:
        from fenics_helpers import boundary as bc

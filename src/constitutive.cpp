@@ -45,7 +45,8 @@ PYBIND11_MODULE(cpp, m)
             .value("DSIGMA_DE", Q::DSIGMA_DE)
             .value("RHO", Q::RHO)
             .value("DAMAGE", Q::DAMAGE)
-            .value("PRESSURE", Q::PRESSURE);
+            .value("PRESSURE", Q::PRESSURE).
+            value("NONLOCAL", Q::NONLOCAL);
 
 
     m.def("g_dim", &Dim::G);
@@ -216,11 +217,12 @@ PYBIND11_MODULE(cpp, m)
     jh2_parameters.def_readwrite("BETA", &JH2Parameters::BETA);
     jh2_parameters.def_readwrite("MOGEL", &JH2Parameters::MOGEL);
 
-    pybind11::class_<JH2, std::shared_ptr<JH2>, LawInterface> jh2(m, "JH2");
-    jh2.def(pybind11::init<std::shared_ptr<JH2Parameters>>(), py::arg("JH2Parameters"));
-    jh2.def("get_internal_var", &JH2::GetInternalVar);
 
     pybind11::class_<JH2Simple, std::shared_ptr<JH2Simple>, LawInterface> jh2_simple(m, "JH2Simple");
     jh2_simple.def(pybind11::init<std::shared_ptr<JH2Parameters>>(), py::arg("JH2Parameters"));
     jh2_simple.def("get_internal_var", &JH2Simple::GetInternalVar);
+    
+    pybind11::class_<JH2Nonlocal, std::shared_ptr<JH2Nonlocal>, LawInterface> jh2_nonlocal(m, "JH2Nonlocal");
+    jh2_nonlocal.def(pybind11::init<std::shared_ptr<JH2Parameters>>(), py::arg("JH2Parameters"));
+    jh2_nonlocal.def("get_internal_var", &JH2Nonlocal::GetInternalVar);
 }
