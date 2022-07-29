@@ -14,6 +14,7 @@ compared to the analytic displacement field.
 """
 
 from helper import *
+import pathlib
 import math
 
 
@@ -73,18 +74,12 @@ class PlateWithHoleSolution:
 
         return sxx, syy, sxy
 
-    def build_mesh(self, resolution=20):
-        from mshr import Rectangle, Circle, generate_mesh
-
-        domain = Rectangle(Point(0.0, 0.0), Point(self.L, self.L)) - Circle(
-            Point(0.0, 0.0), self.radius
-        )
-        return generate_mesh(domain, resolution)
 
 """
 When subclassing from ``dolfin.UserExpression``, make sure to override
 ``value_shape`` for non-scalar expressions.
 """
+
 
 class StressSolution(UserExpression):
     def __init__(self, solution, **kwargs):
@@ -116,11 +111,13 @@ class DisplacementSolution(UserExpression):
     def value_shape(self):
         return (2,)
 
+
 """
 As we want to compare different ways to define the strain vector, we have
 both this vector ``eps`` and a corresponding elasticity matrix ``C`` as 
 parameters to the FEM solution.
 """
+
 
 def solve_fem(mesh, traction, eps, C):
     """
@@ -251,7 +248,10 @@ All formulations, though, have a comparable error to the analytic solution.
 L, radius = 4.0, 1.0
 
 plate_with_hole = PlateWithHoleSolution(L=L, E=E, nu=nu, radius=radius)
-mesh = plate_with_hole.build_mesh(resolution=50)
+mesh = Mesh()
+xdmf_file = pathlib.Path(__file__).parents[1] / "test/plate.xdmf"
+with XDMFFile(xdmf_file.as_posix()) as f:
+    f.read(mesh)
 
 n = FacetNormal(mesh)
 stress = StressSolution(plate_with_hole, degree=2)
@@ -261,7 +261,7 @@ traction = dot(stress, n)
 for name, formulation in formulations.items():
     u = solve_fem(mesh, traction, *formulation)
     disp = DisplacementSolution(plate_with_hole, degree=2)
-    error = errornorm(disp, u)
+    error = errornorm(disp, u, degree_rise=0)
     print(f"{name:10s} || u_fem - u_analytic || = {error}")
 
 XDMFFile("plate_with_hole.xdmf").write(u)
@@ -270,7 +270,7 @@ XDMFFile("plate_with_hole.xdmf").write(u)
 Results in
 ::
 
-    Voigt      || u_fem - u_analytic || = 2.8253172319402374e-08
-    Mandel3    || u_fem - u_analytic || = 2.8253171958153452e-08
-    Mandel4    || u_fem - u_analytic || = 2.8253172614263883e-08
+    Voigt      || u_fem - u_analytic || = 3.920310241053112e-08
+    Mandel3    || u_fem - u_analytic || = 3.920310257183142e-08
+    Mandel4    || u_fem - u_analytic || = 3.920310257183142e-08
 """
