@@ -1,8 +1,10 @@
+import pathlib
 import unittest
 import constitutive as c
 from fenics_helpers import boundary
 from dolfin import *
 import math
+
 
 class PlateWithHoleSolution:
     def __init__(self, E, nu, radius=1.0, L=10.0, load=10.0):
@@ -60,18 +62,12 @@ class PlateWithHoleSolution:
 
         return sxx, syy, sxy
 
-    def build_mesh(self, resolution=20):
-        from mshr import Rectangle, Circle, generate_mesh
-
-        domain = Rectangle(Point(0.0, 0.0), Point(self.L, self.L)) - Circle(
-            Point(0.0, 0.0), self.radius
-        )
-        return generate_mesh(domain, resolution)
 
 """
 When subclassing from ``dolfin.UserExpression``, make sure to override
 ``value_shape`` for non-scalar expressions.
 """
+
 
 class StressSolution(UserExpression):
     def __init__(self, solution, **kwargs):
@@ -111,22 +107,28 @@ class TestPlate(unittest.TestCase):
         prm = c.Parameters(c.Constraint.PLANE_STRESS)
 
         plate_with_hole = PlateWithHoleSolution(L=L, E=prm.E, nu=prm.nu, radius=radius)
-        mesh = plate_with_hole.build_mesh(resolution=50)
+        mesh = Mesh()
+        xdmf_file = pathlib.Path(__file__).parent / "plate.xdmf"
+        with XDMFFile(xdmf_file.as_posix()) as f:
+            f.read(mesh)
 
         n = FacetNormal(mesh)
         stress = StressSolution(plate_with_hole, degree=2)
         traction = dot(stress, n)
-  
-        problem = c.MechanicsProblem(mesh, prm, c.LinearElastic(prm.E, prm.nu, prm.constraint))
+
+        problem = c.MechanicsProblem(
+            mesh, prm, c.LinearElastic(prm.E, prm.nu, prm.constraint)
+        )
         bc0 = DirichletBC(problem.Vd.sub(0), 0.0, boundary.plane_at(0, "x"))
         bc1 = DirichletBC(problem.Vd.sub(1), 0.0, boundary.plane_at(0, "y"))
         problem.set_bcs([bc0, bc1])
-        problem.add_force_term(dot(TestFunction(problem.Vd), traction)*ds)
-        u = problem.solve() 
-        
+        problem.add_force_term(dot(TestFunction(problem.Vd), traction) * ds)
+        u = problem.solve()
+
         disp = DisplacementSolution(plate_with_hole, degree=2)
         error = errornorm(disp, u)
-        self.assertLess(error, 1.e-6)
+        self.assertLess(error, 1.0e-6)
+
 
 if __name__ == "__main__":
     unittest.main()
