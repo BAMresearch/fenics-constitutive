@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Basic principle &mdash; FEniCS Constitutive 2020 documentation</title>
@@ -14,6 +14,7 @@
         <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
         <script src="../_static/jquery.js"></script>
         <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../_static/doctools.js"></script>
         <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="../_static/js/theme.js"></script>
@@ -88,7 +89,7 @@
            <div itemprop="articleBody">
              
   <section id="basic-principle">
-<h1>Basic principle<a class="headerlink" href="#basic-principle" title="Permalink to this headline"></a></h1>
+<h1>Basic principle<a class="headerlink" href="#basic-principle" title="Permalink to this heading"></a></h1>
 <p>This example demonstrates the basic principle of performing the “constitutive
 update” manually on the quadrature points, by explicitly providing the stresses
 and their derivative w.r.t. the strains as <code class="docutils literal notranslate"><span class="pre">numpy</span></code> matrices.</p>
@@ -117,7 +118,7 @@ and boundary conditions.</p>
 </pre></div>
 </div>
 <section id="constitutive-law">
-<h2>Constitutive law<a class="headerlink" href="#constitutive-law" title="Permalink to this headline"></a></h2>
+<h2>Constitutive law<a class="headerlink" href="#constitutive-law" title="Permalink to this heading"></a></h2>
 <p>Instead of providing the constitutive law for linear elasticity via UFL,
 we manually implement. This is done in <a class="reference external" href="https://en.wikipedia.org/wiki/Voigt_notation">Voigt notation</a>, where the
 strains <span class="math notranslate nohighlight">\(\boldsymbol \varepsilon\)</span> are defined as</p>
@@ -145,7 +146,7 @@ stress) reads</p>
 </div>
 </section>
 <section id="quadrature-spaces">
-<h2>Quadrature spaces<a class="headerlink" href="#quadrature-spaces" title="Permalink to this headline"></a></h2>
+<h2>Quadrature spaces<a class="headerlink" href="#quadrature-spaces" title="Permalink to this heading"></a></h2>
 <p>We now define appropriately sized vector function spaces for <span class="math notranslate nohighlight">\(\boldsymbol \sigma\)</span> and
 a tensor function space for <span class="math notranslate nohighlight">\(\frac{\boldsymbol \sigma}{\boldsymbol \varepsilon}\)</span>.</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">q</span> <span class="o">=</span> <span class="s2">&quot;Quadrature&quot;</span>
@@ -169,7 +170,7 @@ and a corresponding integration measure has to be defined and used in all forms.
 </div>
 </section>
 <section id="solution">
-<h2>Solution<a class="headerlink" href="#solution" title="Permalink to this headline"></a></h2>
+<h2>Solution<a class="headerlink" href="#solution" title="Permalink to this heading"></a></h2>
 <p>The form for the residual and its derivative w.r.t. to the displacements is
 defined as</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">R</span> <span class="o">=</span> <span class="o">-</span><span class="n">inner</span><span class="p">(</span><span class="n">eps</span><span class="p">(</span><span class="n">u_</span><span class="p">),</span> <span class="n">q_sigma</span><span class="p">)</span> <span class="o">*</span> <span class="n">dxm</span>
@@ -198,7 +199,7 @@ for each Gauss point and assign it to the function space. (<a class="reference e
 </div>
 </section>
 <section id="test">
-<h2>Test<a class="headerlink" href="#test" title="Permalink to this headline"></a></h2>
+<h2>Test<a class="headerlink" href="#test" title="Permalink to this heading"></a></h2>
 <p>The solution field of this uniaxial problem should now look like</p>
 <div class="math notranslate nohighlight">
 \[\begin{split}\begin{bmatrix}u_x \\ u_y \end{bmatrix} = \begin{bmatrix} u_{bc} x \\- \nu u_{bc}y \end{bmatrix}\end{split}\]</div>
@@ -213,9 +214,9 @@ for each Gauss point and assign it to the function space. (<a class="reference e
 </div>
 </section>
 <section id="extensions">
-<h2>Extensions<a class="headerlink" href="#extensions" title="Permalink to this headline"></a></h2>
+<h2>Extensions<a class="headerlink" href="#extensions" title="Permalink to this heading"></a></h2>
 <section id="strain-calculation">
-<h3>Strain calculation<a class="headerlink" href="#strain-calculation" title="Permalink to this headline"></a></h3>
+<h3>Strain calculation<a class="headerlink" href="#strain-calculation" title="Permalink to this heading"></a></h3>
 <p>This simple example with a linear constitutive law technically only requires
 the nonzero tangent <code class="docutils literal notranslate"><span class="pre">q_dsigma_deps</span></code> to be defined and implemented. For
 nonlinear materials, this changes. They usually depend on the strain, which can
@@ -254,7 +255,7 @@ whole element is often used.</p>
 </div>
 </section>
 <section id="embedding-in-a-nonlinear-material">
-<h3>Embedding in a nonlinear material<a class="headerlink" href="#embedding-in-a-nonlinear-material" title="Permalink to this headline"></a></h3>
+<h3>Embedding in a nonlinear material<a class="headerlink" href="#embedding-in-a-nonlinear-material" title="Permalink to this heading"></a></h3>
 <p>One Newton-Raphson iteration would normally consist of</p>
 <ol class="arabic simple">
 <li><p>calculate <span class="math notranslate nohighlight">\(\boldsymbol \varepsilon\)</span> as a big <code class="docutils literal notranslate"><span class="pre">numpy</span></code> vector</p></li>
@@ -265,7 +266,7 @@ whole element is often used.</p>
 <p>This is (e.g.) demonstrated in the more complex <a class="reference external" href="gradient_damage.html">gradient damage</a> example.</p>
 </section>
 <section id="iterations-on-gauss-point-level">
-<h3>Iterations on Gauss point level<a class="headerlink" href="#iterations-on-gauss-point-level" title="Permalink to this headline"></a></h3>
+<h3>Iterations on Gauss point level<a class="headerlink" href="#iterations-on-gauss-point-level" title="Permalink to this heading"></a></h3>
 <p>The constitutive equation of plasticity models often includes a stress norm.
 This requires an iterative update of some internal variables, e.g. a plastic
 multiplier, until Gauss-point-convergence is reached. This procedure may

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Material models &mdash; FEniCS Constitutive 2020 documentation</title>
@@ -14,6 +14,7 @@
         <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
         <script src="../_static/jquery.js"></script>
         <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../_static/doctools.js"></script>
         <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="../_static/js/theme.js"></script>
@@ -95,9 +96,9 @@
 </pre></div>
 </div>
 <section id="material-models">
-<h1>Material models<a class="headerlink" href="#material-models" title="Permalink to this headline"></a></h1>
+<h1>Material models<a class="headerlink" href="#material-models" title="Permalink to this heading"></a></h1>
 <section id="uniaxial-damage-model">
-<h2>Uniaxial damage model<a class="headerlink" href="#uniaxial-damage-model" title="Permalink to this headline"></a></h2>
+<h2>Uniaxial damage model<a class="headerlink" href="#uniaxial-damage-model" title="Permalink to this heading"></a></h2>
 <p>We assume the material to consist of “fibers” that are perfectly
 brittle, meaning they instantly fail at a critical point. But since not
 all fibers fail at the same time, we have a reduction of affected area.
@@ -116,11 +117,11 @@ we have <span class="math notranslate nohighlight">\(A_\mathrm{end}=0\)</span>. 
 <span class="math notranslate nohighlight">\(\omega =g(\varepsilon)\)</span></p>
 </section>
 <section id="perfect-plastic-model">
-<h2>Perfect Plastic Model<a class="headerlink" href="#perfect-plastic-model" title="Permalink to this headline"></a></h2>
+<h2>Perfect Plastic Model<a class="headerlink" href="#perfect-plastic-model" title="Permalink to this heading"></a></h2>
 <p>Todo: Introduction to plastic models</p>
 </section>
 <section id="monotonic-loading">
-<h2>Monotonic loading<a class="headerlink" href="#monotonic-loading" title="Permalink to this headline"></a></h2>
+<h2>Monotonic loading<a class="headerlink" href="#monotonic-loading" title="Permalink to this heading"></a></h2>
 <div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">e</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mf">0.11</span><span class="p">,</span><span class="mi">100</span><span class="p">)</span>
 <span class="n">E</span> <span class="o">=</span> <span class="mi">1000</span>
 <span class="n">s_yield</span> <span class="o">=</span> <span class="mi">40</span>
@@ -153,7 +154,7 @@ we have <span class="math notranslate nohighlight">\(A_\mathrm{end}=0\)</span>. 
 </div>
 </section>
 <section id="non-monotonic-loading-damage-model">
-<h2>Non monotonic loading (Damage model)<a class="headerlink" href="#non-monotonic-loading-damage-model" title="Permalink to this headline"></a></h2>
+<h2>Non monotonic loading (Damage model)<a class="headerlink" href="#non-monotonic-loading-damage-model" title="Permalink to this heading"></a></h2>
 <div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">e_unloading</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">((</span><span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mf">0.04</span><span class="p">,</span><span class="mi">100</span><span class="p">),</span><span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mf">0.04</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mi">100</span><span class="p">)))</span>
 
 <span class="n">s_el_damage</span> <span class="o">=</span> <span class="n">DamageMaterial1D</span><span class="p">(</span><span class="n">E</span><span class="p">,</span><span class="mf">0.03</span><span class="p">)</span>
@@ -180,7 +181,7 @@ we have <span class="math notranslate nohighlight">\(A_\mathrm{end}=0\)</span>. 
 </div>
 </section>
 <section id="non-monotonic-loading-plastic-model">
-<h2>Non monotonic loading (Plastic model)<a class="headerlink" href="#non-monotonic-loading-plastic-model" title="Permalink to this headline"></a></h2>
+<h2>Non monotonic loading (Plastic model)<a class="headerlink" href="#non-monotonic-loading-plastic-model" title="Permalink to this heading"></a></h2>
 <div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">e_unloading</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">((</span><span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mf">0.06</span><span class="p">,</span><span class="mi">100</span><span class="p">),</span><span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mf">0.06</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mi">100</span><span class="p">)))</span>
 
 <span class="n">pl</span> <span class="o">=</span> <span class="n">PerfectPlasticMaterial1D</span><span class="p">(</span><span class="n">E</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">df</span> <span class="p">,</span><span class="n">ddf</span><span class="p">)</span>
@@ -207,7 +208,7 @@ we have <span class="math notranslate nohighlight">\(A_\mathrm{end}=0\)</span>. 
 </div>
 </section>
 <section id="non-monotonic-loading-plastic-model-with-hardening">
-<h2>Non monotonic loading (Plastic model with hardening)<a class="headerlink" href="#non-monotonic-loading-plastic-model-with-hardening" title="Permalink to this headline"></a></h2>
+<h2>Non monotonic loading (Plastic model with hardening)<a class="headerlink" href="#non-monotonic-loading-plastic-model-with-hardening" title="Permalink to this heading"></a></h2>
 <div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">e_unloading</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">((</span><span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mf">0.06</span><span class="p">,</span><span class="mi">100</span><span class="p">),</span><span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mf">0.06</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span><span class="mi">100</span><span class="p">)))</span>
 
 <span class="n">pl</span> <span class="o">=</span> <span class="n">PlasticHardeningMaterial1D</span><span class="p">(</span><span class="n">E</span><span class="p">,</span> <span class="mi">250</span><span class="p">,</span> <span class="mi">40</span><span class="p">)</span>
@@ -234,7 +235,7 @@ we have <span class="math notranslate nohighlight">\(A_\mathrm{end}=0\)</span>. 
 </div>
 </section>
 <section id="equation-of-state-with-perfect-plasticity">
-<h2>Equation of state with perfect plasticity<a class="headerlink" href="#equation-of-state-with-perfect-plasticity" title="Permalink to this headline"></a></h2>
+<h2>Equation of state with perfect plasticity<a class="headerlink" href="#equation-of-state-with-perfect-plasticity" title="Permalink to this heading"></a></h2>
 <p>For this example we consider a 3d space, but only with principal
 stresses and strains. In one dimension the differentiation between
 hydrostatic pressure and other stresses would have been useless.</p>
@@ -309,7 +310,7 @@ and strain and assume a uniaxial strain
 </section>
 </section>
 <section id="drucker-prager-yield-condition">
-<h1>Drucker-Prager yield condition<a class="headerlink" href="#drucker-prager-yield-condition" title="Permalink to this headline"></a></h1>
+<h1>Drucker-Prager yield condition<a class="headerlink" href="#drucker-prager-yield-condition" title="Permalink to this heading"></a></h1>
 <p>First example with linear elasticity, second with EOS.</p>
 <div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">eps_increment</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mf">0.04</span><span class="p">,</span><span class="mi">100</span><span class="p">)</span>
 <span class="n">E</span> <span class="o">=</span> <span class="mi">100000</span>

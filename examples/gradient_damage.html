@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Implicit gradient-enhanced damage model &mdash; FEniCS Constitutive 2020 documentation</title>
@@ -14,6 +14,7 @@
         <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
         <script src="../_static/jquery.js"></script>
         <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../_static/doctools.js"></script>
         <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="../_static/js/theme.js"></script>
@@ -94,9 +95,9 @@
            <div itemprop="articleBody">
              
   <section id="implicit-gradient-enhanced-damage-model">
-<span id="gdm-label"></span><h1>Implicit gradient-enhanced damage model<a class="headerlink" href="#implicit-gradient-enhanced-damage-model" title="Permalink to this headline"></a></h1>
+<span id="gdm-label"></span><h1>Implicit gradient-enhanced damage model<a class="headerlink" href="#implicit-gradient-enhanced-damage-model" title="Permalink to this heading"></a></h1>
 <section id="introduction-and-governing-equations">
-<h2>Introduction and governing equations<a class="headerlink" href="#introduction-and-governing-equations" title="Permalink to this headline"></a></h2>
+<h2>Introduction and governing equations<a class="headerlink" href="#introduction-and-governing-equations" title="Permalink to this heading"></a></h2>
 <p>A local isotropic damage model…</p>
 <div class="math notranslate nohighlight">
 \[\nabla \cdot \left( (1-\omega(\kappa(\| \boldsymbol \varepsilon \|)))
@@ -139,14 +140,14 @@ the scalars in a (possibly huge) vector and apply the function once. This may
 explain some strange syntax and slicing in the code below.</strong></p>
 </section>
 <section id="gradient-damage-constitutive-law">
-<h2>Gradient damage constitutive law<a class="headerlink" href="#gradient-damage-constitutive-law" title="Permalink to this headline"></a></h2>
+<h2>Gradient damage constitutive law<a class="headerlink" href="#gradient-damage-constitutive-law" title="Permalink to this heading"></a></h2>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">import</span> <span class="nn">ufl</span>
 <span class="kn">from</span> <span class="nn">dataclasses</span> <span class="kn">import</span> <span class="n">dataclass</span>
 </pre></div>
 </div>
 <section id="damage-law">
-<h3>Damage law<a class="headerlink" href="#damage-law" title="Permalink to this headline"></a></h3>
+<h3>Damage law<a class="headerlink" href="#damage-law" title="Permalink to this heading"></a></h3>
 <p>The simplest case that is used in Peerlings et al. for an analytic solution is
 the perfect damage model that, if inserted in the stress-strain relationship,
 looks like</p>
@@ -189,7 +190,7 @@ ft |
 </div>
 </section>
 <section id="constitutive-law">
-<h3>Constitutive law<a class="headerlink" href="#constitutive-law" title="Permalink to this headline"></a></h3>
+<h3>Constitutive law<a class="headerlink" href="#constitutive-law" title="Permalink to this heading"></a></h3>
 <p>Basically <a class="reference external" href="https://en.wikipedia.org/wiki/Hooke%27s_law#Plane_strain">Hooke’s law in plane strain</a> with the factor <span class="math notranslate nohighlight">\((1-\omega)\)</span>.</p>
 <div class="math notranslate nohighlight">
 \[\begin{split}\boldsymbol \sigma &amp;= (1 - \omega(\kappa)) \boldsymbol C : \boldsymbol \varepsilon \\
@@ -223,7 +224,7 @@ ft |
 </div>
 </section>
 <section id="strain-norm">
-<h3>Strain norm<a class="headerlink" href="#strain-norm" title="Permalink to this headline"></a></h3>
+<h3>Strain norm<a class="headerlink" href="#strain-norm" title="Permalink to this heading"></a></h3>
 <p>The local equivalent strain <span class="math notranslate nohighlight">\(\| \boldsymbol \varepsilon \|\)</span> is defined as</p>
 <div class="math notranslate nohighlight">
 \[\|\boldsymbol \varepsilon\| = \frac{k-1}{2k(1-2\nu)}I_1 + \frac{1}{2k}\sqrt{\left(\frac{k-1}{1-2\nu}I_1\right)^2 + \frac{2k}{(1+\nu)^2}J_2}.\]</div>
@@ -257,7 +258,7 @@ The parameter <span class="math notranslate nohighlight">\(k=f_c/f_t\)</span> co
 </div>
 </section>
 <section id="complete-constitutive-class">
-<h3>Complete constitutive class<a class="headerlink" href="#complete-constitutive-class" title="Permalink to this headline"></a></h3>
+<h3>Complete constitutive class<a class="headerlink" href="#complete-constitutive-class" title="Permalink to this heading"></a></h3>
 <ul class="simple">
 <li><p>contains the material parameters</p></li>
 <li><p>stores the values of all integration points</p></li>
@@ -315,7 +316,7 @@ The parameter <span class="math notranslate nohighlight">\(k=f_c/f_t\)</span> co
 </section>
 </section>
 <section id="quadrature-space-formulation">
-<h2>Quadrature space formulation<a class="headerlink" href="#quadrature-space-formulation" title="Permalink to this headline"></a></h2>
+<h2>Quadrature space formulation<a class="headerlink" href="#quadrature-space-formulation" title="Permalink to this heading"></a></h2>
 <dl class="simple">
 <dt>Degrees of freedom in a mixed function space</dt><dd><ul class="simple">
 <li><p>u = [d, e]</p></li>
@@ -459,9 +460,9 @@ the <code class="docutils literal notranslate"><span class="pre">GDM.evaluate_ma
 </dl>
 </section>
 <section id="examples">
-<h2>Examples<a class="headerlink" href="#examples" title="Permalink to this headline"></a></h2>
+<h2>Examples<a class="headerlink" href="#examples" title="Permalink to this heading"></a></h2>
 <section id="comparison-with-the-analytic-solution">
-<h3>Comparison with the analytic solution<a class="headerlink" href="#comparison-with-the-analytic-solution" title="Permalink to this headline"></a></h3>
+<h3>Comparison with the analytic solution<a class="headerlink" href="#comparison-with-the-analytic-solution" title="Permalink to this heading"></a></h3>
 <p>The Peerlings paper cited above includes a discussion on an analytic solution
 of the model for the <code class="docutils literal notranslate"><span class="pre">damage_perfect</span></code> damage law. A 1D bar of length <span class="math notranslate nohighlight">\(L\)</span>
 (here modeled as a thin 2D structure) has a cross section reduction <span class="math notranslate nohighlight">\(\alpha\)</span>
@@ -480,7 +481,7 @@ is solved using <code class="docutils literal notranslate"><span class="pre">sym
 interpolate the analytic solution into function spaces or calculate error norms.</p>
 </section>
 <section id="id1">
-<h3>Comparison with the analytic solution<a class="headerlink" href="#id1" title="Permalink to this headline"></a></h3>
+<h3>Comparison with the analytic solution<a class="headerlink" href="#id1" title="Permalink to this heading"></a></h3>
 <p>The Peerlings paper cited above includes a discussion on an analytic solution
 of the model for the <code class="docutils literal notranslate"><span class="pre">damage_perfect</span></code> damage law. A 1D bar of length <span class="math notranslate nohighlight">\(L\)</span>
 (here modeled as a thin 2D structure) has a cross section reduction <span class="math notranslate nohighlight">\(\alpha\)</span>
@@ -657,7 +658,7 @@ determine the order of convergence of the model.</p>
 </section>
 </section>
 <section id="three-point-bending-test">
-<h2>Three-point bending test<a class="headerlink" href="#three-point-bending-test" title="Permalink to this headline"></a></h2>
+<h2>Three-point bending test<a class="headerlink" href="#three-point-bending-test" title="Permalink to this heading"></a></h2>
 <p>Just a more exciting example.</p>
 <img alt="../_images/gdm_bending.gif" src="../_images/gdm_bending.gif" />
 <p>Note that we pass our <code class="docutils literal notranslate"><span class="pre">GDM</span></code> class as well as the linear solver as a parameter.
@@ -734,7 +735,7 @@ These can be modified to use an <a class="reference external" href="gradient_dam
 </div>
 </section>
 <section id="extensions">
-<h2>Extensions<a class="headerlink" href="#extensions" title="Permalink to this headline"></a></h2>
+<h2>Extensions<a class="headerlink" href="#extensions" title="Permalink to this heading"></a></h2>
 <ul class="simple">
 <li><p>make everything dimension independent</p></li>
 </ul>

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Helper classes and functions &mdash; FEniCS Constitutive 2020 documentation</title>
@@ -14,6 +14,7 @@
         <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
         <script src="../_static/jquery.js"></script>
         <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../_static/doctools.js"></script>
         <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="../_static/js/theme.js"></script>
@@ -82,9 +83,9 @@
            <div itemprop="articleBody">
              
   <section id="helper-classes-and-functions">
-<h1>Helper classes and functions<a class="headerlink" href="#helper-classes-and-functions" title="Permalink to this headline"></a></h1>
+<h1>Helper classes and functions<a class="headerlink" href="#helper-classes-and-functions" title="Permalink to this heading"></a></h1>
 <section id="suppress-warnings">
-<h2>Suppress warnings<a class="headerlink" href="#suppress-warnings" title="Permalink to this headline"></a></h2>
+<h2>Suppress warnings<a class="headerlink" href="#suppress-warnings" title="Permalink to this heading"></a></h2>
 <p>The whole quadrature space is half deprecated, half not. We roll with it
 and just ignore the warnings.</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
@@ -109,7 +110,7 @@ and just ignore the warnings.</p>
 </div>
 </section>
 <section id="load-displacement-curve">
-<h2>Load-displacement curve<a class="headerlink" href="#load-displacement-curve" title="Permalink to this headline"></a></h2>
+<h2>Load-displacement curve<a class="headerlink" href="#load-displacement-curve" title="Permalink to this heading"></a></h2>
 <p>For a given state (e.g. a time step), load-displacement curve connects the
 displacements of certain DOFs with their reaction forces (<em>load</em>). Especially
 for strain-softening materials, this curve can indicate numerical issues
@@ -175,7 +176,7 @@ forces from a given force vector <code class="docutils literal notranslate"><spa
 </div>
 </section>
 <section id="local-projector">
-<h2>Local projector<a class="headerlink" href="#local-projector" title="Permalink to this headline"></a></h2>
+<h2>Local projector<a class="headerlink" href="#local-projector" title="Permalink to this heading"></a></h2>
 <p>Projecting an expression <code class="docutils literal notranslate"><span class="pre">expr(u)</span></code> into a function space <code class="docutils literal notranslate"><span class="pre">V</span></code> is done by
 solving the variational problem</p>
 <div class="math notranslate nohighlight">
@@ -211,7 +212,7 @@ be prefactorized to speedup subsequent projections.</p>
 </div>
 </section>
 <section id="setting-values-for-the-quadrature-space">
-<h2>Setting values for the quadrature space<a class="headerlink" href="#setting-values-for-the-quadrature-space" title="Permalink to this headline"></a></h2>
+<h2>Setting values for the quadrature space<a class="headerlink" href="#setting-values-for-the-quadrature-space" title="Permalink to this heading"></a></h2>
 <ul class="simple">
 <li><p>The combination of <code class="docutils literal notranslate"><span class="pre">.zero</span></code> and <code class="docutils literal notranslate"><span class="pre">.add_local</span></code> is faster than using
 <code class="docutils literal notranslate"><span class="pre">.set_local</span></code> directly, as <code class="docutils literal notranslate"><span class="pre">.set_local</span></code> copies everything in a <a class="reference external" href="https://bitbucket.org/fenics-project/dolfin/src/946dbd3e268dc20c64778eb5b734941ca5c343e5/python/src/la.cpp#lines-576">C++ vector</a> first.</p></li>

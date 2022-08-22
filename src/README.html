@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Thoughts/design &mdash; FEniCS Constitutive 2020 documentation</title>
@@ -14,6 +14,7 @@
         <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
         <script src="../_static/jquery.js"></script>
         <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../_static/doctools.js"></script>
         <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="../_static/js/theme.js"></script>
@@ -86,14 +87,14 @@
            <div itemprop="articleBody">
              
   <section id="thoughts-design">
-<h1>Thoughts/design<a class="headerlink" href="#thoughts-design" title="Permalink to this headline"></a></h1>
+<h1>Thoughts/design<a class="headerlink" href="#thoughts-design" title="Permalink to this heading"></a></h1>
 <section id="performance">
-<h2>Performance<a class="headerlink" href="#performance" title="Permalink to this headline"></a></h2>
+<h2>Performance<a class="headerlink" href="#performance" title="Permalink to this heading"></a></h2>
 <p>Unless proven otherwise, the C++ code is not expected to be the bottleneck of
 your simulation. This is especially true for anything involving a “solve”.</p>
 </section>
 <section id="reuseability">
-<h2>Reuseability<a class="headerlink" href="#reuseability" title="Permalink to this headline"></a></h2>
+<h2>Reuseability<a class="headerlink" href="#reuseability" title="Permalink to this heading"></a></h2>
 <p>Try to break down the building blocks of your material law to be reusable by
 others. If you are able to decompose e.g. a norm</p>
 <div class="math notranslate nohighlight">
@@ -109,7 +110,7 @@ or dimension of <span class="math notranslate nohighlight">\(\boldsymbol x\)</sp
 tensor version of <span class="math notranslate nohighlight">\(\boldsymbol x\)</span> and transformations from, e.g.  2D
 plane strain to this notation is provided.</p>
 <section id="question">
-<h3>Question<a class="headerlink" href="#question" title="Permalink to this headline"></a></h3>
+<h3>Question<a class="headerlink" href="#question" title="Permalink to this heading"></a></h3>
 <p>Instead of</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">eeq</span><span class="p">,</span> <span class="n">deeq</span> <span class="o">=</span> <span class="n">some_norm_2d</span><span class="p">(</span><span class="n">e2d</span><span class="p">)</span>
 </pre></div>
@@ -127,9 +128,9 @@ only be used for testing.</p>
 </section>
 </section>
 <section id="formats">
-<h2>Formats<a class="headerlink" href="#formats" title="Permalink to this headline"></a></h2>
+<h2>Formats<a class="headerlink" href="#formats" title="Permalink to this heading"></a></h2>
 <section id="fenics">
-<h3>FEniCS<a class="headerlink" href="#fenics" title="Permalink to this headline"></a></h3>
+<h3>FEniCS<a class="headerlink" href="#fenics" title="Permalink to this heading"></a></h3>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span>QHandler?
 Connects c++ object with q object
 </pre></div>

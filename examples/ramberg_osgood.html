@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Ramberg Osgood material law &mdash; FEniCS Constitutive 2020 documentation</title>
@@ -14,6 +14,7 @@
         <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
         <script src="../_static/jquery.js"></script>
         <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../_static/doctools.js"></script>
         <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="../_static/js/theme.js"></script>
@@ -90,9 +91,9 @@
            <div itemprop="articleBody">
              
   <section id="ramberg-osgood-material-law">
-<h1>Ramberg Osgood material law<a class="headerlink" href="#ramberg-osgood-material-law" title="Permalink to this headline"></a></h1>
+<h1>Ramberg Osgood material law<a class="headerlink" href="#ramberg-osgood-material-law" title="Permalink to this heading"></a></h1>
 <section id="introduction-and-governing-equations">
-<h2>Introduction and governing equations<a class="headerlink" href="#introduction-and-governing-equations" title="Permalink to this headline"></a></h2>
+<h2>Introduction and governing equations<a class="headerlink" href="#introduction-and-governing-equations" title="Permalink to this heading"></a></h2>
 <p>The ramberg osgood material law can be used to model
 ductile behaviour for monotonic loading and is often used in fracture mechanics
 applications. In contrast to
@@ -111,7 +112,7 @@ constitutive equations in a pure numpy code.</p>
 \frac{\partial \boldsymbol\sigma}{\partial \boldsymbol\varepsilon} \cdot \boldsymbol \varepsilon \;\mathrm{d}x
 = f_{\mathrm{ext}} - \int_\Omega \boldsymbol \sigma \cdot \boldsymbol \varepsilon \;\mathrm{d}x\]</div>
 <section id="constitutive-law">
-<h3>Constitutive law<a class="headerlink" href="#constitutive-law" title="Permalink to this headline"></a></h3>
+<h3>Constitutive law<a class="headerlink" href="#constitutive-law" title="Permalink to this heading"></a></h3>
 <p>For the sake of brevity we skip a derivation of the equations only summarize the ones essential for the
 presented implementation.
 The strain is given by</p>
@@ -165,7 +166,7 @@ root of:</p>
 </section>
 </section>
 <section id="solution-of-the-constitutive-law">
-<h2>Solution of the constitutive law<a class="headerlink" href="#solution-of-the-constitutive-law" title="Permalink to this headline"></a></h2>
+<h2>Solution of the constitutive law<a class="headerlink" href="#solution-of-the-constitutive-law" title="Permalink to this heading"></a></h2>
 <p>The solution of the power law mentioned above makes a vectorization of the
 numpy code difficult. Hence we could use a C++ function/class to solve the constitutive law.
 Another option is the use of <a class="reference external" href="https://numba.pydata.org/">numba</a> to speed up the numpy code.</p>
@@ -310,7 +311,7 @@ Another option is the use of <a class="reference external" href="https://numba.p
 </pre></div>
 </div>
 <section id="voigt-notation">
-<h3>Voigt notation<a class="headerlink" href="#voigt-notation" title="Permalink to this headline"></a></h3>
+<h3>Voigt notation<a class="headerlink" href="#voigt-notation" title="Permalink to this heading"></a></h3>
 <p>It is common practice in computational mechanics to only store six
 of the nine components of the symmetric (cauchy) stress and strain tensors.
 We choose an orthonormal tensor (voigt) basis which preserves the properties of
@@ -433,9 +434,9 @@ which is available (in german) online.</p>
 </section>
 </section>
 <section id="examples">
-<h2>Examples<a class="headerlink" href="#examples" title="Permalink to this headline"></a></h2>
+<h2>Examples<a class="headerlink" href="#examples" title="Permalink to this heading"></a></h2>
 <section id="simple-tension-test">
-<h3>Simple Tension Test<a class="headerlink" href="#simple-tension-test" title="Permalink to this headline"></a></h3>
+<h3>Simple Tension Test<a class="headerlink" href="#simple-tension-test" title="Permalink to this heading"></a></h3>
 <p>To test the above implementation we compare our numerical
 results to the analytical solution for a (simple) tension test
 in 2D.</p>

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Plate with hole &mdash; FEniCS Constitutive 2020 documentation</title>
@@ -14,6 +14,7 @@
         <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
         <script src="../_static/jquery.js"></script>
         <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../_static/doctools.js"></script>
         <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="../_static/js/theme.js"></script>
@@ -80,7 +81,7 @@
            <div itemprop="articleBody">
              
   <section id="plate-with-hole">
-<h1>Plate with hole<a class="headerlink" href="#plate-with-hole" title="Permalink to this headline"></a></h1>
+<h1>Plate with hole<a class="headerlink" href="#plate-with-hole" title="Permalink to this heading"></a></h1>
 <p>The analytic solution to the
 <a class="reference external" href="https://en.wikiversity.org/wiki/Introduction_to_Elasticity/Plate_with_hole_in_tension">infinite plate with hole in 2D plane stress</a>
 provides a solution for the stress and the displacement field. The stress
@@ -89,6 +90,7 @@ as traction boundary conditions. The resulting FEM displacement field is
 compared to the analytic displacement field.</p>
 <img alt="../_images/plate_with_hole.png" src="../_images/plate_with_hole.png" />
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">helper</span> <span class="kn">import</span> <span class="o">*</span>
+<span class="kn">import</span> <span class="nn">pathlib</span>
 <span class="kn">import</span> <span class="nn">math</span>
 
 
@@ -147,14 +149,6 @@ compared to the analytic displacement field.</p>
         <span class="n">sxy</span> <span class="o">=</span> <span class="o">-</span><span class="n">T</span> <span class="o">*</span> <span class="n">fac1</span> <span class="o">*</span> <span class="p">(</span><span class="mf">0.5</span> <span class="o">*</span> <span class="n">sin2t</span> <span class="o">+</span> <span class="n">sin4t</span><span class="p">)</span> <span class="o">+</span> <span class="n">T</span> <span class="o">*</span> <span class="n">fac2</span> <span class="o">*</span> <span class="n">sin4t</span>
 
         <span class="k">return</span> <span class="n">sxx</span><span class="p">,</span> <span class="n">syy</span><span class="p">,</span> <span class="n">sxy</span>
-
-    <span class="k">def</span> <span class="nf">build_mesh</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">resolution</span><span class="o">=</span><span class="mi">20</span><span class="p">):</span>
-        <span class="kn">from</span> <span class="nn">mshr</span> <span class="kn">import</span> <span class="n">Rectangle</span><span class="p">,</span> <span class="n">Circle</span><span class="p">,</span> <span class="n">generate_mesh</span>
-
-        <span class="n">domain</span> <span class="o">=</span> <span class="n">Rectangle</span><span class="p">(</span><span class="n">Point</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span> <span class="n">Point</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">L</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">L</span><span class="p">))</span> <span class="o">-</span> <span class="n">Circle</span><span class="p">(</span>
-            <span class="n">Point</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">radius</span>
-        <span class="p">)</span>
-        <span class="k">return</span> <span class="n">generate_mesh</span><span class="p">(</span><span class="n">domain</span><span class="p">,</span> <span class="n">resolution</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>When subclassing from <code class="docutils literal notranslate"><span class="pre">dolfin.UserExpression</span></code>, make sure to override
@@ -254,7 +248,7 @@ type of norm you need to calculate.</p>
 </pre></div>
 </div>
 <section id="voigt-notation">
-<h2>Voigt notation<a class="headerlink" href="#voigt-notation" title="Permalink to this headline"></a></h2>
+<h2>Voigt notation<a class="headerlink" href="#voigt-notation" title="Permalink to this heading"></a></h2>
 <p>The classic Voigt notation is totally fine if you need to define a strain
 norm.</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">eps_voigt</span><span class="p">(</span><span class="n">u</span><span class="p">):</span>
@@ -268,7 +262,7 @@ norm.</p>
 </div>
 </section>
 <section id="mandel-notation">
-<h2>Mandel notation<a class="headerlink" href="#mandel-notation" title="Permalink to this headline"></a></h2>
+<h2>Mandel notation<a class="headerlink" href="#mandel-notation" title="Permalink to this heading"></a></h2>
 <p>The mandel notation keeps the property that of</p>
 <div class="math notranslate nohighlight">
 \[\boldsymbol \sigma : \boldsymbol \sigma \equiv \sigma_\text{mandel} . \sigma_\text{mandel}\]</div>
@@ -303,7 +297,10 @@ to conveniently deal with the nonzero <span class="math notranslate nohighlight"
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">L</span><span class="p">,</span> <span class="n">radius</span> <span class="o">=</span> <span class="mf">4.0</span><span class="p">,</span> <span class="mf">1.0</span>
 
 <span class="n">plate_with_hole</span> <span class="o">=</span> <span class="n">PlateWithHoleSolution</span><span class="p">(</span><span class="n">L</span><span class="o">=</span><span class="n">L</span><span class="p">,</span> <span class="n">E</span><span class="o">=</span><span class="n">E</span><span class="p">,</span> <span class="n">nu</span><span class="o">=</span><span class="n">nu</span><span class="p">,</span> <span class="n">radius</span><span class="o">=</span><span class="n">radius</span><span class="p">)</span>
-<span class="n">mesh</span> <span class="o">=</span> <span class="n">plate_with_hole</span><span class="o">.</span><span class="n">build_mesh</span><span class="p">(</span><span class="n">resolution</span><span class="o">=</span><span class="mi">50</span><span class="p">)</span>
+<span class="n">mesh</span> <span class="o">=</span> <span class="n">Mesh</span><span class="p">()</span>
+<span class="n">xdmf_file</span> <span class="o">=</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">parents</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="s2">&quot;test/plate.xdmf&quot;</span>
+<span class="k">with</span> <span class="n">XDMFFile</span><span class="p">(</span><span class="n">xdmf_file</span><span class="o">.</span><span class="n">as_posix</span><span class="p">())</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+    <span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">mesh</span><span class="p">)</span>
 
 <span class="n">n</span> <span class="o">=</span> <span class="n">FacetNormal</span><span class="p">(</span><span class="n">mesh</span><span class="p">)</span>
 <span class="n">stress</span> <span class="o">=</span> <span class="n">StressSolution</span><span class="p">(</span><span class="n">plate_with_hole</span><span class="p">,</span> <span class="n">degree</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
@@ -313,16 +310,16 @@ to conveniently deal with the nonzero <span class="math notranslate nohighlight"
 <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">formulation</span> <span class="ow">in</span> <span class="n">formulations</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
     <span class="n">u</span> <span class="o">=</span> <span class="n">solve_fem</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">traction</span><span class="p">,</span> <span class="o">*</span><span class="n">formulation</span><span class="p">)</span>
     <span class="n">disp</span> <span class="o">=</span> <span class="n">DisplacementSolution</span><span class="p">(</span><span class="n">plate_with_hole</span><span class="p">,</span> <span class="n">degree</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
-    <span class="n">error</span> <span class="o">=</span> <span class="n">errornorm</span><span class="p">(</span><span class="n">disp</span><span class="p">,</span> <span class="n">u</span><span class="p">)</span>
+    <span class="n">error</span> <span class="o">=</span> <span class="n">errornorm</span><span class="p">(</span><span class="n">disp</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">degree_rise</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
     <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">:</span><span class="s2">10s</span><span class="si">}</span><span class="s2"> || u_fem - u_analytic || = </span><span class="si">{</span><span class="n">error</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
 <span class="n">XDMFFile</span><span class="p">(</span><span class="s2">&quot;plate_with_hole.xdmf&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">u</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>Results in</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">Voigt</span>      <span class="o">||</span> <span class="n">u_fem</span> <span class="o">-</span> <span class="n">u_analytic</span> <span class="o">||</span> <span class="o">=</span> <span class="mf">2.8253172319402374e-08</span>
-<span class="n">Mandel3</span>    <span class="o">||</span> <span class="n">u_fem</span> <span class="o">-</span> <span class="n">u_analytic</span> <span class="o">||</span> <span class="o">=</span> <span class="mf">2.8253171958153452e-08</span>
-<span class="n">Mandel4</span>    <span class="o">||</span> <span class="n">u_fem</span> <span class="o">-</span> <span class="n">u_analytic</span> <span class="o">||</span> <span class="o">=</span> <span class="mf">2.8253172614263883e-08</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">Voigt</span>      <span class="o">||</span> <span class="n">u_fem</span> <span class="o">-</span> <span class="n">u_analytic</span> <span class="o">||</span> <span class="o">=</span> <span class="mf">3.920310241053112e-08</span>
+<span class="n">Mandel3</span>    <span class="o">||</span> <span class="n">u_fem</span> <span class="o">-</span> <span class="n">u_analytic</span> <span class="o">||</span> <span class="o">=</span> <span class="mf">3.920310257183142e-08</span>
+<span class="n">Mandel4</span>    <span class="o">||</span> <span class="n">u_fem</span> <span class="o">-</span> <span class="n">u_analytic</span> <span class="o">||</span> <span class="o">=</span> <span class="mf">3.920310257183142e-08</span>
 </pre></div>
 </div>
 </section>
