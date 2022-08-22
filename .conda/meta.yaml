@@ -33,7 +33,6 @@ requirements:
     - numpy
     - matplotlib
     - fenics >=2019.1.0
-    - mshr >=2019.1.0
     - fenics_helpers
 
 test:
