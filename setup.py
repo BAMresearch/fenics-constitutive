@@ -1,81 +1,123 @@
-import os
-import re
-import sys
-import platform
-import subprocess
-
 from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext
-from distutils.version import LooseVersion
+import sys
+import os
+import setuptools
 
-with open("README.md", "r") as fh:
-    long_description = fh.read()
-
-class CMakeExtension(Extension):
-    def __init__(self, name, sourcedir=''):
-        Extension.__init__(self, name, sources=[])
-        self.sourcedir = os.path.abspath(sourcedir)
+__version__ = '0.0.1'
 
 
-class CMakeBuild(build_ext):
-    def run(self):
+class get_pybind_include(object):
+    """Helper class to determine the pybind11 include path
+
+    The purpose of this class is to postpone importing pybind11
+    until it is actually installed, so that the ``get_include()``
+    method can be invoked. """
+
+    def __init__(self, user=False):
+        self.user = user
+
+    def __str__(self):
+        import pybind11
+        return pybind11.get_include(self.user)
+
+
+class get_numpy_include(object):
+    """Helper class to determine the numpy include path
+
+    The purpose of this class is to postpone importing numpy
+    until it is actually installed, so that the ``get_include()``
+    method can be invoked. """
+
+    def __init__(self):
+        pass
+
+    def __str__(self):
+        import numpy as np
+        return np.get_include()
+
+
+ext_modules = [
+    Extension(
+        'cofe',
+        ['src/main.cpp'],
+        include_dirs=[
+            # Path to pybind11 headers
+            get_pybind_include(),
+            get_pybind_include(user=True),
+            get_numpy_include(),
+            "/home/srosenbu/mambaforge/envs/dolfinx/include/xtensor-blas",
+            "/home/srosenbu/mambaforge/envs/dolfinx/include/eigen3",
+            "/home/srosenbu/mambaforge/envs/dolfinx/include/xflens/",
+            # "/home/srosenbu/mambaforge/envs/dolfinx/include/",
+            os.path.join(sys.prefix, 'include'),
+            os.path.join(sys.prefix, 'Library', 'include')
+        ],
+        language='c++'
+    ),
+]
+
+
+def has_flag(compiler, flagname):
+    """Return a boolean indicating whether a flag name is supported on
+    the specified compiler.
+    """
+    import tempfile
+    with tempfile.NamedTemporaryFile('w', suffix='.cpp') as f:
+        f.write('int main (int argc, char **argv) { return 0; }')
         try:
-            out = subprocess.check_output(['cmake', '--version'])
-        except OSError:
-            raise RuntimeError("CMake must be installed to build the following extensions: " +
-                               ", ".join(e.name for e in self.extensions))
+            compiler.compile([f.name], extra_postargs=[flagname])
+        except setuptools.distutils.errors.CompileError:
+            return False
+    return True
 
-        if platform.system() == "Windows":
-            cmake_version = LooseVersion(re.search(r'version\s*([\d.]+)', out.decode()).group(1))
-            if cmake_version < '3.5.0':
-                raise RuntimeError("CMake >= 3.5.0 is required on Windows")
 
+def cpp_flag(compiler):
+    """Return the -std=c++14 compiler flag  and errors when the flag is
+    no available.
+    """
+    if has_flag(compiler, '-std=c++14'):
+        return '-std=c++14'
+    else:
+        raise RuntimeError('C++14 support is required by xtensor!')
+
+
+class BuildExt(build_ext):
+    """A custom build extension for adding compiler-specific options."""
+    c_opts = {
+        'msvc': ['/EHsc'],
+        'unix': [],
+    }
+
+    if sys.platform == 'darwin':
+        c_opts['unix'] += ['-stdlib=libc++', '-mmacosx-version-min=10.7']
+
+    def build_extensions(self):
+        ct = self.compiler.compiler_type
+        opts = self.c_opts.get(ct, [])
+        if ct == 'unix':
+            opts.append('-DVERSION_INFO="%s"' % self.distribution.get_version())
+            opts.append(cpp_flag(self.compiler))
+            opts.append("-DXTENSOR_USE_FLENS_BLAS")
+            # opts.append("-lblas -llapack -DHAVE_CBLAS=1")
+            if has_flag(self.compiler, '-fvisibility=hidden'):
+                opts.append('-fvisibility=hidden')
+        elif ct == 'msvc':
+            opts.append('/DVERSION_INFO=\\"%s\\"' % self.distribution.get_version())
         for ext in self.extensions:
-            self.build_extension(ext)
-
-    def build_extension(self, ext):
-        extdir = os.path.abspath(os.path.dirname(self.get_ext_fullpath(ext.name)))
-        cmake_args = ['-DCMAKE_LIBRARY_OUTPUT_DIRECTORY=' + extdir,
-                      '-DPYTHON_EXECUTABLE=' + sys.executable]
-
-        cfg = 'Debug' if self.debug else 'Release'
-        build_args = ['--config', cfg]
-
-        if platform.system() == "Windows":
-            cmake_args += ['-DCMAKE_LIBRARY_OUTPUT_DIRECTORY_{}={}'.format(cfg.upper(), extdir)]
-            if sys.maxsize > 2**32:
-                cmake_args += ['-A', 'x64']
-            build_args += ['--', '/m']
-        else:
-            cmake_args += ['-DCMAKE_BUILD_TYPE=' + cfg]
-            build_args += ['--', '-j2']
-
-        env = os.environ.copy()
-        env['CXXFLAGS'] = '{} -DVERSION_INFO=\\"{}\\"'.format(env.get('CXXFLAGS', ''),
-                                                              self.distribution.get_version())
-        if not os.path.exists(self.build_temp):
-            os.makedirs(self.build_temp)
-        subprocess.check_call(['cmake', ext.sourcedir] + cmake_args, cwd=self.build_temp, env=env)
-        subprocess.check_call(['cmake', '--build', '.'] + build_args, cwd=self.build_temp)
+            ext.extra_compile_args = opts
+        build_ext.build_extensions(self)
 
 setup(
-    name='constitutive',
-    version='0.1',
-    author='Thomas Titscher',
-    author_email='thomas.titscher@gmail.com',
-    keywords="FEniCS c++ constitutive",
-    description="Complex constitutive models beyond the FEniCS UFL.",
-    long_description=long_description,
-    long_description_content_type="text/markdown",
-    ext_modules=[CMakeExtension('constitutive.cpp')],
-    cmdclass=dict(build_ext=CMakeBuild),
+    name='cofe',
+    version=__version__,
+    author='BAM',
+    author_email='sjard-mathis.rosenbusch@bam.de',
+    url='https://github.com/BAM/fenics-constitutive',
+    description= 'Constitutive models for fenicsx',
+    long_description='',
+    ext_modules=ext_modules,
+    install_requires=['pybind11>=2.0.1', 'numpy'],
+    cmdclass={'build_ext': BuildExt},
     zip_safe=False,
-    python_requires=">=3",
-    classifiers=[
-        "Programming Language :: Python :: 3",
-        "License :: OSI Approved :: MIT License",
-        "Operating System :: OS Independent",
-    ],
-    url="https://github.com/BAMresearch/fenics-constitutive",
-    packages=["constitutive"],
 )

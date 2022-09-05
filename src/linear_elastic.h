@@ -1,86 +1,81 @@
 #pragma once
 #include "interfaces.h"
+#include "xtensor/xmath.hpp"
+#include "xtensor/xarray.hpp"
+#include "xtensor/xview.hpp"
+#include "xtensor-blas/xlinalg.hpp"
 
-template <Constraint TC>
-M<TC> C(double E, double nu);
-
-template <>
-M<UNIAXIAL_STRAIN> C<UNIAXIAL_STRAIN>(double E, double nu)
-{
-    return M<UNIAXIAL_STRAIN>::Constant(E);
-}
-
-template <>
-M<UNIAXIAL_STRESS> C<UNIAXIAL_STRESS>(double E, double nu)
-{
-    return M<UNIAXIAL_STRAIN>::Constant(E);
-}
-
-template <>
-M<PLANE_STRESS> C<PLANE_STRESS>(double E, double nu)
-{
-    const double C11 = E / (1 - nu * nu);
-    const double C12 = nu * C11;
-    const double C33 = (1 - nu) * 0.5 * C11;
-    M<PLANE_STRAIN> c;
-    c << C11, C12, 0, C12, C11, 0, 0, 0, C33;
-    return c;
-}
-
-template <>
-M<PLANE_STRAIN> C<PLANE_STRAIN>(double E, double nu)
-{
-    const double l = E * nu / (1 + nu) / (1 - 2 * nu);
-    const double m = E / (2.0 * (1 + nu));
-    M<PLANE_STRAIN> c = V<PLANE_STRAIN>({2 * m, 2 * m, m}).asDiagonal();
-    c.block<2, 2>(0, 0) += Eigen::Matrix2d::Constant(l);
-    return c;
-}
-
-template <>
-M<FULL> C<FULL>(double E, double nu)
-{
-    const double l = E * nu / (1 + nu) / (1 - 2 * nu);
-    const double m = E / (2.0 * (1 + nu));
-
-    V<FULL> diagonal;
-    diagonal.segment<3>(0) = Eigen::Vector3d::Constant(2 * m);
-    diagonal.segment<3>(3) = Eigen::Vector3d::Constant(m);
-    M<FULL> c = diagonal.asDiagonal();
-    c.block<3, 3>(0, 0) += Eigen::Matrix3d::Constant(l);
-    return c;
-}
-
-Eigen::MatrixXd C(double E, double nu, Constraint c)
-{
-    if (c == UNIAXIAL_STRAIN)
-        return C<UNIAXIAL_STRAIN>(E, nu);
-    if (c == UNIAXIAL_STRESS)
-        return C<UNIAXIAL_STRESS>(E, nu);
-    if (c == PLANE_STRAIN)
-        return C<PLANE_STRAIN>(E, nu);
-    if (c == PLANE_STRESS)
-        return C<PLANE_STRESS>(E, nu);
-    if (c == FULL)
-        return C<FULL>(E, nu);
-    throw std::runtime_error("Stuffy");
-}
-
-class LinearElastic : public MechanicsLaw
+class LinearElastic : public MechanicsLawInterface
 {
 public:
-    LinearElastic(double E, double nu, Constraint constraint)
-        : MechanicsLaw(constraint)
+    LinearElastic(double E, double nu, bool tangents, int n)
+        : MechanicsLawInterface(tangents, n)
     {
-        _C = C(E, nu, constraint);
-    }
+        double m = E /(2*(1+nu));
+        double l = E*nu/((1+nu)*(1-2*nu));
 
-    std::pair<Eigen::VectorXd, Eigen::MatrixXd> Evaluate(const Eigen::VectorXd& strain, int i = 0) override
+        _C = xt::pytensor<double,2>(
+            {{2*m+l, l, l, 0., 0., 0.},
+            {l, 2*m+l, l, 0., 0., 0.},
+            {l, l, 2*m+l, 0., 0., 0.},
+            {0., 0., 0., 2*m, 0., 0.},
+            {0., 0., 0., 0., 2*m, 0.},
+            {0., 0., 0., 0., 0., 2*m}});
+    }
+    inline void EvaluateIP(
+            int i,
+            xt::pytensor<double,1>& eps_vector,
+            xt::pytensor<double,1>& sigma_vector,
+            xt::pytensor<double,1>& tangents_vector,
+            double del_t
+            ) override
     {
-        return {_C * strain, _C};
+        int stress_strain_dim = 6;
+        auto eps = GetVectorView(eps_vector, i, stress_strain_dim);
+        auto sigma = GetVectorView(sigma_vector, i, stress_strain_dim);
+        auto Ct = GetQuadratureView(tangents_vector, i, stress_strain_dim, stress_strain_dim);
+        sigma = xt::linalg::dot(_C,eps);
+        Ct = _C;
     }
-
-private:
-    Eigen::MatrixXd _C;
+    xt::pytensor<double, 2> _C;
 };
 
+class EigenLinearElastic : public EigenMechanicsLawInterface
+{
+public:
+    EigenLinearElastic(double E, double nu, bool tangents, int n)
+        : EigenMechanicsLawInterface(tangents, n)
+    {
+        double m = E /(2*(1+nu));
+        double l = E*nu/((1+nu)*(1-2*nu));
+        _C.setZero(6,6);
+        
+        _C << 2*m+l, l, l, 0., 0., 42.,
+             l, 2*m+l, l, 0., 0., 0.,
+             l, l, 2*m+l, 0., 0., 0.,
+             0., 0., 0., 2*m, 0., 0.,
+             0., 0., 0., 0., 2*m, 0.,
+             24., 0., 0., 0., 0., 2*m;
+    }
+    inline void EvaluateIP(
+            int i,
+            Eigen::Ref<Eigen::VectorXd> eps_vector,
+            Eigen::Ref<Eigen::VectorXd> sigma_vector,
+            Eigen::Ref<Eigen::VectorXd> tangents_vector,
+            double del_t
+            ) override
+    {
+        int stress_strain_dim = 6;
+        auto eps = eps_vector.segment<6>(i*6);
+        auto sigma = sigma_vector.segment<6>(i*6);
+        auto Ct_flat = tangents_vector.segment<36>(i*36);
+        //Eigen::MatrixXd C_copy = _C;
+        //C_copy.transposeInPlace();
+        //Ct_flat = Eigen::Map<Eigen::VectorXd>(C_copy.data(), C_copy.size());
+        Ct_flat = Eigen::Map<Eigen::VectorXd>(_C.data(), _C.size());
+        
+        sigma = _C * eps;
+        //Ct = _C;
+    }
+    RowMatrixXd _C;
+};

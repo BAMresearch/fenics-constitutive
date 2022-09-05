@@ -1,0 +1,9 @@
+README.md
+setup.py
+cofe.egg-info/PKG-INFO
+cofe.egg-info/SOURCES.txt
+cofe.egg-info/dependency_links.txt
+cofe.egg-info/not-zip-safe
+cofe.egg-info/requires.txt
+cofe.egg-info/top_level.txt
+src/main.cpp

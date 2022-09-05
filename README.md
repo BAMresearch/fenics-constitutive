@@ -1,54 +1,79 @@
-FEniCS Constitutive
-===================
+fenics-constitutive
+==============
 
-https://bamresearch.github.io/fenics-constitutive
+Constitutive models for fenicsx
 
-We show examples on how to implement complex constitutive models, e.g. 
-plasticity with return mapping in each Gauss point, using FEniCS quadrature 
-function spaces.
 
-Motivation
-----------
+Installation
+------------
 
-[FEniCS](https://fenicsproject.org/) provides a powerful finite element (FE)
-framework, including an abstract, high-level language (UFL) to formulate PDEs. 
-These forms are automatically compiled and linked to the rest of the FEniCS 
-library. This makes it both easy-to-program and fast-to-run. 
+**On Unix (Linux, OS X)**
 
-The UFL, however, is limited to expressions that can directly be written as 
-mathematical functions of the solution fields. In certain cases of constitutive 
-mechanics modeling, this is a limitation, as it cannot be used to 
+ - clone this repository
+ - `pip install ./fenics-constitutive`
 
-- implement return mapping
-    - classically a Newton-Raphson algorithm on each Gauss point
-- use formulations based on eigenvalues, e.g. the Rankine norm
+**On Windows (Requires Visual Studio 2015)**
 
-Additionally, there is this feeling of less control over the actual code, as it
-is automatically generated and not designed to be human-readable.
+ - For Python 3.5:
+     - clone this repository
+     - `pip install ./fenics-constitutive`
+ - For earlier versions of Python, including Python 2.7:
 
-References
-----------
+   xtensor requires a C++14 compliant compiler (i.e. Visual Studio 2015 on
+   Windows). Running a regular `pip install` command will detect the version
+   of the compiler used to build Python and attempt to build the extension
+   with it. We must force the use of Visual Studio 2015.
 
-The main idea comes from a [Comet-Fenics](https://comet-fenics.readthedocs.io/en/latest/demo/plasticity_mfront/plasticity_mfront.py.html#global-problem-and-newton-raphson-procedure)
-example that defines the momentum balance equation where the stresses are not 
-an expression of the strains, but a generic quadrature space function that is
-*filled* manually. Similarly, the algorithmic tangent is provided manually 
-on a quadrature space.
+     - clone this repository
+     - `"%VS140COMNTOOLS%\..\..\VC\vcvarsall.bat" x64`
+     - `set DISTUTILS_USE_SDK=1`
+     - `set MSSdk=1`
+     - `pip install ./fenics-constitutive`
 
-In each global Newton-Raphson step, they
+   Note that this requires the user building `fenics-constitutive` to have registry edition
+   rights on the machine, to be able to run the `vcvarsall.bat` script.
 
-1) project the strains `eps = sym(grad(u))` into a quadrature function 
-       space that now contains Nx4 numbers, where N is the number of Gauss 
-       points 
-2) use [MFront](https://github.com/thelfer/MFrontGenericInterfaceSupport) 
-       to calculate the stresses (Nx4) and the tangents (Nx16)
-3) assign the stresses and the tangents to their quadrature spaces
-4) assemble the system and solve.
-5) optional: post-processing
 
-As we want to keep full control (and not fall back to another code generation 
-tool), we replace step 2) by 
+Windows runtime requirements
+----------------------------
 
-- vectorized `numpy` code, or, if that is not possible
-- a loop over all N Gauss points, or, if that is too slow
-- a C++ function/class 
+On Windows, the Visual C++ 2015 redistributable packages are a runtime
+requirement for this project. It can be found [here](https://www.microsoft.com/en-us/download/details.aspx?id=48145).
+
+If you use the Anaconda python distribution, you may require the Visual Studio
+runtime as a platform-dependent runtime requirement for you package:
+
+```yaml
+requirements:
+  build:
+    - python
+    - setuptools
+    - pybind11
+
+  run:
+   - python
+   - vs2015_runtime  # [win]
+```
+
+
+Building the documentation
+--------------------------
+
+Documentation for the example project is generated using Sphinx. Sphinx has the
+ability to automatically inspect the signatures and documentation strings in
+the extension module to generate beautiful documentation in a variety formats.
+The following command generates HTML-based reference documentation; for other
+formats please refer to the Sphinx manual:
+
+ - `fenics-constitutive/docs`
+ - `make html`
+
+
+Running the tests
+-----------------
+
+Running the tests requires `pytest`.
+
+```bash
+py.test .
+```
