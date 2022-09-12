@@ -1,11 +1,12 @@
-import dolfin as df
-from .mechanics_problem import *
+try:
+    import dolfin as df
+    from .mechanics_problem import *
 
-import warnings
-from ffc.quadrature.deprecation import QuadratureRepresentationDeprecationWarning
+    import warnings
+    from ffc.quadrature.deprecation import QuadratureRepresentationDeprecationWarning
 
-warnings.simplefilter("ignore", QuadratureRepresentationDeprecationWarning)
-df.parameters["form_compiler"]["representation"] = "quadrature"
+    warnings.simplefilter("ignore", QuadratureRepresentationDeprecationWarning)
+    df.parameters["form_compiler"]["representation"] = "quadrature"
 
 try:
     from fenics_helpers import boundary as bc
