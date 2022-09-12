@@ -64,6 +64,10 @@ PYBIND11_MODULE(cpp, m)
     mechanicsLaw.def("update", &MechanicsLaw::Update, py::arg("strain"), py::arg("i") = 0);
     mechanicsLaw.def("resize", &MechanicsLaw::Resize, py::arg("n"));
 
+    pybind11::class_<RefQValues<2,2>, std::shared_ptr<RefQValues<2,2>>> ref_q_values(m, "QValues");
+    ref_q_values.def(pybind11::init<Eigen::Ref<Eigen::VectorXd>>(),py::arg("q_values"));
+    ref_q_values.def("do", &RefQValues<2,2>::DoSomething);
+    ref_q_values.def("print", &RefQValues<2,2>::Print);
     /*************************************************************************
      **   DAMAGE LAWS
      *************************************************************************/

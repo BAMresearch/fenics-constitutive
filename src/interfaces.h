@@ -4,6 +4,7 @@
 #include <vector>
 #include <numeric>
 #include <memory>
+#include <iostream>
 
 enum Constraint
 {
@@ -27,6 +28,57 @@ enum Q
     LAST
 };
 
+template <int rows, int cols> class RefQValues
+{
+public:
+    Eigen::Ref<Eigen::VectorXd> data;
+    
+    RefQValues() = default;
+
+    //! @brief stores n x rows x cols values where n is the number of IPs
+    RefQValues(Eigen::Ref<Eigen::VectorXd> q_vector)
+    {
+        data = q_vector;
+    }
+    
+    void DoSomething(double s){
+    data*=s;
+    }
+    void Print(){
+    std::cout << data;
+    }
+    //void Set(double value, int i)
+    //{
+        //data[i] = value;
+    //}
+
+    //void Set(Eigen::MatrixXd value, int i)
+    //{
+        //assert(value.rows() == _rows);
+        //assert(value.cols() == _cols);
+        //data.segment(_rows * _cols * i, _rows * _cols) = Eigen::Map<Eigen::VectorXd>(value.data(), value.size());
+    //}
+
+    //double GetScalar(int i) const
+    //{
+        //assert(_rows == 1);
+        //assert(_cols == 1);
+        //return data[i];
+    //}
+
+    //Eigen::MatrixXd Get(int i) const
+    //{
+        //Eigen::VectorXd ip_values = data.segment(_rows * _cols * i, _rows * _cols);
+        //return Eigen::Map<Eigen::MatrixXd>(ip_values.data(), _rows, _cols);
+    //}
+
+    bool IsUsed() const
+    {
+        return data.size() == 0;
+    }
+
+
+};
 class QValues
 {
 public:
