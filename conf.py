@@ -19,7 +19,7 @@
 
 project = 'FEniCS Constitutive'
 copyright = '2020, Thomas Titscher, Sjard Mathis Rosenbusch, Philipp Diercks'
-author = 'Thomas Titscher, Sjard Mathis Rosenbusch, Philipp Diercks'
+author = 'Thomas Titscher, Sjard Mathis Rosenbusch, Philipp Diercks, Vitaliy Kindrachuk'
 
 # The full version, including alpha/beta/rc tags
 release = '2020'

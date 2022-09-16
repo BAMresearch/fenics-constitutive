@@ -140,7 +140,8 @@ else:
 # define constraint type & interpolation order
 constraint_type = c.Constraint.FULL
 prm = c.Parameters(constraint_type)
-prm.deg_d = 1   # if not given, quadrature order prm.deg_q = 2
+prm.deg_d = 1   # if not given, quadrature order prm.deg_d = 2
+prm.deg_q = 1
 
 # get the array of all ips, with a marker from cell_domains
 ip_flags = get_ip_flags(mesh, prm, cell_domains)
@@ -160,7 +161,7 @@ for instance in cell_setsAba:
     law = c.Umat(
         constraint_type,
         "SDCRCRY",
-        str(Path.home() / "Tools" / "labtools-fenics" / "lib" / "libumat.so"),
+        str(Path.home() / "CI_fenics" / "labtools-fenics" / "lib" / "libumat.so"),
         37,
         "kusdcrcry_",
         "param0_sdcrcry_",
@@ -284,35 +285,13 @@ for item in T:
     t = item[0]
     traction = (CreepLoad/10.)*(t if t <= 10. else 10.)
     
-    #Dforce = Constant((0., 0., traction - traction_old))
-    #problem.add_force_term(dot(TestFunction(problem.Vd), Dforce)*ds(1))
     Dforce.assign(Constant((0., 0., traction)))
     
     problem.iploop.updateTime(t_old,t)
     
-    # initial guess & reset the Krylov solver, which improves the convergency
+    # initial guess
     problem.u.vector()[:] += (t - t_old) * u_rate.vector()[:]
 
-    ##parameters['krylov_solver']['nonzero_initial_guess'] = True
-    #parameters['krylov_solver']['monitor_convergence'] = False
-    ##linear_solver = KrylovSolver('cg', 'ilu')
-    ## linear_solver = KrylovSolver('bicgstab', 'ilu')
-    ## linear_solver = KrylovSolver('bicgstab', 'hypre_amg')
-    ## linear_solver = KrylovSolver('bicgstab', 'ilu')
-    #linear_solver = KrylovSolver('bicgstab', 'jacobi')
-    #linear_solver.parameters["maximum_iterations"] = 15000
-    #linear_solver.parameters["relative_tolerance"] = 1.0e-5
-    #linear_solver.parameters["error_on_nonconvergence"] = False
-
-    # list_krylov_solver_preconditioners()
-    # stop
-    
-    #solver = NewtonSolver(
-    #MPI.comm_world, linear_solver, PETScFactory.instance())
-    #solver.parameters["linear_solver"] = "mumps"
-    #solver.parameters["maximum_iterations"] = 10
-    #solver.parameters["error_on_nonconvergence"] = False
-    
     converged = solver.solve(problem, problem.u.vector())
     if converged[1]:
         print("...converged")

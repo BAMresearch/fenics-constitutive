@@ -98,9 +98,9 @@ class TestUniaxial(unittest.TestCase):
         ld = c.helper.LoadDisplacementCurve(bcLoad)
         # ld.show()
 
-        fff = XDMFFile("test_umat2Dsmall.xdmf")
-        fff.parameters["functions_share_mesh"] = True
-        fff.parameters["flush_output"] = True
+        # fff = XDMFFile("test_umat2Dsmall.xdmf")
+        # fff.parameters["functions_share_mesh"] = True
+        # fff.parameters["flush_output"] = True
 
         # ===== adjust solver =====
         pc = PETScPreconditioner("petsc_amg")
@@ -154,7 +154,7 @@ class TestUniaxial(unittest.TestCase):
             import locale
 
             locale.setlocale(locale.LC_NUMERIC, "en_US.UTF-8")
-            fff.write(problem.u, t)
+            # fff.write(problem.u, t)
 
             q_sigma_0 = project(problem.q_sigma[0], V0)
             q_sigma_0.rename("sigma_0", "sigma_0")
@@ -171,14 +171,14 @@ class TestUniaxial(unittest.TestCase):
             statev0.vector().set_local(law.q_statev()[::29][::nq])
             statev6.vector().set_local(law.q_statev()[6::29][::nq])
 
-            fff.write(q_sigma_0, t)
-            fff.write(q_sigma_1, t)
-            fff.write(q_sigma_2, t)
-            fff.write(q_eps_0, t)
-            fff.write(q_eps_1, t)
-            fff.write(q_eps_2, t)
-            fff.write(statev0, t)
-            fff.write(statev6, t)
+            # fff.write(q_sigma_0, t)
+            # fff.write(q_sigma_1, t)
+            # fff.write(q_sigma_2, t)
+            # fff.write(q_eps_0, t)
+            # fff.write(q_eps_1, t)
+            # fff.write(q_eps_2, t)
+            # fff.write(statev0, t)
+            # fff.write(statev6, t)
 
             #   vtkfile << (problem.u, t)
 
@@ -223,6 +223,7 @@ class TestUniaxial(unittest.TestCase):
 
         print("test_2D_small ..... OK!")
 
+<<<<<<< HEAD
     def test_2d_notch(self):
         eval_time_start = time()
         # ===== CREATE MESH =====
@@ -457,5 +458,7 @@ class TestUniaxial(unittest.TestCase):
         print("test_2D_notch ..... OK!")
 
 
+=======
+>>>>>>> bc040c6 (Prepared for publishing: umat tests moved to /examples, documentation improved. Compatible with labtools-fenics)
 if __name__ == "__main__":
     unittest.main()

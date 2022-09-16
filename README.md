@@ -1,7 +1,7 @@
 FEniCS Constitutive
 ===================
 
-https://bamresearch.github.io/fenics-constitutive
+https://github.com/BAMresearch/fenics-constitutive.git
 
 We show examples on how to implement complex constitutive models, e.g. 
 plasticity with return mapping in each Gauss point, using FEniCS quadrature 
@@ -33,7 +33,7 @@ Installation
 
 ### Installation with *labtools*
 
-*labtools* is a collection of tools and subroutines written in Fortran 90 for a user-friendly modular implementation of constitutive laws (for isotropic responses, single-crystals plasticity etc.), including a library of UMATs. A shortened version of *labtools* can be cloned from `<https://git.bam.de/chaftaog/labtools-fenics.git>`. For further details see the Manual.pdf file. The compilation requires the Intel compiler `ifort`. Once cloned, execute the `make all` command in the /labtools-fenics folder.
+*labtools* is a collection of tools and subroutines written in Fortran 90 for a user-friendly modular implementation of constitutive laws (for isotropic responses, single-crystals plasticity etc.), including a library of UMATs. A shortened version of *labtools* can be cloned from `shared_lib` branch of `<https://git.bam.de/chaftaog/labtools-fenics.git>`. For further details see /doc/User_documentation_labtools.docx. The compilation requires the Intel compiler `ifort`. Once cloned, execute the `make all` command in the /labtools-fenics folder.
 
 In the second step clone the respective branch of *FEniCS Constitutive*
 

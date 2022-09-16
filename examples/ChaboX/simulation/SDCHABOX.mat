@@ -1,0 +1,94 @@
+# Materialparameterwerte
+# des Chaboche-Modells und der Lebensdauerregel in sdchaboX
+
+
+***integration
+#runge_kutta dSigdEps
+#runge_kutta  elastic
+#hminRk 1.000e-9
+#tolRk 1.000e-6
+#hstartRk 1.000e-0
+
+implicit analytic
+#implicit numeric
+#implicit dSigdEps
+tolI 1.000e-6
+tolCut 0.5d0
+
+***material
+temp0 293.15
+
+# temp 600.°C:
+temp 873.15
+young 130000.
+nu 0.3
+bk 520.
+sn 5.
+sk 0.
+bq 0.
+sb 2500.
+sf 3.e-6
+sq 0.8
+sa1 25.
+sc1 3200.
+sa2 80.
+sc2 60.
+sd1 1.e-3
+sm1 9.5
+sd2 0.3
+sm2 3.
+ba_life 180.
+sm_life 1.8
+sn_life 0.2
+p0_life 1.e-3
+alpha_th 0.
+
+# temp 700.°C:
+temp 973.15
+young 110000.
+nu 0.31
+bk 320.
+sn 4.
+sk 0.
+bq 0.
+sb 2500.
+sf 3.e-6
+sq 0.8
+sa1 10.
+sc1 3300.
+sa2 80.
+sc2 50.
+sd1 2.e-3
+sm1 9.
+sd2 0.4
+sm2 3.5
+ba_life 85.
+sm_life 1.7
+sn_life 0.2
+p0_life 1.e-3
+alpha_th 0.
+
+# temp 800.°C:
+temp 1073.15
+young 80000.
+nu 0.32
+bk 220.
+sn 3.5
+sk 0.
+bq 0.
+sb 2500.
+sf 3.e-6
+sq 0.8
+sa1 9.
+sc1 3000.
+sa2 45.
+sc2 75.
+sd1 0.3
+sm1 6.
+sd2 0.5
+sm2 3.
+ba_life 45
+sm_life 2.
+sn_life 0.1
+p0_life 1.e-3
+alpha_th 0.

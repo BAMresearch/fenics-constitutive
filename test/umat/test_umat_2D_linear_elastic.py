@@ -18,7 +18,7 @@ class TestUniaxial(unittest.TestCase):
         compile the fortran lib
         """
         umat_f = (
-            Path(__file__).absolute().parent.parent / "src" / "umat_linear_elastic.f"
+            Path(__file__).absolute().parent.parent.parent / "src" / "umat_linear_elastic.f"
         )
         p = subprocess.run(
             ["gfortran", "-shared", "-fPIC", "-o", libpath, str(umat_f)],
@@ -30,7 +30,7 @@ class TestUniaxial(unittest.TestCase):
     def test_2d_notch(self):
         # ===== CREATE MESH =====
         mesh = Mesh()
-        mesh_path = Path(__file__).absolute().parent / "umat" / "mesh2D.xdmf"
+        mesh_path = Path(__file__).absolute().parent / "mesh2D.xdmf"
         with XDMFFile(str(mesh_path)) as f:
             f.read(mesh)
 
@@ -93,9 +93,9 @@ class TestUniaxial(unittest.TestCase):
         ld = c.helper.LoadDisplacementCurve(bcLoad)
         # ld.show()
 
-        fff = XDMFFile("test_umat2Dfile_linear_elastic.xdmf")
-        fff.parameters["functions_share_mesh"] = True
-        fff.parameters["flush_output"] = True
+        # fff = XDMFFile("test_umat2Dfile_linear_elastic.xdmf")
+        # fff.parameters["functions_share_mesh"] = True
+        # fff.parameters["flush_output"] = True
 
         # ===== adjust solver =====
         linear_solver = LUSolver("mumps")
@@ -132,7 +132,7 @@ class TestUniaxial(unittest.TestCase):
             import locale
 
             locale.setlocale(locale.LC_NUMERIC, "en_US.UTF-8")
-            fff.write(problem.u, t)
+            # fff.write(problem.u, t)
 
             q_sigma_0 = project(problem.q_sigma[0], V0)
             q_sigma_0.rename("sigma_0", "sigma_0")
@@ -147,12 +147,12 @@ class TestUniaxial(unittest.TestCase):
             q_eps_2 = project(problem.q_eps[2], V0)
             q_eps_2.rename("eps_2", "eps_2")
 
-            fff.write(q_sigma_0, t)
-            fff.write(q_sigma_1, t)
-            fff.write(q_sigma_2, t)
-            fff.write(q_eps_0, t)
-            fff.write(q_eps_1, t)
-            fff.write(q_eps_2, t)
+            # fff.write(q_sigma_0, t)
+            # fff.write(q_sigma_1, t)
+            # fff.write(q_sigma_2, t)
+            # fff.write(q_eps_0, t)
+            # fff.write(q_eps_1, t)
+            # fff.write(q_eps_2, t)
 
             # vtkfile << (problem.u, t)
 
@@ -195,7 +195,9 @@ class TestUniaxial(unittest.TestCase):
         if os.path.isfile("fort.7"):
             os.remove("fort.7")
 
-        print("test_2D_notch ..... OK!")
+        os.remove("libtestumat.so")
+
+        print("test_umat_2D_linear_elastic ..... OK!")
 
 
 if __name__ == "__main__":

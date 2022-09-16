@@ -136,11 +136,11 @@ class TestUniaxial(unittest.TestCase):
 
             # create law and add to iploop, with the ids of ips, where the
             # law holds
-
             law = c.Umat(
                 constraint_type,
                 "SDCRCRY",
-                str(Path.home() / "Tools" / "labtools-fenics" / "lib" / "libumat.so"),
+                # str(Path.home() / "Tools" / "labtools-fenics" / "lib" / "libumat.so"),
+                str(Path.home() / "CI_fenics" / "labtools-fenics" / "lib" / "libumat.so"),
                 37,
                 "kusdcrcry_",
                 "param0_sdcrcry_",
