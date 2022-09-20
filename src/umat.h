@@ -106,8 +106,6 @@ public:
         , _nstatv(nstatv)
         , _libHandle(libName)
     {
-        bool initMat = true;
-
         // initiate state variables
         _statevPrev = QValues(_nstatv);
         _statevEvaluate = QValues(_nstatv);
