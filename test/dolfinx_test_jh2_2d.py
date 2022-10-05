@@ -79,7 +79,7 @@ case3 = {"RHO": 3.7e-6,
 # print(solution.head())
 
 mesh = dfx.mesh.create_rectangle(MPI.COMM_WORLD,np.array([[0,0],[1000., 1000.]]), [1,1], cell_type=dfx.mesh.CellType.quadrilateral)
-rule = QuadratureRule(quadrature_type=basix.QuadratureType.Default, cell_type=basix.CellType.quadrilateral, degree=1)
+rule = QuadratureRule(quadrature_type=basix.QuadratureType.gll, cell_type=basix.CellType.quadrilateral, degree=1)
 
 tdim = mesh.topology.dim
 fdim = tdim - 1
@@ -107,9 +107,9 @@ bcs = [dfx.fem.dirichletbc(np.array(value), dofs, P1.sub(i)) for value,dofs,i in
 parameters = c.JH2Parameters()
 law = c.JH2Simple(parameters)
 
-set_parameters(parameters, case3)
-
-solution = pd.read_csv("CaseC.csv",header=0,decimal=",",sep =';')
+set_parameters(parameters, case2)
+parameters.D1 = 0.00815
+solution = pd.read_csv("CaseB.csv",header=0,decimal=",",sep =';')
 
 v_ = ufl.TestFunction(P1)
 u_ = ufl.TrialFunction(P1)

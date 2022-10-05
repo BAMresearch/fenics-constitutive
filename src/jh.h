@@ -187,14 +187,14 @@ public:
             const double U_old = (Y_old * Y_old) / (6. * _param->SHEAR_MODULUS);
             const double U_new = (Y_new * Y_new) / (6. * _param->SHEAR_MODULUS);
             const double del_U = U_old - U_new;
-            if (del_U < 0){
-                cout << "help, this is wrong\n";
-            } else {
+            //if (del_U < 0){
+                //std::cout << "help, this is wrong\n";
+            //} else {
             const double del_P_n = _internal_vars[PRESSURE].GetScalar(i);
             double K1 = _param->K1;
             double del_P = -K1 * mu + sqrt(pow(K1 * mu + del_P_n,2)+2.*_param->BETA * K1 * del_U);
             _internal_vars[PRESSURE].Set(del_P,i);
-            }
+            //}
         }
 
         /***********************************************************************
@@ -384,14 +384,14 @@ public:
             const double U_old = (Y_old * Y_old) / (6. * _param->SHEAR_MODULUS);
             const double U_new = (Y_new * Y_new) / (6. * _param->SHEAR_MODULUS);
             const double del_U = U_old - U_new;
-            if (del_U < 0){
-                cout << "help, this is wrong\n";
-            } else {
+            //if (del_U < 0){
+                //std::cout << "help, this is wrong\n";
+            //} else {
             const double del_P_n = _internal_vars[PRESSURE].GetScalar(i);
             double K1 = _param->K1;
             double del_P = -K1 * mu + sqrt(pow(K1 * mu + del_P_n,2)+2.*_param->BETA * K1 * del_U);
             _internal_vars[PRESSURE].Set(del_P,i);
-            }
+            //}
         }
 
         /***********************************************************************
