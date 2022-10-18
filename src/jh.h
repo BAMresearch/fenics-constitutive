@@ -30,6 +30,7 @@ struct JH2Parameters
     double K3 = -236.2;
     double BETA = 1.0;
     double MOGEL = 1.0;
+    double EFMIN = 1e-200;
 
 };
 
@@ -139,7 +140,7 @@ public:
             Y_yield = (Y_f*(1.-D_n) + D_n * Y_r)*rate_factor;
         }
         if (s_tr_eq > Y_yield){
-            const double e_p_f = fmax(_param->D1 * pow(p_s + t_s, _param->D2), 1e-200);
+            const double e_p_f = fmax(_param->D1 * pow(p_s + t_s, _param->D2), _param->EFMIN);
             
             del_lambda =_param->MOGEL * (s_tr_eq-Y_yield) / (3.*_param->SHEAR_MODULUS);// + (Y_r-Y_f)/e_p_f);
             //Y_yield += del_lambda * (Y_r-Y_f)/e_p_f;
@@ -316,7 +317,7 @@ public:
         double Y_r;
         double rate_factor;
 
-        const double e_p_f = fmax(_param->D1 * pow(p_s + t_s, _param->D2), 1e-200);
+        const double e_p_f = fmax(_param->D1 * pow(p_s + t_s, _param->D2), _param->EFMIN);
         const auto p_nl = _internal_vars[NONLOCAL].GetScalar(i);
         const auto del_p_nl = fmax(input[NONLOCAL].GetScalar(i) - p_nl, 0.);
         _internal_vars[NONLOCAL].Set(p_nl+del_p_nl,i);

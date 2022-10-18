@@ -1,8 +1,9 @@
 #include "interfaces.h" 
 #include <Eigen/Dense>
-
+#include <iostream>
 typedef Eigen::Matrix<double, 9,1> Vector9d;
 typedef Eigen::Matrix<double, 6,1> Vector6d;
+using RowMatrixXd = Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
 
 Vector6d matrix_to_mandel(Eigen::Matrix3d M){
     Vector6d v;
@@ -192,3 +193,28 @@ public:
         out[SIGMA].Set(matrix_to_mandel(stress), i);
     }
 };
+
+void ApplyFBar(Eigen::Ref<RowMatrixXd> L, int ip_per_cell)
+{
+    Eigen::VectorXd T_vol(9);
+    T_vol << 1./3.,0.,0.,0.,1./3.,0.,0.,0.,1./3.;
+    double vol_mean=0.;
+    for(int i=0;i<L.rows();i+=ip_per_cell)
+    {
+        //cout << "help, I am in a loop\n";
+        vol_mean=0.;
+        for(int j=i;j<i+ip_per_cell;j++)
+        {
+            //cout << "help, I am in an inner loop\n";
+            double vol_i = L.row(j).dot(T_vol);
+            L.row(j)+= - T_vol * 3. * vol_i;
+            vol_mean += vol_i;
+        }
+        vol_mean/=ip_per_cell;
+        for(int j=i;j<i+ip_per_cell;j++)
+        {
+            //cout << "help, I am in an inner loop\n";
+            L.row(j) += T_vol*3.*vol_mean;
+        }
+    }
+}

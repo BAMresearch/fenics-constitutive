@@ -53,7 +53,7 @@ PYBIND11_MODULE(cpp, m)
     m.def("q_dim", &Dim::Q);
     
     m.def("strain_increment", &strain_increment);
-
+    m.def("apply_f_bar", &ApplyFBar);
     
     /*************************************************************************
      **   IPLOOP AND MAIN INTERFACES
@@ -216,6 +216,7 @@ PYBIND11_MODULE(cpp, m)
     jh2_parameters.def_readwrite("K3", &JH2Parameters::K3);
     jh2_parameters.def_readwrite("BETA", &JH2Parameters::BETA);
     jh2_parameters.def_readwrite("MOGEL", &JH2Parameters::MOGEL);
+    jh2_parameters.def_readwrite("EFMIN", &JH2Parameters::EFMIN);
 
 
     pybind11::class_<JH2Simple, std::shared_ptr<JH2Simple>, LawInterface> jh2_simple(m, "JH2Simple");
