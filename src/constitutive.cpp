@@ -3,11 +3,12 @@
 #include <pybind11/stl.h>
 #include "interfaces.h"
 #include "linear_elastic.h"
-#include "local_damage.h"
-#include "plasticity.h"
 
 namespace py = pybind11;
 
+void eigen_ref(Eigen::Ref<Eigen::VectorXd> myarray){
+        myarray*=2.;
+}
 PYBIND11_MODULE(cpp, m)
 {
     // This was created with the help of
@@ -36,92 +37,33 @@ PYBIND11_MODULE(cpp, m)
             .value("E", Q::E)
             .value("KAPPA", Q::KAPPA)
             .value("DEEQ", Q::DEEQ)
-            .value("DSIGMA_DE", Q::DSIGMA_DE);
+            .value("DSIGMA_DE", Q::DSIGMA_DE)
+            .value("LAST", Q::LAST);
 
     m.def("g_dim", &Dim::G);
-    m.def("q_dim", &Dim::Q);
-
+    m.def("q_dim", &Dim::StressStrain);
+    m.def("eigen_mul",&eigen_ref);
     /*************************************************************************
      **   IPLOOP AND MAIN INTERFACES
      *************************************************************************/
 
-    pybind11::class_<IpLoop> ipLoop(m, "IpLoop");
-    ipLoop.def(pybind11::init<>());
-    ipLoop.def("add_law", py::overload_cast<std::shared_ptr<MechanicsLaw>, std::vector<int>>(&IpLoop::AddLaw),
-               py::arg("law"), py::arg("ips") = std::vector<int>());
-    ipLoop.def("add_law", py::overload_cast<std::shared_ptr<LawInterface>, std::vector<int>>(&IpLoop::AddLaw),
-               py::arg("law"), py::arg("ips") = std::vector<int>());
-    ipLoop.def("evaluate", &IpLoop::Evaluate, py::arg("eps"), py::arg("e") = Eigen::VectorXd());
-    ipLoop.def("update", &IpLoop::Update, py::arg("eps"), py::arg("e") = Eigen::VectorXd());
-    ipLoop.def("resize", &IpLoop::Resize);
-    ipLoop.def("get", &IpLoop::Get);
-    ipLoop.def("required_inputs", &IpLoop::RequiredInputs);
-
-    pybind11::class_<LawInterface, std::shared_ptr<LawInterface>> law(m, "LawInterface");
-
-    pybind11::class_<MechanicsLaw, std::shared_ptr<MechanicsLaw>> mechanicsLaw(m, "MechanicsLaw");
-    mechanicsLaw.def("evaluate", &MechanicsLaw::Evaluate, py::arg("strain"), py::arg("i") = 0);
-    mechanicsLaw.def("update", &MechanicsLaw::Update, py::arg("strain"), py::arg("i") = 0);
-    mechanicsLaw.def("resize", &MechanicsLaw::Resize, py::arg("n"));
-
-    pybind11::class_<RefQValues<2,2>, std::shared_ptr<RefQValues<2,2>>> ref_q_values(m, "QValues");
-    ref_q_values.def(pybind11::init<Eigen::Ref<Eigen::VectorXd>>(),py::arg("q_values"));
-    ref_q_values.def("do", &RefQValues<2,2>::DoSomething);
-    ref_q_values.def("print", &RefQValues<2,2>::Print);
-    /*************************************************************************
-     **   DAMAGE LAWS
-     *************************************************************************/
-
-    pybind11::class_<DamageLawInterface, std::shared_ptr<DamageLawInterface>> damageLaw(m, "DamageLawInterface");
-    damageLaw.def("evaluate", &DamageLawInterface::Evaluate);
-
-    pybind11::class_<DamageLawExponential, std::shared_ptr<DamageLawExponential>, DamageLawInterface> damageExponential(
-            m, "DamageLawExponential");
-    damageExponential.def(pybind11::init<double, double, double>(), py::arg("k0"), py::arg("alpha"), py::arg("beta"));
 
 
-    /*************************************************************************
-     **   STRAIN NORMS
-     *************************************************************************/
-
-    pybind11::class_<StrainNormInterface, std::shared_ptr<StrainNormInterface>> strainNorm(m, "StrainNormInterface");
-    strainNorm.def("evaluate", &StrainNormInterface::Evaluate);
-
-    pybind11::class_<ModMisesEeq, std::shared_ptr<ModMisesEeq>, StrainNormInterface> modMises(m, "ModMisesEeq");
-    modMises.def(pybind11::init<double, double, Constraint>(), py::arg("k"), py::arg("nu"), py::arg("constraint"));
 
     /*************************************************************************
      **   "PURE" MECHANICS LAWS
      *************************************************************************/
 
-    pybind11::class_<LinearElastic, std::shared_ptr<LinearElastic>, MechanicsLaw> linearElastic(m, "LinearElastic");
-    linearElastic.def(pybind11::init<double, double, Constraint>(), py::arg("E"), py::arg("nu"), py::arg("constraint"));
+    pybind11::class_<LinearElastic<FULL>, std::shared_ptr<LinearElastic<FULL>>> linearElastic(m, "LinearElastic3D");
+    linearElastic.def(pybind11::init<double, double, int>(), py::arg("E"), py::arg("nu"), py::arg("number of quadrature points"));
+    linearElastic.def("evaluate", &LinearElastic<FULL>::EvaluateAll);
+    linearElastic.def("update", &LinearElastic<FULL>::UpdateAll);
+    linearElastic.def("inputs", &LinearElastic<FULL>::DefineInputs);
 
 
-    pybind11::class_<LocalDamage, std::shared_ptr<LocalDamage>, MechanicsLaw> local(m, "LocalDamage");
-    local.def(pybind11::init<double, double, Constraint, std::shared_ptr<DamageLawInterface>,
-                             std ::shared_ptr<StrainNormInterface>>());
-    local.def("kappa", &LocalDamage::Kappa);
 
-    /*************************************************************************
-     **   GRADIENT DAMAGE LAW
-     *************************************************************************/
-
-    pybind11::class_<GradientDamage, std::shared_ptr<GradientDamage>, LawInterface> gdm(m, "GradientDamage");
-    gdm.def(pybind11::init<double, double, Constraint, std::shared_ptr<DamageLawInterface>,
-                           std ::shared_ptr<StrainNormInterface>>());
-    gdm.def("kappa", &GradientDamage::Kappa);
 
     /*************************************************************************
      **   PLASTICITY
      *************************************************************************/
-    pybind11::class_<NormVM> normVM(m, "NormVM");
-    normVM.def(pybind11::init<Constraint>());
-    normVM.def("__call__", &NormVM::Call);
-    normVM.def_readonly("P", &NormVM::_P);
-    
-    pybind11::class_<RateIndependentHistory> RateIndependentHistory(m, "RateIndependentHistory");
-    RateIndependentHistory.def(pybind11::init<>());
-    RateIndependentHistory.def("__call__", &RateIndependentHistory::Call);
-//     RateIndependentHistory.def_readonly("P", &RateIndependentHistory::_p);
 }

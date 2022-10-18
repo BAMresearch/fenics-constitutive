@@ -19,17 +19,53 @@ class Parameters:
         self.gf = 0.1
         self.k = 10.
 
+class LinearElasticy3D:
+    def __init__(self,E,nu,n, dict_vectors=None):
+
+        self._cpp_object = LinearElastic3D(E,nu,n)
+        self._dict_vectors = dict_vectors
+        if self._check_input(self.dict_vectors):
+            self._input_list = __convert_input(self._dict_vectors)
+    
+    def __convert_input(self, dict_vectors):
+
+        input_list = [np.array([]) for i in range(int(Q.LAST))]
+        for Q_enum in self.dict_vectors.keys():
+            input_list[Q_enum] = dict_vectors[Q_enum]
+        return input_list
+
+    def _check_input(self, dict_vectors):
+        """
+        Check if the provided dict contains the needed vectors as defined by the
+        _cc_object
+        """
+        if dict_vectors is not None:
+            keys = list(dict_vectors.keys()).sort(key=hash)
+            inputs = self._cpp_object.inputs().sort(key=hash)
+            if keys != inputs:
+                raise Exception("Invalid Input: "+str(inputs)+" were needed as input, but "+ str(keys)+" were given")
+            else:
+                return True
+        else:
+            return False
+
+    def evaluate(self, dict_vectors=None):
+        if dict_vectors is None and self.dict_vectors is None:
+            raise Exception("You need to provide input vectors")
+        elif dict_vectors is None:
+            self._cpp_object.evaluate(self._input_list, 1.)
+        else self._check_input(dict_vectors):
+            input_list = __convert_input(dict_vectors)
+            self._cpp_object.evaluate(input_list, 1.)
 
 class MechanicsProblem(df.NonlinearProblem):
-    def __init__(self, mesh, prm, law, iploop=None):
+    def __init__(self, mesh, prm, law):
         df.NonlinearProblem.__init__(self)
 
         self.mesh = mesh
         self.prm = prm
 
         self.law = law
-        self.iploop = iploop or IpLoop()
-        self.iploop.add_law(self.law)
 
         if mesh.geometric_dimension() != g_dim(prm.constraint):
             raise RuntimeError(
@@ -93,26 +129,33 @@ class MechanicsProblem(df.NonlinearProblem):
             return df.as_vector([e[0, 0]])
 
         if dim == 2:
-            return df.as_vector([e[0, 0], e[1, 1], 2 * e[0, 1]])
+            return df.as_vector([e[0, 0], e[1, 1], 2**0.5 * e[0, 1]])
 
         if dim == 3:
             return df.as_vector(
-                [e[0, 0], e[1, 1], e[2, 2], 2 * e[1, 2], 2 * e[0, 2], 2 * e[0, 1]]
+                [e[0, 0], e[1, 1], e[2, 2], 2**0.5 * e[1, 2], 2**0.5 * e[0, 2], 2**0.5 * e[0, 1]]
             )
 
     def evaluate_material(self):
         # project the strain and the nonlocal equivalent strains onto
         # their quadrature spaces and ...
         self.calculate_eps(self.q_eps)
-        self.iploop.evaluate(self.q_eps.vector().get_local())
+        temp_eps_vector = self.q_eps.vector().get_local()
+        temp_sigma_vector = self.q_sigma.vector().get_local()
+        temp_dsigma_deps_vector = self.q_dsigma_deps.vector().get_local()
+        input_list = [np.array([]) for i in range(int(Q.LAST))]
+        input_list[Q.EPS] = temp_eps_vector
+        input_list[Q.SIGMA] = temp_sigma_vector
+        input_list[Q.DSIGMA_DEPS] = temp_dsigma_deps_vector
+        self.law.evaluate(input_list, 1.)
 
         # ... and write the calculated values into their quadrature spaces.
-        h.set_q(self.q_sigma, self.iploop.get(Q.SIGMA))
-        h.set_q(self.q_dsigma_deps, self.iploop.get(Q.DSIGMA_DEPS))
+        h.set_q(self.q_sigma, input_list[Q.SIGMA])
+        h.set_q(self.q_dsigma_deps, input_list[Q.DSIGMA_DEPS] )
 
     def update(self):
-        self.calculate_eps(self.q_eps)
-        self.iploop.update(self.q_eps.vector().get_local())
+        # self.calculate_eps(self.q_eps)
+        self.law.update()
 
 
     def set_bcs(self, bcs):

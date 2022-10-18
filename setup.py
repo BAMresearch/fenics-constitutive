@@ -59,7 +59,7 @@ class CMakeBuild(build_ext):
         subprocess.check_call(['cmake', '--build', '.'] + build_args, cwd=self.build_temp)
 
 setup(
-    name='constitutive',
+    name='constitutiveX',
     version='0.1',
     author='Thomas Titscher',
     author_email='thomas.titscher@gmail.com',
@@ -77,5 +77,5 @@ setup(
         "Operating System :: OS Independent",
     ],
     url="https://github.com/BAMresearch/fenics-constitutive",
-    packages=["constitutive"],
+    packages=["constitutiveX"],
 )
