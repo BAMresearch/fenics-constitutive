@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
-project(constitutive VERSION 0.1 LANGUAGES CXX)
+project(constitutiveX VERSION 0.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 14)
 
@@ -11,5 +11,5 @@ include_directories(src)
 add_subdirectory(src)
 
 find_package(pybind11 REQUIRED)
-pybind11_add_module(cpp src/constitutive.cpp)
+pybind11_add_module(cpp src/constitutiveX.cpp)
 target_link_libraries(cpp PRIVATE pybind11::module Eigen3::Eigen)
