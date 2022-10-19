@@ -15,7 +15,7 @@ MandelMatrix<UNIAXIAL_STRESS> C<UNIAXIAL_STRESS>(double E, double nu)
 {
     return MandelMatrix<UNIAXIAL_STRAIN>::Constant(E);
 }
-
+/*
 template <>
 MandelMatrix<PLANE_STRESS> C<PLANE_STRESS>(double E, double nu)
 {
@@ -35,7 +35,7 @@ MandelMatrix<PLANE_STRAIN> C<PLANE_STRAIN>(double E, double nu)
     MandelMatrix<PLANE_STRAIN> c = MandelVector<PLANE_STRAIN>({2 * m, 2 * m, m}).asDiagonal();
     c.block<2, 2>(0, 0) += Eigen::Matrix2d::Constant(l);
     return c;
-}
+}*/
 
 template <>
 MandelMatrix<FULL> C<FULL>(double E, double nu)
