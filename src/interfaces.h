@@ -54,9 +54,9 @@ struct Dim
         if (c == UNIAXIAL_STRESS)
             return 1;
         if (c == PLANE_STRAIN)
-            return 3;
+            return 4;
         if (c == PLANE_STRESS)
-            return 3;
+            return 4;
         if (c == FULL)
             return 6;
         static_assert(true, "Constraint type not supported.");
@@ -71,6 +71,8 @@ using MandelVector = Eigen::Matrix<double, Dim::StressStrain(TC), 1>;
 template <Constraint TC>
 using MandelMatrix = Eigen::Matrix<double, Dim::StressStrain(TC), Dim::StressStrain(TC), Eigen::RowMajor>;
 
+template <Constraint TC>
+using FullTensor = Eigen::Matrix<double, Dim::G(TC),Dim::G(TC), Eigen::RowMajor>;
 
 class RefLawInterface
 {
