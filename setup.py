@@ -67,7 +67,7 @@ setup(
     description="Complex constitutive models beyond the FEniCS UFL.",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    ext_modules=[CMakeExtension('constitutive.cpp')],
+    ext_modules=[CMakeExtension('constitutiveX.cpp')],
     cmdclass=dict(build_ext=CMakeBuild),
     zip_safe=False,
     python_requires=">=3",
