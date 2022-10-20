@@ -1,4 +1,5 @@
 #include "interfaces.h"
+#include <iostream>
 //#include <cmath>
 template<Constraint TC>
 FullTensor<TC> MandelToTensor(const MandelVector<TC> &sigma);
@@ -33,13 +34,35 @@ void JaumannRotate(Eigen::Ref<Eigen::VectorXd> L, Eigen::Ref<Eigen::VectorXd> si
     const int l = Dim::G(TC)*Dim::G(TC);
     const int stress_strain = Dim::StressStrain(TC);
     int n_gauss = L.size()/l;
+    FullTensor<TC> L_temp; 
+    FullTensor<TC> W_temp; 
     for(int i=0;i<n_gauss;i++){
-        auto L_seg = L.segment<l>(i*l);
-        FullTensor<TC> L_temp = Eigen::Map<FullTensor<TC>>(L_seg.data());
-        FullTensor<TC> W_temp = 0.5 * (L_temp - L_temp.transpose());
+        L_temp = Eigen::Map<FullTensor<TC>>(L.segment<l>(i*l).data());
+        W_temp = 0.5 * (L_temp - L_temp.transpose());
         auto sigma_view = sigma.segment<stress_strain>(i*stress_strain);
-        
-        auto Wsig = W_temp * MandelToTensor<TC>(sigma_view);
-        sigma_view += del_t * TensorToMandel<TC>(Wsig+Wsig.transpose());  
+        W_temp *= MandelToTensor<TC>(sigma_view);
+        sigma_view += del_t * TensorToMandel<TC>(W_temp+W_temp.transpose());  
+    }
+}
+template <Constraint TC> 
+void JaumannRotateFast(Eigen::Ref<Eigen::VectorXd> L, Eigen::Ref<Eigen::VectorXd> sigma, double del_t);
+
+template<>
+void JaumannRotateFast<FULL>(Eigen::Ref<Eigen::VectorXd> L, Eigen::Ref<Eigen::VectorXd> sigma, double del_t)
+{
+    const int l = Dim::G(FULL)*Dim::G(FULL);
+    const int stress_strain = Dim::StressStrain(FULL);
+    const int n_gauss = L.size()/l;
+    const root = 1.4142135623730951;
+
+    FullTensor<FULL> L_temp; 
+    FullTensor<FULL> W_temp; 
+    for(int i=0;i<n_gauss;i++){
+        L_temp = Eigen::Map<FullTensor<FULL>>(L.segment<l>(i*l).data());
+        W_temp = 0.5 * (L_temp - L_temp.transpose());
+        auto sigma_view = sigma.segment<stress_strain>(i*stress_strain);
+        MandelVector<FULL> sigma_copy = sigma_view;
+        //TODO
+        //sigma_view(0) += root * sigma_copy(4) * W_temp(0,2)+
     }
 }

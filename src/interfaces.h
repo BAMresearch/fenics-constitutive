@@ -22,9 +22,11 @@ enum Q
     SIGMA,
     DSIGMA_DEPS,
     DSIGMA_DE,
+    L,
     EEQ,
     DEEQ,
     KAPPA,
+    NONLOCAL,
     LAST
 };
 
@@ -101,3 +103,32 @@ public:
     }
 };
 
+class ExplicitDynamicsLawInterface
+{
+public:
+    int _n;
+    ExplicitDynamicsLawInterface(int n):_n(n){}
+    virtual std::vector<Q> DefineInputs() 
+    {
+        return {Q::L, Q::NONLOCAL};
+    }
+
+    virtual void EvaluateIP(int i, std::vector<Eigen::Ref<Eigen::VectorXd>>& inputs, double del_t) = 0;
+    virtual void UpdateIP(int i)
+    {
+    }
+    void EvaluateAll(
+            std::vector<Eigen::Ref<Eigen::VectorXd>>& input,
+            double del_t)
+    {
+        for(int i=0;i<_n;i++){
+            EvaluateIP(i, input, del_t);
+        }
+    }
+    void UpdateAll()
+    {
+        for(int i=0;i<_n;i++){
+            UpdateIP(i);
+        }
+    }
+};
