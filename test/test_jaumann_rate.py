@@ -15,13 +15,14 @@ def test_mandel_transformations():
     np.testing.assert_allclose(sym, cx.mandel_to_tensor_3d(mandel))
 
 def test_jaumann_rotate():
-    L=np.random.random((3,3))
-    sigma=np.random.random(6)
     L=np.arange(9,dtype=np.float64)
     sigma=np.arange(6,dtype=np.float64)
     del_t=0.01
     sigma_python = jaumann_rotate_3d_python(L.reshape(3,3),sigma,del_t)
     cx.jaumann_rotate_3d(L,sigma,del_t)
+    np.testing.assert_allclose(sigma,sigma_python)
+    sigma=np.arange(6,dtype=np.float64)
+    cx.jaumann_rotate_fast_3d(L,sigma,del_t)
     np.testing.assert_allclose(sigma,sigma_python)
 
 if __name__ == "__main__":

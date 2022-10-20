@@ -50,19 +50,28 @@ void JaumannRotateFast(Eigen::Ref<Eigen::VectorXd> L, Eigen::Ref<Eigen::VectorXd
 template<>
 void JaumannRotateFast<FULL>(Eigen::Ref<Eigen::VectorXd> L, Eigen::Ref<Eigen::VectorXd> sigma, double del_t)
 {
+    //Apply the rotations directly on the mandel form of the stress. Yust trust me on the formulas;)
+    //Approximately twice as fast as the other version.
     const int l = Dim::G(FULL)*Dim::G(FULL);
     const int stress_strain = Dim::StressStrain(FULL);
     const int n_gauss = L.size()/l;
-    const root = 1.4142135623730951;
+    const double root = 1.4142135623730951;
 
     FullTensor<FULL> L_temp; 
-    FullTensor<FULL> W_temp; 
+    //FullTensor<FULL> W_temp; 
     for(int i=0;i<n_gauss;i++){
         L_temp = Eigen::Map<FullTensor<FULL>>(L.segment<l>(i*l).data());
-        W_temp = 0.5 * (L_temp - L_temp.transpose());
+        auto W = 0.5 * (L_temp - L_temp.transpose());
         auto sigma_view = sigma.segment<stress_strain>(i*stress_strain);
-        MandelVector<FULL> sigma_copy = sigma_view;
-        //TODO
+        MandelVector<FULL> s = sigma_view;
+        //just trust me on those formulas
+        sigma_view(0) += del_t*(root*(s(4)*W(0,2)+s(5)*W(0,1)));
+        sigma_view(1) += del_t*(root*(s(3)*W(1,2)-s(5)*W(0,1)));
+        sigma_view(2) += del_t*(-root*(s(3)*W(1,2)+s(4)*W(0,2)));
+        sigma_view(3) += del_t*(root*W(1,2)*(s(2)-s(1)) - s(4)*W(0,1) - s(5)*W(0,2));
+        sigma_view(4) += del_t*(root*W(0,2)*(s(2)-s(0)) + s(3)*W(0,1) - s(5)*W(1,2));
+        sigma_view(5) += del_t*(root*W(0,1)*(s(1)-s(0)) + s(3)*W(0,2) + s(4)*W(1,2));
+        
         //sigma_view(0) += root * sigma_copy(4) * W_temp(0,2)+
     }
 }

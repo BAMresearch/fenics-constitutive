@@ -53,6 +53,7 @@ PYBIND11_MODULE(cpp, m)
      **   Stress Rates
      *************************************************************************/
     m.def("jaumann_rotate_3d", &JaumannRotate<FULL>);
+    m.def("jaumann_rotate_fast_3d", &JaumannRotateFast<FULL>);
     m.def("tensor_to_mandel_3d", &TensorToMandel<FULL>);
     m.def("mandel_to_tensor_3d", &MandelToTensor<FULL>);
 
