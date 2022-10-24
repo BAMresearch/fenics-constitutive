@@ -1,5 +1,5 @@
 #pragma once
-#include <eigen3/Eigen/Core>
+#include <eigen3/Eigen/Dense>
 #include <exception>
 #include <vector>
 #include <numeric>
@@ -22,11 +22,15 @@ enum Q
     SIGMA,
     DSIGMA_DEPS,
     DSIGMA_DE,
-    L,
+    GRAD_V,
+    LAMBDA,
     EEQ,
     DEEQ,
     KAPPA,
     NONLOCAL,
+    RHO,
+    DAMAGE,
+    PRESSURE,
     LAST
 };
 
@@ -84,6 +88,7 @@ public:
     virtual std::vector<Q> DefineInputs() const = 0;
 
     virtual void EvaluateIP(int i, std::vector<Eigen::Ref<Eigen::VectorXd>>& inputs, double del_t) = 0;
+    //virtual void EvaluateCell(std::vector<int>& indices, std::vector<Eigen::Ref<Eigen::VectorXd>>& inputs, double del_t);
     virtual void UpdateIP(int i)
     {
     }
@@ -103,32 +108,17 @@ public:
     }
 };
 
-class ExplicitDynamicsLawInterface
+class ExplicitDynamicsLawInterface : public RefLawInterface
 {
 public:
     int _n;
-    ExplicitDynamicsLawInterface(int n):_n(n){}
+    ExplicitDynamicsLawInterface(int n)
+        : RefLawInterface(n)
+    {
+
+    }
     virtual std::vector<Q> DefineInputs() 
     {
-        return {Q::L, Q::NONLOCAL};
-    }
-
-    virtual void EvaluateIP(int i, std::vector<Eigen::Ref<Eigen::VectorXd>>& inputs, double del_t) = 0;
-    virtual void UpdateIP(int i)
-    {
-    }
-    void EvaluateAll(
-            std::vector<Eigen::Ref<Eigen::VectorXd>>& input,
-            double del_t)
-    {
-        for(int i=0;i<_n;i++){
-            EvaluateIP(i, input, del_t);
-        }
-    }
-    void UpdateAll()
-    {
-        for(int i=0;i<_n;i++){
-            UpdateIP(i);
-        }
+        return {Q::GRAD_V, Q::SIGMA};
     }
 };

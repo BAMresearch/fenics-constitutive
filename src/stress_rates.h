@@ -54,7 +54,7 @@ void JaumannRotateFast<FULL>(Eigen::Ref<Eigen::VectorXd> L, Eigen::Ref<Eigen::Ve
     //Approximately twice as fast as the other version.
     const int l = Dim::G(FULL)*Dim::G(FULL);
     const int stress_strain = Dim::StressStrain(FULL);
-    const int n_gauss = L.size()/l;
+    int n_gauss = L.size()/l;
     const double root = 1.4142135623730951;
 
     FullTensor<FULL> L_temp; 
