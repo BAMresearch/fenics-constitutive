@@ -78,11 +78,11 @@ public:
         const auto d_eps = TensorToMandel<TC>(D_);
         //const auto d_eps_vol = T_vol.dot(d_eps);
         
-        auto sigma_view = inputs[SIGMA].segment<sigma_size>(i * sigma_size);
+        auto sigma_view = inputs[Q::SIGMA].segment<sigma_size>(i * sigma_size);
         
         //const double lambda_n = _internal_vars[LAMBDA](i);
         //const double e_n = _internal_vars[E](i);
-        const double D_n = _internal_vars[DAMAGE](i);
+        const double D_n = _internal_vars[Q::DAMAGE](i);
 
         
         //auto stress = mandel_to_matrix(sigma_n);
@@ -126,9 +126,9 @@ public:
             del_lambda =_param->MOGEL * (s_tr_eq-Y_yield) / (3.*_param->SHEAR_MODULUS);// + (Y_r-Y_f)/e_p_f);
             alpha = Y_yield/s_tr_eq;
 
-            _internal_vars[LAMBDA](i) += del_lambda;
+            _internal_vars[Q::LAMBDA](i) += del_lambda;
             // Update damage variable or set to 1.
-            _internal_vars[DAMAGE](i) = fmin(D_n+del_lambda/e_p_f,1.0);
+            _internal_vars[Q::DAMAGE](i) = fmin(D_n+del_lambda/e_p_f,1.0);
         
         } else {
             //elastic
@@ -155,14 +155,14 @@ public:
         } */
         
         double f1 = del_t/2. * L_.trace();
-        _internal_vars[RHO](i) *= (1-f1)/(1+f1);
+        _internal_vars[Q::RHO](i) *= (1-f1)/(1+f1);
         /***********************************************************************
          * UPDATE ENERGY AND EOS
          **********************************************************************/
         
         const auto mu = _internal_vars[RHO](i)/_param->RHO -1.;
         
-        const auto p = (mu > 0) ? _param->K1 * mu + _param->K2 * mu * mu + _param->K3 * mu * mu * mu + _internal_vars[PRESSURE](i): _param->K1 * mu;
+        const auto p = (mu > 0) ? _param->K1 * mu + _param->K2 * mu * mu + _param->K3 * mu * mu * mu + _internal_vars[Q::PRESSURE](i): _param->K1 * mu;
         
         const double D_new = _internal_vars[DAMAGE](i);
         if (D_new > D_n){
