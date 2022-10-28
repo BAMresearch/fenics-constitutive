@@ -3,7 +3,8 @@ import re
 import sys
 import platform
 import subprocess
-
+import git 
+from pathlib import Path
 from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext
 from distutils.version import LooseVersion
@@ -60,7 +61,7 @@ class CMakeBuild(build_ext):
 
 setup(
     name='constitutiveX',
-    version='0.1',
+    version='0.1',#+"+"+git_version(),
     author='Thomas Titscher',
     author_email='thomas.titscher@gmail.com',
     keywords="FEniCS c++ constitutive",
