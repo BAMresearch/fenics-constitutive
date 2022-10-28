@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use("Agg", force=True)
 
-from dolfinx_helpers import QuadratureRule, get_local
+from constitutiveX.helpers import QuadratureRule, get_local
 
 from mpi4py import MPI
 def set_parameters(parameters,dic):
@@ -91,7 +91,7 @@ P1=dfx.fem.VectorFunctionSpace(mesh, ("CG", 1))
 #V0=df.VectorFunctionSpace(mesh0, "CG", 1)
 u = dfx.fem.Function(P1)
 t_end = 100.
-v_bc = -50. / t_end
+v_bc = 50. / t_end
 domains = [
     lambda x : np.isclose(x[0],0.0),
     lambda x : np.isclose(x[0],1000.), 
@@ -107,9 +107,11 @@ bc_dofs = [dfx.fem.locate_dofs_topological(P1.sub(i), mesh.topology.dim-1, facet
 bcs = [dfx.fem.dirichletbc(np.array(value), dofs, P1.sub(i)) for value,dofs,i in zip(values,bc_dofs,subspaces)]
 
 parameters = cx.JH2Parameters()
-set_parameters(parameters, case2)
+set_parameters(parameters, case3)
+parameters.EFMIN=0.01
 parameters.D1 = 0.00815
-# IMPORTANT: decide on parameters before init
+# IMPORTANT: decide on parameters before init, because 
+# internally, the density vector is initialized
 law = cx.JH23D(parameters, rule.number_of_points(mesh))
 
 
@@ -170,6 +172,34 @@ while solver.t < t_end:# and counter <= 2000:
         #damage.append(law.get_internal_var(c.Q.DAMAGE)[0])
         #del_p.append(law.get_internal_var(c.Q.PRESSURE)[0])
     counter += 1
+#unloading
+values=[0.,0.,0., - v_bc]
+subspaces=[0,0,1,1]
+#boundary_facets = [dfx.mesh.locate_entities_boundary(mesh, mesh.topology.dim-1, domain) for domain in domains]
+#bc_dofs = [dfx.fem.locate_dofs_topological(P1.sub(i), mesh.topology.dim-1, facet) for facet,i in zip(boundary_facets,subspaces)]
+#bc_dofs = [dfx.fem.locate_dofs_geometrical(P1, domain) for domain in domains]
+
+bcs = [dfx.fem.dirichletbc(np.array(value), dofs, P1.sub(i)) for value,dofs,i in zip(values,bc_dofs,subspaces)]
+solver.bcs = bcs
+while solver.t < 2.*t_end:# and counter <= 2000:
+    solver.step(h)
+    if counter % 100 == 0:
+        u_ = max(abs(get_local(solver.u)))
+
+        density = total_mass / (1000 * (1000.-u_))
+        #print((density-law.get_internal_var(cx.Q.RHO)[0])/density)
+
+        s_mean =  np.mean(get_local(solver.stress).reshape((-1,6)), axis = 0)
+        p = - (1/3) * np.sum(s_mean[:3])
+        #print("###\n",get_local(solver.u))
+        #print(get_local(solver.v),"###")
+        s_dev = (s_mean + np.array([p,p,p,0.,0.,0.]))
+        s_eq = (1.5 * np.inner(s_dev, s_dev))**0.5
+        p_.append(p)
+        s_eq_.append(s_eq)
+        #damage.append(law.get_internal_var(c.Q.DAMAGE)[0])
+        #del_p.append(law.get_internal_var(c.Q.PRESSURE)[0])
+    counter += 1
 # if MPI.COMM_WORLD.rank==0:
 plt.plot(p_,s_eq_)
 #plt.scatter(solution.values[:, 0], solution.values[:, 1])
@@ -178,5 +208,5 @@ plt.xlabel("Pressure [GPa]")
 plt.ylabel("Equiv. Stress [GPa]")
 plt.savefig("jh2.png")
 
-from IPython import embed
-embed()
+#from IPython import embed
+#embed()
