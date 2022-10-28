@@ -2,13 +2,13 @@
 
 import numpy as np
 import ufl
-
+from petsc4py import PETSc
 import basix
 #import constitutive as c
 import constitutiveX.cpp as _cpp
 import dolfinx as dfx
 
-from dolfinx_helpers import QuadratureRule, QuadratureEvaluator, get_local, set_local, add_local, set_mesh_coordinates
+from constitutiveX.helpers import QuadratureRule, QuadratureEvaluator, get_local, set_local, add_local, set_mesh_coordinates
 
 
 
@@ -36,15 +36,13 @@ class CDMPlaneStrainX:
 
         self.QV = self.quadrature_rule.create_quadrature_vector_space(self.mesh, 6)
 
-        self.stress = dfx.fem.Function(self.QV)
+        self.stress = dfx.fem.Function(self.QV, name="Mandel Stress")
 
-        self.local_q_dim = get_local(self.stress).size // 6
+        self.local_q_dim = self.quadrature_rule.number_of_points(self.mesh)
 
         self.L = np.zeros(self.local_q_dim * 9)
         self.t = t0
         self.law = law
-
-        #self.stress_rate = stress_rate
 
         self.f_ext = f_ext
 
@@ -96,7 +94,10 @@ class CDMPlaneStrainX:
         _cpp.jaumann_rotate_fast_3d(self.L, self.stress.vector.array, h)
         #TODO: Is GhostUpdate really used correcxtly
         self.law.evaluate(input_list, h)
-        self.stress.vector.ghostUpdate()
+        #TODO
+        self.stress.x.scatter_forward()
+
+        
         # if self.nonlocal_var is not None:
         #    self.ip_loop.set(self.nonlocal_var, )
         #temp_stress = get_local(self.stress).copy()
@@ -122,11 +123,14 @@ class CDMPlaneStrainX:
             f_local.set(0.0)
         # dfx.fem.petsc.assemble_vector(self.f, dfx.fem.form(self.f_int_ufl))
         dfx.fem.petsc.assemble_vector(self.f, self.f_int_form)
+        #TODO
+        self.f.ghostUpdate(addv=PETSc.InsertMode.ADD_VALUES, mode=PETSc.ScatterMode.REVERSE)
         # self.f.array[:]*=-1
         if self.f_ext is not None:
             self.f.array[:] += self.f_ext(self.t).array
+            #TODO
+            self.f.ghostUpdate(addv=PETSc.InsertMode.INSERT_VALUES, mode=PETSc.ScatterMode.FORWARD)
             # self.f.__iadd__(self.f_ext(self.t))
-        self.f.ghostUpdate()
 
         # given: v_n-1/2, x_n/u_n, a_n, f_int_n
         # Advance velocities and nodal positions in time
@@ -140,10 +144,10 @@ class CDMPlaneStrainX:
         set_local(self.v, c1 * get_local(self.v) + c2 * self.M.array * self.f.array)
 
         dfx.fem.set_bc(self.v.vector.array, self.bcs)
-
-        # self.v.vector.ghostUpdate()
-
-        du_half = (0.5 * h) * get_local(self.v)
+        # ghost entries are needed
+        self.v.x.scatter_forward()
+        # use v.x instead of v.vector, since mesh update requires ghost entries
+        du_half = (0.5 * h) * self.v.vector.array
 
         set_mesh_coordinates(self.mesh, du_half, mode="add")
         # if self.nonlocal_var is not None:
@@ -152,7 +156,7 @@ class CDMPlaneStrainX:
         #     )
         self.stress_update(h)
 
-        add_local(self.u, 2.0 * du_half)
+        self.u.x.array[:] += 2.0 * du_half
 
         set_mesh_coordinates(self.mesh, du_half, mode="add")
 
@@ -219,7 +223,7 @@ class CDMNonlocalVariable:
         set_local(self.p_l, p)
 
         dfx.fem.petsc.assemble_vector(self.f, self.f_form)
-
+        #TODO: ghostUpdate
         self.f.ghostUpdate()
 
         c = self.gamma / self.zeta
