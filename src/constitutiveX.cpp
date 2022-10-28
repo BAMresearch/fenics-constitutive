@@ -9,8 +9,11 @@
 
 namespace py = pybind11;
 
-void eigen_ref(Eigen::Ref<Eigen::VectorXd> myarray){
-        myarray*=2.;
+void eigen_ref(const Eigen::Ref<const Eigen::VectorXd> &myarray, Eigen::Ref<Eigen::VectorXd> myarray2){
+        auto seg = myarray.segment<4>(0);
+        auto mat = Eigen::Map<const Eigen::Matrix2d>(seg.data()); 
+        myarray2 *= 42.;
+        std::cout << mat<< "\n";
 }
 PYBIND11_MODULE(cpp, m)
 {
