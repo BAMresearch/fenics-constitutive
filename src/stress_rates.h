@@ -29,15 +29,14 @@ template<> MandelVector<FULL> TensorToMandel<FULL>(const FullTensor<FULL> &sigma
 }
 
 template <Constraint TC> 
-void JaumannRotate(Eigen::Ref<Eigen::VectorXd> L, Eigen::Ref<Eigen::VectorXd> sigma, double del_t)
+void JaumannRotate(const Eigen::Ref<const Eigen::VectorXd> L, Eigen::Ref<Eigen::VectorXd> sigma, double del_t)
 {
-    const int l = Dim::G(TC)*Dim::G(TC);
-    const int stress_strain = Dim::StressStrain(TC);
+    constexpr int l = Dim::G(TC)*Dim::G(TC);
+    constexpr int stress_strain = Dim::StressStrain(TC);
     int n_gauss = L.size()/l;
-    FullTensor<TC> L_temp; 
     FullTensor<TC> W_temp; 
     for(int i=0;i<n_gauss;i++){
-        L_temp = Eigen::Map<FullTensor<TC>>(L.segment<l>(i*l).data());
+        auto L_temp = Eigen::Map<const FullTensor<TC>>(L.segment<l>(i*l).data());
         W_temp = 0.5 * (L_temp - L_temp.transpose());
         auto sigma_view = sigma.segment<stress_strain>(i*stress_strain);
         W_temp *= MandelToTensor<TC>(sigma_view);
@@ -45,10 +44,10 @@ void JaumannRotate(Eigen::Ref<Eigen::VectorXd> L, Eigen::Ref<Eigen::VectorXd> si
     }
 }
 template <Constraint TC> 
-void JaumannRotateFast(Eigen::Ref<Eigen::VectorXd> L, Eigen::Ref<Eigen::VectorXd> sigma, double del_t);
+void JaumannRotateFast(const Eigen::Ref<const Eigen::VectorXd> L, Eigen::Ref<Eigen::VectorXd> sigma, double del_t);
 
 template<>
-void JaumannRotateFast<FULL>(Eigen::Ref<Eigen::VectorXd> L, Eigen::Ref<Eigen::VectorXd> sigma, double del_t)
+void JaumannRotateFast<FULL>(const Eigen::Ref<const Eigen::VectorXd> L, Eigen::Ref<Eigen::VectorXd> sigma, double del_t)
 {
     //Apply the rotations directly on the mandel form of the stress. Yust trust me on the formulas;)
     //Approximately twice as fast as the other version.
@@ -57,11 +56,12 @@ void JaumannRotateFast<FULL>(Eigen::Ref<Eigen::VectorXd> L, Eigen::Ref<Eigen::Ve
     int n_gauss = L.size()/l;
     const double root = 1.4142135623730951;
 
-    FullTensor<FULL> L_temp; 
+    //FullTensor<FULL> L_temp; 
+    FullTensor<FULL> W;
     //FullTensor<FULL> W_temp; 
     for(int i=0;i<n_gauss;i++){
-        L_temp = Eigen::Map<FullTensor<FULL>>(L.segment<l>(i*l).data());
-        auto W = 0.5 * (L_temp - L_temp.transpose());
+        auto L_temp = Eigen::Map<const FullTensor<FULL>>(L.segment<l>(i*l).data());
+        W = 0.5 * (L_temp - L_temp.transpose());
         auto sigma_view = sigma.segment<stress_strain>(i*stress_strain);
         MandelVector<FULL> s = sigma_view;
         //just trust me on those formulas

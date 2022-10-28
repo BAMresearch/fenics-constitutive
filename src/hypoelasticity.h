@@ -30,8 +30,8 @@ public:
         constexpr int dim_L = Dim::G(TC)*Dim::G(TC);
         auto L_flat = inputs[Q::GRAD_V].segment<dim_L>(i*dim_L);
         FullTensor<TC> L = Eigen::Map<FullTensor<TC>>(L_flat.data());
-        auto D = 0.5*(L+L.transpose());
-        auto del_eps = del_t * TensorToMandel<TC>(D);
+        FullTensor<TC> D = 0.5*(L+L.transpose());
+        MandelVector<TC> del_eps = del_t * TensorToMandel<TC>(D);
         
         auto sigma = inputs[Q::SIGMA].segment<dim>(i*dim);
         
