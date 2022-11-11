@@ -181,6 +181,73 @@ def diagonal_mass(
         M_action.ghostUpdate()
     return M_action
 
+class TimestepEstimator:
+    def __init__(self, mesh, G, K, rho, safety_factor=1., order = 1):
+        self.del_t = 0.
+        self.eig_max = 0.
+        self.safety_factor=safety_factor
+        self.mesh = mesh
+        self.cell_type = self.mesh.topology.cell_type
+        if self.cell_type == dfx.mesh.CellType.triangle:
+            raise TypeError('Cell type "' + str(self.cell_type) + '" is not yet supported')
+        elif self.cell_type == dfx.mesh.CellType.quadrilateral:
+            self.h_mesh = dfx.mesh.create_unit_square(
+                MPI.COMM_SELF,
+                1,
+                1,
+                cell_type=self.cell_type,
+            )
+        else:
+            raise TypeError('Cell type "' + str(self.cell_type) + '" is not yet supported')
+
+        self.G = dfx.fem.Constant(self.h_mesh, G)
+        self.K = dfx.fem.Constant(self.h_mesh, K)
+        fdim = self.mesh.topology.dim
+        self.mesh.topology.create_connectivity(fdim, 0)
+
+        num_cells_owned_by_proc = self.mesh.topology.index_map(fdim).size_local
+        self.cells = dfx.cpp.mesh.entities_to_geometry(self.mesh, fdim, np.arange(num_cells_owned_by_proc, dtype=np.int32), False)
+        
+        def eps(v):
+            return ufl.sym(ufl.grad(v))
+
+        def sigma(v):
+            e = eps(v)
+            return (self.K - (2.0 / 3.0) * self.G) * ufl.tr(e) * ufl.Identity(2) + 2.0 * self.G * e
+
+        h_P1 = dfx.fem.VectorFunctionSpace(self.h_mesh, ("CG", order))
+        h_P1s = dfx.fem.FunctionSpace(self.h_mesh, ("CG", order))
+        h_u, h_v = ufl.TrialFunction(h_P1), ufl.TestFunction(h_P1)
+        self.K_form = dfx.fem.form(ufl.inner(eps(h_u), sigma(h_v)) * ufl.dx)
+        self.M_form = dfx.fem.form(rho * ufl.inner(h_u, h_v) * ufl.dx)
+        one = dfx.fem.Function(h_P1s)
+        one.x.array[:] = np.ones_like(one.x.array,dtype=np.float64)
+        self.V_form = dfx.fem.form(one * ufl.dx)
+        self.h_cell = dfx.cpp.mesh.entities_to_geometry(self.h_mesh, fdim, np.arange(1, dtype=np.int32), False)
+        #points = self.mesh.geometry.x
+        #for e, entity in enumerate(geometry_entitites):
+        #    print(e, points[entity])
+    def __call__(self, G=None, K=None):
+        self.G.value = G if G is not None else self.G.value
+        self.K.value = K if K is not None else self.K.value
+        h_K, h_M = (
+            dfx.fem.petsc.assemble_matrix(self.K_form),
+            dfx.fem.petsc.assemble_matrix(self.M_form),
+        )
+        for cell in self.cells:
+            h_K.zeroEntries()
+            h_M.zeroEntries()
+            self.h_mesh.geometry.x[self.h_cell] = self.mesh.geometry.x[cell]
+            dfx.fem.petsc.assemble_matrix(h_K, self.K_form)
+            dfx.fem.petsc.assemble_matrix(h_M, self.M_form)
+            h_K.assemble()
+            h_M.assemble()
+            h_M_array = np.array(h_M[:, :])
+            h_K_array = np.array(h_K[:, :])
+            eig_temp = np.linalg.norm(eigvals(h_K_array, h_M_array), np.inf)
+            self.eig_max = max(eig_temp, self.eig_max)
+        self.del_t =self.safety_factor *  2. / self.eig_max ** 0.5
+        return self.del_t
 
 def critical_timestep(mesh, l_x, l_y, G, K, rho, order=1):
     # todo: implement other cell_types

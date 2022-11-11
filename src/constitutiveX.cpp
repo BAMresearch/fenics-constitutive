@@ -9,11 +9,10 @@
 
 namespace py = pybind11;
 
-void eigen_ref(const Eigen::Ref<const Eigen::VectorXd> &myarray, Eigen::Ref<Eigen::VectorXd> myarray2){
-        auto seg = myarray.segment<4>(0);
-        auto mat = Eigen::Map<const Eigen::Matrix2d>(seg.data()); 
-        myarray2 *= 42.;
-        std::cout << mat<< "\n";
+void eigen_ref(std::vector<Eigen::Ref<Eigen::VectorXd>> &myarrays){
+        auto seg = myarrays[Q::E].segment<4>(0);
+        auto mat = Eigen::Map<Eigen::Matrix2d>(seg.data()); 
+        mat *= 42.;
 }
 PYBIND11_MODULE(cpp, m)
 {
@@ -47,6 +46,8 @@ PYBIND11_MODULE(cpp, m)
             .value("GRAD_V", Q::GRAD_V)
             .value("RHO", Q::RHO)
             .value("DAMAGE", Q::DAMAGE)
+            .value("LAMBDA", Q::LAMBDA)
+            .value("NONLOCAL", Q::NONLOCAL)
             .value("LAST", Q::LAST);
 
     m.def("g_dim", &Dim::G);
@@ -115,6 +116,13 @@ PYBIND11_MODULE(cpp, m)
     jh2.def("evaluate", &JH2<FULL>::EvaluateAll);
     jh2.def("update", &JH2<FULL>::UpdateAll);
     jh2.def("inputs", &JH2<FULL>::DefineInputs);
+    
+    pybind11::class_<JH2Nonlocal<FULL>, std::shared_ptr<JH2Nonlocal<FULL>>> jh2_nonlocal(m, "JH2Nonlocal3D");
+    jh2_nonlocal.def(pybind11::init<std::shared_ptr<JH2Parameters>, int>(), py::arg("JH2Parameters"), py::arg("number of quadrature points"));
+    jh2_nonlocal.def("get_internal_var", &JH2Nonlocal<FULL>::GetInternalVar);
+    jh2_nonlocal.def("evaluate", &JH2Nonlocal<FULL>::EvaluateAll);
+    jh2_nonlocal.def("update", &JH2Nonlocal<FULL>::UpdateAll);
+    jh2_nonlocal.def("inputs", &JH2Nonlocal<FULL>::DefineInputs);
 
     /*************************************************************************
      **   PLASTICITY
