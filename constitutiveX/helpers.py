@@ -385,3 +385,9 @@ def critical_timestep_nonlocal(
 
     h = 2.0 / max_eig ** 0.5
     return h
+
+# uncomment once cell_avg is supported in dolfinx
+# def b_bar_strain(u):
+#     eps = ufl.sym(ufl.grad(u))
+#     vol = (1/3) * ufl.cell_avg(ufl.tr(eps))
+#     return eps +(vol - (1/3) * ufl.tr(eps)) * ufl.Identity(2)
