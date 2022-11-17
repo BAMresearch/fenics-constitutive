@@ -24,6 +24,7 @@ class CDMPlaneStrainX:
         quadrature_rule,
         nonlocal_var=None,
         damping=None,
+        b_bar=False,
     ):
         self.mesh = function_space.mesh
         self.quadrature_rule = quadrature_rule
@@ -67,6 +68,7 @@ class CDMPlaneStrainX:
         self.M = M
 
         self.nonlocal_var = nonlocal_var
+        self.b_bar=b_bar
 
     def __2d_tensor_to_3d(self, T):
         return ufl.as_matrix(
@@ -87,8 +89,11 @@ class CDMPlaneStrainX:
     def stress_update(self, h):
         self.L_evaluator(self.L)
 
+
         _cpp.jaumann_rotate_fast_3d(self.L, self.stress.vector.array, h)
-        
+        if self.b_bar:
+            _cpp.apply_b_bar_3d(self.L, self.quadrature_rule.weights.size)
+
         input_list = [np.array([])] * _cpp.Q.LAST
         input_list[_cpp.Q.GRAD_V] = self.L
         input_list[_cpp.Q.SIGMA] = self.stress.vector.array
