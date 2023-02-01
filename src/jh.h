@@ -363,199 +363,167 @@ public:
 
 };
 
-// class JH2Nonlocal: public LawInterface
-// {
-// public:
-//     std::vector<QValues> _internal_vars;
-//     //std::vector<QValues> _internal_vars_1;
-//     Eigen::VectorXd T_vol;
-//     Eigen::MatrixXd T_dev;
-//     std::shared_ptr<JH2Parameters> _param;
+template <Constraint TC> class JH2Improved: public RefLawInterface
+{
+public:
+    //std::vector<QValues> _internal_vars;
+    std::vector<Eigen::VectorXd> _internal_vars;
+    //Eigen::VectorXd T_vol;
+    //Eigen::MatrixXd T_dev;
+    std::shared_ptr<JH2Parameters> _param;
     
-//     JH2Nonlocal(std::shared_ptr<JH2Parameters> parameters)
-//         :  _param(parameters)
-//     {
-//         _internal_vars.resize(Q::LAST);
-//         //Accumulated plastic strain saved in LAMBDA
-//         _internal_vars[LAMBDA] = QValues(1);
-//         //internal energy saved in E
-//         _internal_vars[E] = QValues(1);
-//         //current density saved in rho
-//         _internal_vars[RHO] = QValues(1);
+    JH2Improved(std::shared_ptr<JH2Parameters> parameters, int n)
+        : RefLawInterface(n), _param(parameters)
+    {
+        _internal_vars.resize(Q::LAST);
+        //Accumulated plastic strain saved in LAMBDA
+        _internal_vars[Q::LAMBDA] = Eigen::VectorXd::Zero(_n);
+        //current density saved in rho
+        _internal_vars[Q::RHO] = Eigen::VectorXd::Constant(_n, _param->RHO);
 
-//         _internal_vars[NONLOCAL] = QValues(1);
-//         _internal_vars[DAMAGE] = QValues(1);
-//         _internal_vars[PRESSURE] = QValues(1);
+        _internal_vars[Q::DAMAGE] = Eigen::VectorXd::Zero(_n);
+        _internal_vars[Q::PRESSURE] =Eigen::VectorXd::Zero(_n);
 
-//         T_dev.resize(6,6);
-//         T_vol.resize(6);
-//         T_dev <<
-//                 2./3., -1./3., -1./3., 0., 0., 0.,
-//                 -1./3., 2./3., -1./3., 0., 0., 0.,
-//                 -1./3., -1./3., 2./3., 0., 0., 0.,
-//                 0., 0., 0., 1., 0., 0.,
-//                 0., 0., 0., 0., 1., 0.,
-//                 0., 0., 0., 0., 0., 1.;
-//         T_vol << 1./3.,1./3.,1./3.,0.,0.,0.;
+    }
 
 
-//     }
-
-//     void DefineOutputs(std::vector<QValues>& output) const override
-//     {
-//         output[SIGMA] = QValues(6);
-//     }
-
-//     void DefineInputs(std::vector<QValues>& input) const override
-//     {
-//         input[L] = QValues(3,3);
-//         input[SIGMA] = QValues(6);
-//         input[NONLOCAL] = QValues(1);
-//         input[TIME_STEP] = QValues(1);
-//     }
-//     Eigen::VectorXd GetInternalVar(Q which)
-//     {
-//         return _internal_vars.at(which).data;
-//     }
-//     void Evaluate(const std::vector<QValues>& input, std::vector<QValues>& output, int i) override
-//     {
-//         int maxit = 1;
-//         const Eigen::Matrix3d L_ = input[L].Get(i);
-//         const Eigen::VectorXd sigma_n = input[SIGMA].Get(i);
-//         const auto h = input[TIME_STEP].GetScalar(i);
-//         const auto lambda_n = _internal_vars[LAMBDA].GetScalar(i);
-//         const auto e_n = _internal_vars[E].GetScalar(i);
-//         const auto D_n = _internal_vars[DAMAGE].GetScalar(i);
-
-//         const auto D_ = 0.5 * (L_ + L_.transpose());
-//         const auto W_ = 0.5 * (L_ - L_.transpose());
-//         const auto d_eps = matrix_to_mandel(D_);
-//         const auto d_eps_vol = T_vol.dot(d_eps);
+    std::vector<Q> DefineInputs() const override
+    {
+        return {Q::GRAD_V, Q::SIGMA};
+    }
+    Eigen::VectorXd GetInternalVar(Q which)
+    {
+        return _internal_vars.at(which);
+    }
+    void EvaluateIP(int i, std::vector<Eigen::Ref<Eigen::VectorXd>>& inputs, double del_t) override
+    {
+        constexpr int L_size = Dim::G(TC)*Dim::G(TC);
+        constexpr int sigma_size = Dim::StressStrain(TC);
+        const FullTensor<TC> L_ = Eigen::Map<FullTensor<TC>>(inputs[Q::GRAD_V].segment<L_size>(i * L_size).data());
+        const FullTensor<TC> D_ = 0.5 * (L_ + L_.transpose());
         
-//         auto stress = mandel_to_matrix(sigma_n);
-//         stress += h * (stress * W_.transpose() + W_ * stress);
-
-//         /***********************************************************************
-//          * START CONSTITUTIVE MODEL HERE
-//          * 1) Calculate failure surface Y_failure
-//          * 2) Calculate Yield surface Y_yield = f(Y_failure)
-//          **********************************************************************/
-//         double p_n = - T_vol.dot(sigma_n);// + _internal_vars[PRESSURE].GetScalar(i);
-//         auto s_n = T_dev * matrix_to_mandel(stress);
-//         auto s_tr = s_n + 2. * _param->SHEAR_MODULUS * T_dev * d_eps * h;
-//         double s_tr_eq = sqrt(1.5 * s_tr.transpose() * s_tr);
-//         double d_eps_eq = sqrt((2./3.) * d_eps.transpose() * d_eps);
-//         double alpha = 0.0;
-
-//         double p_s = p_n / _param->PHEL;
-//         double t_s = _param->T / _param->PHEL;
-//         double del_lambda = 0.0;
-//         double Y_yield = 0.0;
-//         double dY_yield = 0.0;
-//         double Y_f;
-//         double Y_r;
-//         double rate_factor;
-
-//         const double e_p_f = fmax(_param->D1 * pow(p_s + t_s, _param->D2), _param->EFMIN);
-//         const auto p_nl = _internal_vars[NONLOCAL].GetScalar(i);
-//         const auto del_p_nl = fmax(input[NONLOCAL].GetScalar(i) - p_nl, 0.);
-//         _internal_vars[NONLOCAL].Set(p_nl+del_p_nl,i);
-//         // Update damage variable or set to 1.
-//         //_internal_vars[DAMAGE].Set(fmin(D_n+input[NONLOCAL].GetScalar(i)/e_p_f,1.0), i);
-//         _internal_vars[DAMAGE].Set(fmin(D_n+del_p_nl/e_p_f,1.0), i);
-
-//         const auto D_n1 = _internal_vars[DAMAGE].GetScalar(i);
+        const auto d_eps = TensorToMandel<TC>(D_);
+        //const auto d_eps_vol = T_vol.dot(d_eps);
         
-//         Y_f = fmax(_param->A * pow(p_s + t_s, _param->N) * _param->SIGMAHEL, 0.0);
-//         Y_r = fmax(_param->B * pow(p_s,_param->M) * _param->SIGMAHEL,0.0);
-//         if (d_eps_eq >= _param->EPS0){
-//             rate_factor = 1. + _param->C * log(d_eps_eq/_param->EPS0);
-//         } else {
-//             rate_factor = 1.;
-//         }
-//         if (D_n1 == 0.0){
-//             Y_yield = Y_f*rate_factor;
-//         } else {
-//             Y_yield = (Y_f*(1.-D_n1) + D_n1 * Y_r)*rate_factor;
-//         }
-//         if (s_tr_eq > Y_yield){
+        auto sigma_view = inputs[Q::SIGMA].segment<sigma_size>(i * sigma_size);
+        
+        //const double lambda_n = _internal_vars[LAMBDA](i);
+        //const double e_n = _internal_vars[E](i);
+        const double D_n = _internal_vars[Q::DAMAGE](i);
+
+        
+        //auto stress = mandel_to_matrix(sigma_n);
+        //stress += h * (stress * W_.transpose() + W_ * stress);
+
+        /***********************************************************************
+         * START CONSTITUTIVE MODEL HERE
+         * 1) Calculate failure surface Y_failure
+         * 2) Calculate Yield surface Y_yield = f(Y_failure)
+         **********************************************************************/
+        double p_n = - T_Vol<TC>.dot(sigma_view);// + _internal_vars[PRESSURE].GetScalar(i);
+        auto s_n = T_Dev<TC> * sigma_view;
+        MandelVector<TC> s_tr = s_n + 2. * _param->SHEAR_MODULUS * (T_Dev<TC> * d_eps) * del_t;
+        const double s_tr_eq = sqrt(1.5 * s_tr.squaredNorm());
+        const double d_eps_eq = sqrt((2./3.) * d_eps.squaredNorm());
+        double alpha = 0.0;
+
+        double p_s = p_n / _param->PHEL;
+        double t_s = _param->T / _param->PHEL;
+        double del_lambda = 0.0;
+        double Y_yield = 0.0;
+        //double dY_yield = 0.0;
+        double Y_f;
+        double Y_r;
+        double rate_factor = 1.;
+
+
+        Y_f = fmax(_param->A * pow(p_s + t_s, _param->N) * _param->SIGMAHEL, 0.0);
+        Y_r = fmax(_param->B * pow(p_s,_param->M) * _param->SIGMAHEL,0.0);
+        if (d_eps_eq >= _param->EPS0){
+            rate_factor += _param->C * log(d_eps_eq/_param->EPS0);
+        } 
+        if (D_n == 0.0){
+            Y_yield = Y_f*rate_factor;
+        } else {
+            Y_yield = (Y_f*(1.-D_n) + D_n * Y_r)*rate_factor;
+        }
+        if (s_tr_eq > Y_yield){
+            const double e_p_f = fmax(_param->D1 * pow(p_s + t_s, _param->D2), _param->EFMIN);
             
-//             del_lambda =_param->MOGEL * (s_tr_eq-Y_yield) / (3.*_param->SHEAR_MODULUS);// + (Y_r-Y_f)/e_p_f);
-//             //Y_yield += del_lambda * (Y_r-Y_f)/e_p_f;
-//             alpha = Y_yield/s_tr_eq;
+            del_lambda =_param->MOGEL * (s_tr_eq-Y_yield) / (3.*_param->SHEAR_MODULUS);// + (Y_r-Y_f)/e_p_f);
+            alpha = Y_yield/s_tr_eq;
 
-//             _internal_vars[LAMBDA].Add(del_lambda, i);
+            _internal_vars[Q::LAMBDA](i) += del_lambda;
+            // Update damage variable or set to 1.
+            _internal_vars[Q::DAMAGE](i) = fmin(D_n+del_lambda/e_p_f,1.0);
         
-//         } else {
-//             //elastic
-//             alpha = 1.0;
-//         }
+        } else {
+            //elastic
+            alpha = 1.0;
+        }
 
-//         //Update deviatoric stress s
-//         auto s = alpha * s_tr;
-//         /***********************************************************************
-//          * END CONSTITUTIVE MODEL HERE
-//          **********************************************************************/
+        //Update deviatoric stress s
+        //auto s = alpha * s_tr;
+        /***********************************************************************
+         * END CONSTITUTIVE MODEL HERE
+         **********************************************************************/
 
-//         /***********************************************************************
-//          * UPDATE DENSITY
-//          * The density is updated using the explicit midpoint rule for the
-//          * deformation gradient.
-//          **********************************************************************/
-//         auto factor_1 = Eigen::MatrixXd::Identity(3,3)-0.5*h*L_;
-//         auto factor_2 = Eigen::MatrixXd::Identity(3,3)+0.5*h*L_;
-//         if (_internal_vars[RHO].GetScalar(i) == 0.0){
-//             _internal_vars[RHO].Set(_param->RHO * factor_1.determinant() / factor_2.determinant(), i);
-//         } else {
-//             _internal_vars[RHO].Set(_internal_vars[RHO].GetScalar(i) * factor_1.determinant() / factor_2.determinant(), i);
-//         }
-//         /***********************************************************************
-//          * UPDATE ENERGY AND EOS
-//          **********************************************************************/
+        /***********************************************************************
+         * UPDATE DENSITY
+         * The density is updated using the explicit midpoint rule for the
+         * deformation gradient.
+         **********************************************************************/
+/*         FullTensor<TC> factor_1 = FullTensor<TC>::Identity()-0.5*del_t*L_;
+        FullTensor<TC> factor_2 = FullTensor<TC>::Identity()+0.5*del_t*L_;
+        if (_internal_vars[RHO](i) == 0.0){
+            _internal_vars[RHO](i)=_param->RHO * factor_1.determinant() / factor_2.determinant();
+        } else {
+            _internal_vars[RHO](i)*= factor_1.determinant() / factor_2.determinant();
+        } */
         
-//         const auto mu = _internal_vars[RHO].GetScalar(i)/_param->RHO -1.;
+        double f1 = del_t/2. * L_.trace();
+        _internal_vars[Q::RHO](i) *= (1-f1)/(1+f1);
+        /***********************************************************************
+         * UPDATE ENERGY AND EOS
+         **********************************************************************/
         
-//         const auto p = (mu > 0) ? _param->K1 * mu + _param->K2 * mu * mu + _param->K3 * mu * mu * mu + _internal_vars[PRESSURE].GetScalar(i): _param->K1 * mu;
+        const auto mu = _internal_vars[RHO](i)/_param->RHO -1.;
         
-//         const double D_new = D_n1;
-//         if (D_new > D_n){
-//             const double Y_old = (D_n * Y_r + (1-D_n) * Y_f);// * _param->SIGMAHEL;
-//             const double Y_new = (D_new * Y_r + (1-D_new) * Y_f);// * _param->SIGMAHEL;
-//             const double U_old = (Y_old * Y_old) / (6. * _param->SHEAR_MODULUS);
-//             const double U_new = (Y_new * Y_new) / (6. * _param->SHEAR_MODULUS);
-//             const double del_U = U_old - U_new;
-//             //if (del_U < 0){
-//                 //std::cout << "help, this is wrong\n";
-//             //} else {
-//             const double del_P_n = _internal_vars[PRESSURE].GetScalar(i);
-//             double K1 = _param->K1;
-//             double del_P = -K1 * mu + sqrt(pow(K1 * mu + del_P_n,2)+2.*_param->BETA * K1 * del_U);
-//             _internal_vars[PRESSURE].Set(del_P,i);
-//             //}
-//         }
-
-//         /***********************************************************************
-//          * Combine deviatoric and volumetric stresses and apply stress rate
-//          **********************************************************************/
-
-//         //stress = mandel_to_matrix(s - 3. * T_vol * p);
+        const auto p = (mu > 0) ? _param->K1 * mu + _param->K2 * mu * mu + _param->K3 * mu * mu * mu + _internal_vars[Q::PRESSURE](i): _param->K1 * mu;
         
-        
-//         //output[SIGMA].Set(matrix_to_mandel(stress),i);
-//         output[SIGMA].Set(s - 3. * T_vol * p, i);
-//     }
+        const double D_new = _internal_vars[DAMAGE](i);
+        if (D_new > D_n){
+            const double Y_old = (D_n * Y_r + (1-D_n) * Y_f);// * _param->SIGMAHEL;
+            const double Y_new = (D_new * Y_r + (1-D_new) * Y_f);// * _param->SIGMAHEL;
+            const double U_old = (Y_old * Y_old) / (6. * _param->SHEAR_MODULUS);
+            const double U_new = (Y_new * Y_new) / (6. * _param->SHEAR_MODULUS);
+            const double del_U = U_old - U_new;
+            
+            const double del_P_n = _internal_vars[PRESSURE](i);
+            double K1 = _param->K1;
+            double del_P = -K1 * mu + sqrt(pow(K1 * mu + del_P_n,2)+2.*_param->BETA * K1 * del_U);
+            _internal_vars[PRESSURE](i)=del_P;
+            //}
+        }
+
+        /***********************************************************************
+         * Combine deviatoric and volumetric stresses and apply stress rate
+         **********************************************************************/
+
+        sigma_view = alpha * s_tr - T_Id<TC> * p;
+    }
 
 
-//     void Update(const std::vector<QValues>& input, int i) override
-//     {
-//     }
+    // void Update(const std::vector<QValues>& input, int i) override
+    // {
+    // }
 
-//     void Resize(int n) override
-//     {
-//         for (auto& qvalues : _internal_vars)
-//             qvalues.Resize(n);
+    // void Resize(int n) override
+    // {
+    //     for (auto& qvalues : _internal_vars)
+    //         qvalues.Resize(n);
 
 
-//     }
+    // }
 
-// };
+};

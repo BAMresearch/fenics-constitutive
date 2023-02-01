@@ -92,4 +92,69 @@ public:
         Ct_flat = Eigen::Map<Eigen::VectorXd>(_C.data(), _C.size());
     }
 };
+template <Constraint TC> class MapLinearElastic : public MapLawInterface
+{
+public:
+    MandelMatrix<TC> _C;
+    
+    MapLinearElastic(std::map<std::string, double> &parameters, int n)
+        : MapLawInterface(parameters, n)
+    {
+        _C = C<TC>(_parameters.at("E"), _parameters.at("nu"));
+    }
+    std::map<std::string, std::pair<int,int>> DefineInput() const override
+    {
+        std::map<std::string, std::pair<int,int>> inputs = {{"eps",{Dim::StressStrain(TC), 1}},
+                                                            {"sigma",{Dim::StressStrain(TC), 1}},
+                                                            {"dsigma_deps",{Dim::StressStrain(TC),Dim::StressStrain(TC)}}};
+        return inputs;
+    }
+    std::map<std::string, std::pair<int,int>> DefineInternal() const override
+    {
+        std::map<std::string, std::pair<int,int>> internal;
+        return internal;
+    }
+
+    void EvaluateIP(int i, std::map<std::string, Eigen::Ref<Eigen::VectorXd>>& input, std::map<std::string, Eigen::Ref<Eigen::VectorXd>>& internal, double del_t) override
+    {
+        const int dim = Dim::StressStrain(TC);
+        const auto eps = input.at("eps").segment<dim>(i*dim);
+        auto sigma = input.at("sigma").segment<dim>(i*dim);
+        auto Ct_flat = input.at("dsigma_deps").segment<dim*dim>(i*dim*dim);
+
+        sigma = _C * eps;
+        Ct_flat = Eigen::Map<Eigen::VectorXd>(_C.data(), _C.size());
+    }
+};
+
+template <Constraint TC> class VFLinearElastic
+{
+//This classs is prob. as fast as it gets with my knowledge of c++
+//Good for comparison with other interfaced classes and working out
+//possible bottlenecks and costs of other abstractions
+public:
+    MandelMatrix<TC> _C;
+    int _n;
+    VFLinearElastic(double E, double nu, int n)
+    {
+        _n = n;
+        _C = C<TC>(E, nu);
+    }
+    void EvaluateAll(Eigen::Ref<Eigen::VectorXd> eps,Eigen::Ref<Eigen::VectorXd> sigma, Eigen::Ref<Eigen::VectorXd> tangent, double del_t)
+    {
+        const int dim = Dim::StressStrain(TC);
+        MandelVector<TC> eps_i;
+
+        //const int dim_Ct_flat = dim*dim;
+        for(int i = 0; i<_n;i++){
+            eps_i = eps(Eigen::seqN(i*dim,Eigen::fix<dim>));
+            auto sigma_i = sigma(Eigen::seqN(i*dim,Eigen::fix<dim>));
+            auto Ct_flat = tangent(Eigen::seqN(i*dim*dim, Eigen::fix<dim*dim>));
+
+            sigma_i = _C * eps_i;
+            Ct_flat =Eigen::Map<Eigen::VectorXd>(_C.data(), _C.size());
+        }
+    }
+};
+
 

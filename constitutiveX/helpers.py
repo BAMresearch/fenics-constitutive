@@ -391,3 +391,7 @@ def critical_timestep_nonlocal(
 #     eps = ufl.sym(ufl.grad(u))
 #     vol = (1/3) * ufl.cell_avg(ufl.tr(eps))
 #     return eps +(vol - (1/3) * ufl.tr(eps)) * ufl.Identity(2)
+#def critical_timestep_lanczos():
+#    from slepc4py import SLEPc
+#    from petsc4py import PETSc
+#    PETSc.KSP()

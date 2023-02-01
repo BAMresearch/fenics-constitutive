@@ -5,6 +5,7 @@
 #include <numeric>
 #include <memory>
 #include <iostream>
+#include <map>
 
 enum Constraint
 {
@@ -14,7 +15,11 @@ enum Constraint
     PLANE_STRESS,
     FULL
 };
-
+enum UpdatePolicy
+{
+    OVERRIDE,
+    KEEP
+};
 enum Q
 {
     EPS,
@@ -33,6 +38,8 @@ enum Q
     PRESSURE,
     LAST
 };
+
+std::map<std::string, Q> string_to_Q = {{"eps", Q::EPS},{"sigma", Q::SIGMA}, {"dsigma_deps",Q::DSIGMA_DEPS}};
 
 
 struct Dim
@@ -100,6 +107,17 @@ public:
             EvaluateIP(i, input, del_t);
         }
     }
+    // void EvaluateAll(
+    //         std::map<std::string, Eigen::Ref<Eigen::VectorXd>>& input,
+    //         double del_t)
+    // {
+    //     std::vector<Eigen::VectorXd> input_vector;
+    //     input_vector.resize(Q::LAST);
+    //     for (const auto& x : input){
+    //         input_vector[string_to_Q[x.first]]& = x.second;
+    //     }
+    //     EvaluateAll(input_vector, del_t);
+    // }
     void UpdateAll()
     {
         for(int i=0;i<_n;i++){
@@ -121,4 +139,121 @@ public:
     {
         return {Q::GRAD_V, Q::SIGMA};
     }
+};
+class MapLawInterface
+{
+public:
+    int _n;
+    std::map<std::string, double> _parameters;
+
+    MapLawInterface(std::map<std::string, double> &parameters, int n)
+    :_n(n), _parameters(parameters)
+    {
+
+    }
+
+    virtual std::map<std::string, std::pair<int,int>> DefineInput() const = 0;
+    virtual std::map<std::string, std::pair<int,int>> DefineInternal() const = 0;
+
+    virtual void EvaluateIP(int i,
+                            std::map<std::string, Eigen::Ref<Eigen::VectorXd>>& input,
+                            std::map<std::string, Eigen::Ref<Eigen::VectorXd>>& internal,
+                            double del_t) = 0;
+    
+    void EvaluateAll(
+            std::map<std::string, Eigen::Ref<Eigen::VectorXd>>& input,
+            std::map<std::string, Eigen::Ref<Eigen::VectorXd>>& internal,
+            double del_t)
+    {
+        for(int i=0;i<_n;i++){
+            EvaluateIP(i, input, internal, del_t);
+        }
+    }
+};
+
+class IPLawInterface
+{
+public:
+    int _n;
+    std::map<std::string, double> _parameters;
+
+    IPLawInterface(std::map<std::string, double> &parameters, int n)
+    :_n(n), _parameters(parameters)
+    {
+
+    }
+
+    virtual std::map<std::string, std::pair<int,int>> DefineInputs() const = 0;
+    virtual std::map<std::string, std::pair<int,int>> DefineInternalVariables() const = 0;
+    virtual std::map<std::string, std::pair<int,int>> DefineFormVariables() const = 0;
+
+
+    virtual void EvaluateIP(
+        int i,
+        std::vector<const Eigen::Ref<const Eigen::VectorXd>>& constant_inputs,
+        std::vector<Eigen::Ref<Eigen::VectorXd>>& form_variables,
+        std::vector<const Eigen::Ref<const Eigen::VectorXd>>& internal_variables_0,
+        std::vector<Eigen::Ref<Eigen::VectorXd>>& internal_variables_1,
+        double del_t) = 0;
+    
+    void EvaluateAll(
+        std::vector<const Eigen::Ref<const Eigen::VectorXd>>& constant_inputs,
+        std::vector<Eigen::Ref<Eigen::VectorXd>>& weak_form_variables,
+        std::vector<const Eigen::Ref<const Eigen::VectorXd>>& internal_variables_0,
+        std::vector<Eigen::Ref<Eigen::VectorXd>>& internal_variables_1,
+        double del_t)
+    {
+        for(int i=0;i<_n;i++){
+            EvaluateIP(i, constant_inputs, weak_form_variables, internal_variables_0, internal_variables_1, del_t);
+        }
+    }
+};
+
+
+
+struct ScalarVariableUpdaterInterface
+{
+    virtual inline void Set(int i, double value, Eigen::Ref<Eigen::VectorXd> internal_0, Eigen::Ref<Eigen::VectorXd> internal_1) = 0;
+    virtual inline void Add(int i, double value, Eigen::Ref<Eigen::VectorXd> internal_0, Eigen::Ref<Eigen::VectorXd> internal_1) = 0;
+    virtual inline void Multiply(int i, double value, Eigen::Ref<Eigen::VectorXd> internal_0, Eigen::Ref<Eigen::VectorXd> internal_1) = 0;
+};
+
+template <UpdatePolicy P> class ScalarVariableUpdater : public ScalarVariableUpdaterInterface
+{
+
+};
+
+template<> 
+class ScalarVariableUpdater<OVERRIDE> : public ScalarVariableUpdaterInterface
+{
+    inline void Set(int i, double value, Eigen::Ref<Eigen::VectorXd> internal_0, Eigen::Ref<Eigen::VectorXd> internal_1) override
+    {
+        internal_0(i) = value;
+    }
+    inline void Add(int i, double value, Eigen::Ref<Eigen::VectorXd> internal_0, Eigen::Ref<Eigen::VectorXd> internal_1) override
+    {
+        internal_0(i) += value;
+    }
+    inline void Multiply(int i, double value, Eigen::Ref<Eigen::VectorXd> internal_0, Eigen::Ref<Eigen::VectorXd> internal_1) override
+    {
+        internal_0(i) *= value;
+    }
+
+};
+template<> 
+class ScalarVariableUpdater<KEEP> : public ScalarVariableUpdaterInterface
+{
+    inline void Set(int i, double value, Eigen::Ref<Eigen::VectorXd> internal_0, Eigen::Ref<Eigen::VectorXd> internal_1) override
+    {
+        internal_1(i) = value;
+    }
+    inline void Add(int i, double value, Eigen::Ref<Eigen::VectorXd> internal_0, Eigen::Ref<Eigen::VectorXd> internal_1) override
+    {
+        internal_1(i) += value;
+    }
+    inline void Multiply(int i, double value, Eigen::Ref<Eigen::VectorXd> internal_0, Eigen::Ref<Eigen::VectorXd> internal_1) override
+    {
+        internal_1(i) *= value;
+    }
+
 };

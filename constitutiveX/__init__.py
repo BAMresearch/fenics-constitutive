@@ -15,4 +15,5 @@ def git_version():
         hash = "dirty+"+hash
     return hash
 
+__githash_current__ = git_version()
 __githash__ = git_version()
