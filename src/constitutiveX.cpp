@@ -81,11 +81,6 @@ PYBIND11_MODULE(cpp, m)
      *************************************************************************/
     pybind11::class_<RefLawInterface, std::shared_ptr<RefLawInterface>> law(m, "RefLawInterface");
 
-    pybind11::class_<MapLawInterface, std::shared_ptr<MapLawInterface>> map_law(m, "MapLawInterface");
-    map_law.def("define_input", &MapLawInterface::DefineInput);
-    map_law.def("define_internal", &MapLawInterface::DefineInternal);
-    map_law.def("evaluate", &MapLawInterface::EvaluateAll);
-    map_law.def_readonly("parameters", &MapLawInterface::_parameters);
     
     pybind11::class_<LinearElastic<FULL>, std::shared_ptr<LinearElastic<FULL>>> linearElastic(m, "LinearElastic3D");
     linearElastic.def(pybind11::init<double, double, int>(), py::arg("E"), py::arg("nu"), py::arg("number of quadrature points"));
@@ -97,8 +92,6 @@ PYBIND11_MODULE(cpp, m)
 //     linearElastic.def("evaluate", py::overload_cast<std::map<std::string,Eigen::Ref<Eigen::VectorXd>>&, double>(&LinearElastic<FULL>::EvaluateAll),
 //                py::arg("input dictionary"), py::arg("del t"));
     
-    pybind11::class_<MapLinearElastic<FULL>, std::shared_ptr<MapLinearElastic<FULL>>, MapLawInterface> maplinearElastic(m, "MapLinearElastic3D");
-    maplinearElastic.def(pybind11::init<std::map<std::string,double>&, int>(), py::arg("Parameters"), py::arg("number of quadrature points"));
     
     pybind11::class_<VFLinearElastic<FULL>, std::shared_ptr<VFLinearElastic<FULL>>> vf_linear_elastic(m, "VFLinearElastic3D");
     vf_linear_elastic.def(pybind11::init<double, double, int>(), py::arg("E"), py::arg("nu"), py::arg("number of quadrature points"));

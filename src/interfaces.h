@@ -140,36 +140,6 @@ public:
         return {Q::GRAD_V, Q::SIGMA};
     }
 };
-class MapLawInterface
-{
-public:
-    int _n;
-    std::map<std::string, double> _parameters;
-
-    MapLawInterface(std::map<std::string, double> &parameters, int n)
-    :_n(n), _parameters(parameters)
-    {
-
-    }
-
-    virtual std::map<std::string, std::pair<int,int>> DefineInput() const = 0;
-    virtual std::map<std::string, std::pair<int,int>> DefineInternal() const = 0;
-
-    virtual void EvaluateIP(int i,
-                            std::map<std::string, Eigen::Ref<Eigen::VectorXd>>& input,
-                            std::map<std::string, Eigen::Ref<Eigen::VectorXd>>& internal,
-                            double del_t) = 0;
-    
-    void EvaluateAll(
-            std::map<std::string, Eigen::Ref<Eigen::VectorXd>>& input,
-            std::map<std::string, Eigen::Ref<Eigen::VectorXd>>& internal,
-            double del_t)
-    {
-        for(int i=0;i<_n;i++){
-            EvaluateIP(i, input, internal, del_t);
-        }
-    }
-};
 
 class IPLawInterface
 {

@@ -92,40 +92,6 @@ public:
         Ct_flat = Eigen::Map<Eigen::VectorXd>(_C.data(), _C.size());
     }
 };
-template <Constraint TC> class MapLinearElastic : public MapLawInterface
-{
-public:
-    MandelMatrix<TC> _C;
-    
-    MapLinearElastic(std::map<std::string, double> &parameters, int n)
-        : MapLawInterface(parameters, n)
-    {
-        _C = C<TC>(_parameters.at("E"), _parameters.at("nu"));
-    }
-    std::map<std::string, std::pair<int,int>> DefineInput() const override
-    {
-        std::map<std::string, std::pair<int,int>> inputs = {{"eps",{Dim::StressStrain(TC), 1}},
-                                                            {"sigma",{Dim::StressStrain(TC), 1}},
-                                                            {"dsigma_deps",{Dim::StressStrain(TC),Dim::StressStrain(TC)}}};
-        return inputs;
-    }
-    std::map<std::string, std::pair<int,int>> DefineInternal() const override
-    {
-        std::map<std::string, std::pair<int,int>> internal;
-        return internal;
-    }
-
-    void EvaluateIP(int i, std::map<std::string, Eigen::Ref<Eigen::VectorXd>>& input, std::map<std::string, Eigen::Ref<Eigen::VectorXd>>& internal, double del_t) override
-    {
-        const int dim = Dim::StressStrain(TC);
-        const auto eps = input.at("eps").segment<dim>(i*dim);
-        auto sigma = input.at("sigma").segment<dim>(i*dim);
-        auto Ct_flat = input.at("dsigma_deps").segment<dim*dim>(i*dim*dim);
-
-        sigma = _C * eps;
-        Ct_flat = Eigen::Map<Eigen::VectorXd>(_C.data(), _C.size());
-    }
-};
 
 template <Constraint TC> class VFLinearElastic
 {
