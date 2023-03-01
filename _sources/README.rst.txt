@@ -1,3 +1,5 @@
+|Not Maintained|
+
 **This repository is no longer maintained, some of its features may be
 added to another repository in the future. This will be linked at a
 later point**
@@ -63,3 +65,6 @@ generation tool), we replace step 2) by
 -  vectorized ``numpy`` code, or, if that is not possible
 -  a loop over all N Gauss points, or, if that is too slow
 -  a C++ function/class
+
+.. |Not Maintained| image:: https://img.shields.io/badge/Maintenance%20Level-Abandoned-orange.svg
+   :target: https://gist.github.com/cheerfulstoic/d107229326a01ff0f333a1d3476e068d
