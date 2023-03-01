@@ -1,3 +1,7 @@
+**This repository is no longer maintained, some of its features may be
+added to another repository in the future. This will be linked at a
+later point**
+
 FEniCS Constitutive
 ===================
 
