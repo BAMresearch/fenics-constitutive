@@ -9,11 +9,20 @@
 
 namespace py = pybind11;
 //PYBIND11_MAKE_OPAQUE(std::unordered_map<std::string, Eigen::Ref<Eigen::VectorXd>>);
-void eigen_ref(std::vector<Eigen::Ref<Eigen::VectorXd>> &myarrays){
+void eigen_ref(std::vector<Eigen::Ref<const Eigen::VectorXd>> &myarrays){
+        //auto seg = myarrays[Q::E].segment<4>(0);
         auto seg = myarrays[Q::E].segment<4>(0);
-        auto mat = Eigen::Map<Eigen::Matrix2d>(seg.data()); 
-        mat *= 42.;
+        auto mat = Eigen::Map<const Eigen::Matrix2d>(seg.data()); 
+        std::cout << mat;
+        //mat *= 42.;
 }
+// void eigen_reference_wrapper(std::vector<std::reference_wrapper<const Eigen::Ref<const Eigen::VectorXd>>> &myarrays){
+//         //auto seg = myarrays[Q::E].segment<4>(0);
+//         auto const seg = myarrays[0].get().segment<4>(0);
+//         //auto mat = Eigen::Map<const Eigen::Matrix2d>(seg.data()); 
+//         std::cout << seg;
+//         //mat *= 42.;
+// }
 void eigen_dict_ref(std::map<std::string, Eigen::Ref<Eigen::VectorXd>> &myarrays){
         auto seg = myarrays.at("E").segment<4>(0);
         auto mat = Eigen::Map<Eigen::Matrix2d>(seg.data()); 
@@ -59,6 +68,7 @@ PYBIND11_MODULE(cpp, m)
     m.def("q_dim", &Dim::StressStrain);
     m.def("eigen_mul",&eigen_ref);
     m.def("eigen_dict",&eigen_dict_ref);
+    //m.def("eigen_const", &eigen_reference_wrapper);
     /*************************************************************************
      **   IPLOOP AND MAIN INTERFACES
      *************************************************************************/
@@ -85,7 +95,7 @@ PYBIND11_MODULE(cpp, m)
     pybind11::class_<LinearElastic<FULL>, std::shared_ptr<LinearElastic<FULL>>> linearElastic(m, "LinearElastic3D");
     linearElastic.def(pybind11::init<double, double, int>(), py::arg("E"), py::arg("nu"), py::arg("number of quadrature points"));
     //linearElastic.def("evaluate", &LinearElastic<FULL>::EvaluateAll);
-    linearElastic.def("update", &LinearElastic<FULL>::UpdateAll);
+    //linearElastic.def("update", &LinearElastic<FULL>::UpdateAll);
     linearElastic.def("inputs", &LinearElastic<FULL>::DefineInputs);
     linearElastic.def("evaluate", py::overload_cast<std::vector<Eigen::Ref<Eigen::VectorXd>>&, double>(&LinearElastic<FULL>::EvaluateAll),
                py::arg("input list"), py::arg("del t"));
@@ -107,7 +117,7 @@ PYBIND11_MODULE(cpp, m)
     hypo_elastic.def("evaluate", py::overload_cast<std::vector<Eigen::Ref<Eigen::VectorXd>>&, double>(&HypoElastic<FULL>::EvaluateAll),
                py::arg("input list"), py::arg("del t"));
     //hypo_elastic.def("evaluate", &HypoElastic<FULL>::EvaluateAll);
-    hypo_elastic.def("update", &HypoElastic<FULL>::UpdateAll);
+    //hypo_elastic.def("update", &HypoElastic<FULL>::UpdateAll);
     hypo_elastic.def("inputs", &HypoElastic<FULL>::DefineInputs);
         
     pybind11::class_<JH2Parameters, std::shared_ptr<JH2Parameters>> jh2_parameters(m, "JH2Parameters");
@@ -138,7 +148,7 @@ PYBIND11_MODULE(cpp, m)
     jh2.def("evaluate", py::overload_cast<std::vector<Eigen::Ref<Eigen::VectorXd>>&, double>(&JH2<FULL>::EvaluateAll),
                py::arg("input list"), py::arg("del t"));
     //jh2.def("evaluate", &JH2<FULL>::EvaluateAll);
-    jh2.def("update", &JH2<FULL>::UpdateAll);
+    //jh2.def("update", &JH2<FULL>::UpdateAll);
     jh2.def("inputs", &JH2<FULL>::DefineInputs);
     
     pybind11::class_<JH2Nonlocal<FULL>, std::shared_ptr<JH2Nonlocal<FULL>>> jh2_nonlocal(m, "JH2Nonlocal3D");
@@ -147,7 +157,7 @@ PYBIND11_MODULE(cpp, m)
     jh2_nonlocal.def("evaluate", py::overload_cast<std::vector<Eigen::Ref<Eigen::VectorXd>>&, double>(&JH2Nonlocal<FULL>::EvaluateAll),
                py::arg("input list"), py::arg("del t"));
     //jh2_nonlocal.def("evaluate", &JH2Nonlocal<FULL>::EvaluateAll);
-    jh2_nonlocal.def("update", &JH2Nonlocal<FULL>::UpdateAll);
+    //jh2_nonlocal.def("update", &JH2Nonlocal<FULL>::UpdateAll);
     jh2_nonlocal.def("inputs", &JH2Nonlocal<FULL>::DefineInputs);
 
     /*************************************************************************

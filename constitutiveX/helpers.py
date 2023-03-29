@@ -145,7 +145,7 @@ def project(v, V, dx, u=None):
 def diagonal_mass(
     function_space, rho, cell_type=basix.CellType.quadrilateral, invert=True
 ):
-    if cell_type == basix.CellType.quadrilateral:
+    if cell_type in [basix.CellType.quadrilateral, basix.CellType.hexahedron]:
         # do gll integration
         # todo:adapt for higher order elements
         V_degree = function_space.ufl_element().degree()

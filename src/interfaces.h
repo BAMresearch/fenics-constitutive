@@ -95,10 +95,6 @@ public:
     virtual std::vector<Q> DefineInputs() const = 0;
 
     virtual void EvaluateIP(int i, std::vector<Eigen::Ref<Eigen::VectorXd>>& inputs, double del_t) = 0;
-    //virtual void EvaluateCell(std::vector<int>& indices, std::vector<Eigen::Ref<Eigen::VectorXd>>& inputs, double del_t);
-    virtual void UpdateIP(int i)
-    {
-    }
     void EvaluateAll(
             std::vector<Eigen::Ref<Eigen::VectorXd>>& input,
             double del_t)
@@ -107,69 +103,40 @@ public:
             EvaluateIP(i, input, del_t);
         }
     }
-    // void EvaluateAll(
-    //         std::map<std::string, Eigen::Ref<Eigen::VectorXd>>& input,
-    //         double del_t)
-    // {
-    //     std::vector<Eigen::VectorXd> input_vector;
-    //     input_vector.resize(Q::LAST);
-    //     for (const auto& x : input){
-    //         input_vector[string_to_Q[x.first]]& = x.second;
-    //     }
-    //     EvaluateAll(input_vector, del_t);
-    // }
-    void UpdateAll()
-    {
-        for(int i=0;i<_n;i++){
-            UpdateIP(i);
-        }
-    }
 };
 
-class ExplicitDynamicsLawInterface : public RefLawInterface
-{
-public:
-    int _n;
-    ExplicitDynamicsLawInterface(int n)
-        : RefLawInterface(n)
-    {
-
-    }
-    virtual std::vector<Q> DefineInputs() 
-    {
-        return {Q::GRAD_V, Q::SIGMA};
-    }
-};
 
 class IPLawInterface
 {
 public:
     int _n;
-    std::map<std::string, double> _parameters;
-
     IPLawInterface(std::map<std::string, double> &parameters, int n)
-    :_n(n), _parameters(parameters)
+    :_n(n)
     {
-
+        SetParameters(parameters);
     }
 
-    virtual std::map<std::string, std::pair<int,int>> DefineInputs() const = 0;
-    virtual std::map<std::string, std::pair<int,int>> DefineInternalVariables() const = 0;
-    virtual std::map<std::string, std::pair<int,int>> DefineFormVariables() const = 0;
+    virtual bool EvaluationWithTangent() = 0; 
+
+    virtual void SetParameters(std::map<std::string, double> &parameters) = 0;
+
+    virtual std::map<Q, std::pair<int,int>> DefineInputs() const = 0;
+    virtual std::map<Q, std::pair<int,int>> DefineInternalVariables() const = 0;
+    virtual std::map<Q, std::pair<int,int>> DefineFormVariables() const = 0;
 
 
     virtual void EvaluateIP(
         int i,
-        std::vector<const Eigen::Ref<const Eigen::VectorXd>>& constant_inputs,
+        std::vector<Eigen::Ref<const Eigen::VectorXd>>& constant_inputs,
         std::vector<Eigen::Ref<Eigen::VectorXd>>& form_variables,
-        std::vector<const Eigen::Ref<const Eigen::VectorXd>>& internal_variables_0,
+        std::vector<Eigen::Ref<const Eigen::VectorXd>>& internal_variables_0,
         std::vector<Eigen::Ref<Eigen::VectorXd>>& internal_variables_1,
         double del_t) = 0;
     
-    void EvaluateAll(
-        std::vector<const Eigen::Ref<const Eigen::VectorXd>>& constant_inputs,
+    void Evaluate(
+        std::vector<Eigen::Ref<const Eigen::VectorXd>>& constant_inputs,
         std::vector<Eigen::Ref<Eigen::VectorXd>>& weak_form_variables,
-        std::vector<const Eigen::Ref<const Eigen::VectorXd>>& internal_variables_0,
+        std::vector<Eigen::Ref<const Eigen::VectorXd>>& internal_variables_0,
         std::vector<Eigen::Ref<Eigen::VectorXd>>& internal_variables_1,
         double del_t)
     {
@@ -177,6 +144,23 @@ public:
             EvaluateIP(i, constant_inputs, weak_form_variables, internal_variables_0, internal_variables_1, del_t);
         }
     }
+    // void EvaluateWithTangent(
+    //     std::vector<Eigen::Ref<Eigen::VectorXd>>& constant_inputs,
+    //     std::vector<Eigen::Ref<Eigen::VectorXd>>& weak_form_variables,
+    //     std::vector<Eigen::Ref<Eigen::VectorXd>>& internal_variables_0,
+    //     std::vector<Eigen::Ref<Eigen::VectorXd>>& internal_variables_1,
+    //     double del_t)
+    // {
+    //     if (!EvaluationWithTangent())
+    //         throw std::runtime_error("Evaluation with tangent is not implemented for this law.");
+    //     if (weak_form_variables[Q::DSIGMA_DEPS].size() == 0)
+    //         throw std::runtime_error("Please supply a vector for the tangent");
+
+
+    //     for(int i=0;i<_n;i++){
+    //         EvaluateIP(i, constant_inputs, weak_form_variables, internal_variables_0, internal_variables_1, del_t, true);
+    //     }
+    // }
 };
 
 
