@@ -30,7 +30,7 @@ struct JH2Parameters
     double BETA = 1.0;
     double MOGEL = 1.0;
     double EFMIN = 1e-200;
-
+    bool TENSILE_EOS = false;
 };
 
 
@@ -160,8 +160,14 @@ public:
         
         const auto mu = _internal_vars[RHO](i)/_param->RHO -1.;
         
-        const auto p = (mu > 0) ? _param->K1 * mu + _param->K2 * mu * mu + _param->K3 * mu * mu * mu + _internal_vars[Q::PRESSURE](i): _param->K1 * mu;
-        
+        double p;// = (mu > 0) ? _param->K1 * mu + _param->K2 * mu * mu + _param->K3 * mu * mu * mu + _internal_vars[Q::PRESSURE](i): _param->K1 * mu;
+        if (mu > 0){
+            p = _param->K1 * mu + _param->K2 * mu * mu + _param->K3 * mu * mu * mu + _internal_vars[Q::PRESSURE](i);
+        } else {
+            
+            p = fmin(_param->K1 * mu, - _param->T * (1.-_internal_vars[DAMAGE](i)));
+            p = (_param->TENSILE_EOS) ? p : _param->K1 * mu; 
+        }
         const double D_new = _internal_vars[DAMAGE](i);
         if (D_new > D_n){
             const double Y_old = (D_n * Y_r + (1-D_n) * Y_f);// * _param->SIGMAHEL;

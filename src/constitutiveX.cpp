@@ -141,6 +141,7 @@ PYBIND11_MODULE(cpp, m)
     jh2_parameters.def_readwrite("BETA", &JH2Parameters::BETA);
     jh2_parameters.def_readwrite("MOGEL", &JH2Parameters::MOGEL);
     jh2_parameters.def_readwrite("EFMIN", &JH2Parameters::EFMIN);
+    jh2_parameters.def_readwrite("TENSILE_EOS", &JH2Parameters::TENSILE_EOS);
 
     pybind11::class_<JH2<FULL>, std::shared_ptr<JH2<FULL>>> jh2(m, "JH23D");
     jh2.def(pybind11::init<std::shared_ptr<JH2Parameters>, int>(), py::arg("JH2Parameters"), py::arg("number of quadrature points"));
