@@ -165,7 +165,7 @@ public:
             p = _param->K1 * mu + _param->K2 * mu * mu + _param->K3 * mu * mu * mu + _internal_vars[Q::PRESSURE](i);
         } else {
             
-            p = fmin(_param->K1 * mu, - _param->T * (1.-_internal_vars[DAMAGE](i)));
+            p = fmax(_param->K1 * mu, - _param->T * (1.-_internal_vars[DAMAGE](i)));
             p = (_param->TENSILE_EOS) ? p : _param->K1 * mu; 
         }
         const double D_new = _internal_vars[DAMAGE](i);
