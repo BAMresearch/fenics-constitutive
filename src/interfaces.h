@@ -103,6 +103,15 @@ public:
             EvaluateIP(i, input, del_t);
         }
     }
+    void EvaluateSome(
+            std::vector<Eigen::Ref<Eigen::VectorXd>>& input,
+            Eigen::Ref<Eigen::VectorXi> indices,
+            double del_t)
+    {
+        for(int i=0;i<indices.size();i++){
+            EvaluateIP(indices[i], input, del_t);
+        }
+    }
 };
 
 

@@ -148,6 +148,8 @@ PYBIND11_MODULE(cpp, m)
     jh2.def("get_internal_var", &JH2<FULL>::GetInternalVar);
     jh2.def("evaluate", py::overload_cast<std::vector<Eigen::Ref<Eigen::VectorXd>>&, double>(&JH2<FULL>::EvaluateAll),
                py::arg("input list"), py::arg("del t"));
+    jh2.def("evaluate_some", py::overload_cast<std::vector<Eigen::Ref<Eigen::VectorXd>>&, Eigen::Ref<Eigen::VectorXi>, double>(&JH2<FULL>::EvaluateSome),
+               py::arg("input list"), py::arg("indices"), py::arg("del t"));
     //jh2.def("evaluate", &JH2<FULL>::EvaluateAll);
     //jh2.def("update", &JH2<FULL>::UpdateAll);
     jh2.def("inputs", &JH2<FULL>::DefineInputs);
