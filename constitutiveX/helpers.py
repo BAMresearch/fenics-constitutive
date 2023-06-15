@@ -88,7 +88,15 @@ class QuadratureRule:
         map_c = mesh.topology.index_map(mesh.topology.dim)
         self.num_cells = map_c.size_local
         return self.num_cells * self.weights.size
-
+    
+    def create_quadrature_space_like(self, function_space : dfx.fem.FunctionSpace):
+        element = function_space.ufl_element()
+        if len(element.value_shape()) == 0:
+            return self.create_quadrature_space(function_space.mesh)
+        elif len(element.value_shape()) == 1:
+            return self.create_quadrature_vector_space(function_space.mesh, element.value_shape()[0])
+        elif len(element.value_shape()) == 2:
+            return self.create_quadrature_tensor_space(function_space.mesh, element.value_shape())
 
 def basix_cell_type_to_ufl(cell_type: basix.CellType) -> ufl.Cell:
     conversion = {
