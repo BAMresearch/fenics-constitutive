@@ -36,6 +36,8 @@ enum Q
     RHO,
     DAMAGE,
     PRESSURE,
+    YIELD,
+    DEPS,
     LAST
 };
 
