@@ -333,13 +333,13 @@ class NonlocalInterface:
         self.Q_local = Q_local
         self.Q_nonlocal = Q_nonlocal
 
-    def step(self, h, p):
+    def step(self, h: float, p_l: np.ndarray)->None:
         raise NotImplementedError("step() needs to be implemented.")
 
-    def get_quadrature_values(self):
+    def get_quadrature_values(self)->np.ndarray:
         raise NotImplementedError("get_quadrature_values needs to be implemented.")
 
-    def get_nodal_values(self):
+    def get_nodal_values(self)->np.ndarray:
         raise NotImplementedError("get_nodal_values needs to be implemented.")
 
 
@@ -393,6 +393,152 @@ class ImplicitNonlocalVariable(NonlocalInterface):
         self.t += h
 
     def get_quadrature_values(self):
+        return self.p_nl_q
+
+    def get_nodal_values(self):
+        return self.p_nl
+
+# class ExplicitNonlocalVariable(NonlocalInterface):
+#     """This class should work with all constraints"""
+
+#     def __init__(
+#         self,
+#         Q_local: _cpp.Q,
+#         Q_nonlocal: _cpp.Q,
+#         t0:float,
+#         function_space: dfx.fem.FunctionSpace,
+#         zeta: float,
+#         gamma: float,
+#         l: float,
+#         quadrature_rule: QuadratureRule,
+#     ):
+#         super().__init__(Q_local, Q_nonlocal)
+#         self.t = t0
+#         self.mesh = function_space.mesh
+#         self.l = l
+#         self.zeta = zeta
+#         self.gamma = gamma
+#         self.quadrature_rule = quadrature_rule
+
+#         self.QS = self.quadrature_rule.create_quadrature_space(self.mesh)
+
+#         self.p_l = dfx.fem.Function(self.QS)
+#         self.p_nl_q = get_local(self.p_l).copy()
+
+#         self.p_nl = dfx.fem.Function(function_space)
+
+#         test_function = ufl.TestFunction(function_space)
+#         trial_function = ufl.TrialFunction(function_space)
+#         b_form = ufl.inner(test_function, self.p_l) * self.quadrature_rule.dx
+#         A_form = (
+#             ufl.inner(test_function, trial_function)
+#             + self.l**2.0
+#             * ufl.inner(ufl.grad(test_function), ufl.grad(trial_function))
+#         ) * self.quadrature_rule.dx
+
+#         self.problem = dfx.fem.petsc.LinearProblem(A_form, b_form, u=self.p_nl)
+#         # p_nl_h = problem.solve()
+
+#         self.p_evaluator = QuadratureEvaluator(
+#             self.p_nl, self.mesh, self.quadrature_rule
+#         )
+
+#     def step(self, h, p, substeps=1):
+#         # we assume that the local plastic strain is constant on all substeps
+#         set_local(self.p_l, p)
+#         self.problem.solve()
+
+#         self.p_evaluator(self.p_nl_q)
+#         self.t += h
+
+#     def get_quadrature_values(self):
+#         return self.p_nl_q
+
+#     def get_nodal_values(self):
+#         return self.p_nl
+class CDMNonlocalVariable(NonlocalInterface):
+    def __init__(
+        self,
+        Q_local: _cpp.Q,
+        Q_nonlocal: _cpp.Q,
+        t0: float,
+        function_space: dfx.fem.FunctionSpace,
+        M: PETSc.Vec,
+        l: float,
+        zeta: float,
+        gamma: float,
+        quadrature_rule: QuadratureRule,
+    ):
+        self.t = t0
+        self.Q_local = Q_local
+        self.Q_nonlocal = Q_nonlocal
+        self.mesh = function_space.mesh
+        self.M = M
+        self.l = l
+        self.zeta = zeta
+        self.gamma = gamma
+        self.quadrature_rule = quadrature_rule
+
+        self.QS = self.quadrature_rule.create_quadrature_space(self.mesh)
+
+        self.p_l = dfx.fem.Function(self.QS)
+        self.p_nl_q = get_local(self.p_l).copy()
+
+        self.p_nl = dfx.fem.Function(function_space)
+        self.dp_nl = dfx.fem.Function(function_space)
+
+        test_function = ufl.TestFunction(function_space)
+        f_int_ufl = (
+            self.l ** 2 * ufl.inner(ufl.grad(self.p_nl), ufl.grad(test_function))
+            + self.p_nl * test_function
+        ) * self.quadrature_rule.dx
+        f_ext_ufl = self.p_l * test_function * self.quadrature_rule.dx
+
+        self.f_ufl = -f_int_ufl + f_ext_ufl
+
+        self.f_form = dfx.fem.form(self.f_ufl)
+        self.f = self.p_nl.vector.copy()
+        self.delta_t = dfx.fem.Constant(self.mesh, 0.0)
+        # self.p_evaluator = QuadratureEvaluator(
+            # self.delta_t * self.dp_nl, self.mesh, self.quadrature_rule
+        # )
+        self.p_evaluator = QuadratureEvaluator(
+            self.p_nl, self.mesh, self.quadrature_rule
+        )
+    #@profile
+    def _substep(self, h):
+        #we assume that in the last step, the substeps were the same
+        #(otherwise, we would need to adapt \Delta t_{n+1/2})
+        with self.f.localForm() as f_local:
+            f_local.set(0.0)
+
+        self.f.ghostUpdate()
+        #self.delta_t.value = h
+
+
+        dfx.fem.petsc.assemble_vector(self.f, self.f_form)
+        self.f.ghostUpdate()
+
+        c = self.gamma / self.zeta
+        c1 = (2.0 - c * h) / (2.0 + c * h)
+        c2 = 2.0 * h / (2.0 + c * h)
+
+        set_local(
+            self.dp_nl, c1 * get_local(self.dp_nl) + c2 * self.M.array * self.f.array
+        )
+        add_local(self.p_nl, h * get_local(self.dp_nl))
+    #@profile
+    def step(self, h, p, substeps=1):
+        h_sub = h/substeps
+        #we assume that the local plastic strain is constant on all substeps
+        set_local(self.p_l, p)
+        for i in range(substeps):
+            self._substep(h_sub)
+
+        self.p_evaluator(self.p_nl_q)
+        self.t += h
+
+    def get_quadrature_increment(self):
         return self.p_nl_q
 
     def get_nodal_values(self):
