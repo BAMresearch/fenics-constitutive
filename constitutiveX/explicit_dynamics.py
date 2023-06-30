@@ -538,7 +538,7 @@ class CDMNonlocalVariable(NonlocalInterface):
         self.p_evaluator(self.p_nl_q)
         self.t += h
 
-    def get_quadrature_increment(self):
+    def get_quadrature_values(self):
         return self.p_nl_q
 
     def get_nodal_values(self):
