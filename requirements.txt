@@ -1,5 +1,0 @@
-nbconvert
-sphinx
-sphinx_rtd_theme
-ipython
-doit
