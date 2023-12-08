@@ -1,27 +1,13 @@
 # fenics-constitutive
 
-[![Actions Status][actions-badge]][actions-link]
-[![Documentation Status][rtd-badge]][rtd-link]
+_For some examples which are using legacy-FEniCS you may look on the old `master` branch [legacy code](https://github.com/BAMresearch/fenics-constitutive/tree/master)_
 
-[![PyPI version][pypi-version]][pypi-link]
-[![Conda-Forge][conda-badge]][conda-link]
-[![PyPI platforms][pypi-platforms]][pypi-link]
+The new and improved version of `fenics-constitutive` which has the goal of simulating mechanical problems in FEniCSx with nonlinear consitutive models like plasticity, damage, etc. Everything is still a work in process, but from this projct you might expect:
 
-[![GitHub Discussion][github-discussions-badge]][github-discussions-link]
+1. An interface for constitutive models for small strain increments (and some examples for such models)
+2. Solvers for mechanical problems which can use any constitutive model that follows our interface design
+   * This means that **YOU** may write constitutive models in any programming language as long as you can bind that code to Python and this code takes `numpy.ndarray` as parameters.
+3. Solvers that account for large deformations via an objective stress rate.
+4. A documentaion explaining the interface design and tutorials on how to write your own constitutive models.
 
-<!-- SPHINX-START -->
-
-<!-- prettier-ignore-start -->
-[actions-badge]:            https://github.com/BAMResearch/fenics-constitutive/workflows/CI/badge.svg
-[actions-link]:             https://github.com/BAMResearch/fenics-constitutive/actions
-[conda-badge]:              https://img.shields.io/conda/vn/conda-forge/fenics-constitutive
-[conda-link]:               https://github.com/conda-forge/fenics-constitutive-feedstock
-[github-discussions-badge]: https://img.shields.io/static/v1?label=Discussions&message=Ask&color=blue&logo=github
-[github-discussions-link]:  https://github.com/BAMResearch/fenics-constitutive/discussions
-[pypi-link]:                https://pypi.org/project/fenics-constitutive/
-[pypi-platforms]:           https://img.shields.io/pypi/pyversions/fenics-constitutive
-[pypi-version]:             https://img.shields.io/pypi/v/fenics-constitutive
-[rtd-badge]:                https://readthedocs.org/projects/fenics-constitutive/badge/?version=latest
-[rtd-link]:                 https://fenics-constitutive.readthedocs.io/en/latest/?badge=latest
-
-<!-- prettier-ignore-end -->
+More to follow soon!
