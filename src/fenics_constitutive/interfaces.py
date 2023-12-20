@@ -109,7 +109,8 @@ class IncrSmallStrainModel(ABC):
     @abstractproperty
     def history_dim(self) -> int | dict[str, int | tuple[int, int]]:
         """
-        The dimensions of history variable(s). If all history variables are stored in a single
+        The dimensions of history variable(s). This is needed to tell the solver which quadrature
+        spaces or arrays to build. If all history variables are stored in a single
         array, then the dimension of the array is returned. If the history variables are stored
         in seperate arrays (or functions), then a dictionary is returned with the name of the
         history variable as key and the dimension of the history variable as value.
