@@ -4,13 +4,16 @@ from .interfaces import Constraint
 __all__ = ["strain_from_grad_u"]
 
 def strain_from_grad_u(grad_u: np.ndarray, constraint: Constraint) -> np.ndarray:
-    """Compute the Mandel-strain from the gradient of displacement.
+    """
+    Compute the Mandel-strain from the gradient of displacement (or increments of both
+    quantities). 
 
     Parameters:
         grad_u: Gradient of displacement field.
+        constraint: Constraint that the model is implemented for.
 
     Returns:
-        Strain tensor.
+        Numpy array containing the strain for all IPs.
     """
     strain_dim = constraint.stress_strain_dim()
     n_gauss = int(grad_u.size / (constraint.geometric_dim()**2))
@@ -72,6 +75,6 @@ def strain_from_grad_u(grad_u: np.ndarray, constraint: Constraint) -> np.ndarray
             strain_view[:,4] = 1/2**0.5 * (grad_u_view[:,5] + grad_u_view[:,7])
             strain_view[:,5] = 1/2**0.5 * (grad_u_view[:,2] + grad_u_view[:,6])
         case _:
-            raise NotImplementedError("Only full constraint implemented")
+            raise NotImplementedError("Constraint not supported.")
     return strain
     
