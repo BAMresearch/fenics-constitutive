@@ -8,6 +8,7 @@ fenics-constitutive: Interfaces for constitutive models for dolfinx
 from __future__ import annotations
 
 from .interfaces import *
+from .conversion import *
 from ._version import version as __version__
 
 __all__ = ["__version__"]
