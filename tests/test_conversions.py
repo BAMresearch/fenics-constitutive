@@ -4,7 +4,7 @@ from fenics_constitutive import Constraint, strain_from_grad_u, ufl_mandel_strai
 import numpy as np
 import pytest
 import dolfinx as df
-#import basix
+import basix
 
 
 def test_strain_from_grad_u():
@@ -76,17 +76,12 @@ def test_ufl_strain_equals_array_conversion(constraint: Constraint):
     expr_grad_u = df.fem.Expression(
         grad_u_ufl, points
     )
-    strain_element = ufl.VectorElement(
-        "Quadrature",
-        mesh.ufl_cell(),
-        degree=1,
-        quad_scheme="default",
-        dim=constraint.stress_strain_dim()
+    expr_mandel_strain = df.fem.Expression(
+        mandel_strain_ufl, points
     )
-    grad_u_element = ufl.TensorElement(
-        "Quadrature",
-        mesh.ufl_cell(),
-        degree=1,
-        quad_scheme="default",
-        shape=(constraint.geometric_dim(), constraint.geometric_dim()),
-    )
+    
+    n_cells = mesh.topology.index_map(mesh.topology.dim).size_local
+    grad_u_array = expr_grad_u.eval(np.arange(n_cells, dtype=np.int32)).flatten()
+    strain_array = expr_mandel_strain.eval(np.arange(n_cells, dtype=np.int32)).flatten()
+    strain_array_from_grad_u = strain_from_grad_u(grad_u_array, constraint)
+    assert np.allclose(strain_array, strain_array_from_grad_u)
