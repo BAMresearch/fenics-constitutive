@@ -2,7 +2,7 @@ import numpy as np
 from .interfaces import Constraint
 import ufl
 
-__all__ = ["strain_from_grad_u"]
+__all__ = ["ufl_mandel_strain", "strain_from_grad_u"]
 
 
 def ufl_mandel_strain(
