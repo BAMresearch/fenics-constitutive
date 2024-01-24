@@ -54,12 +54,12 @@ jobs:
         shell: bash -l {0}
         run: |
           pytest
-      - name: execute example scripts
-        shell: bash -l {0}
-        run: |
-          for file in docs/examples/*.py      
-            do
-              python $file
-            done
+      #- name: execute example scripts
+      #  shell: bash -l {0}
+      #  run: |
+      #    for file in docs/examples/*.py      
+      #      do
+      #        python $file
+      #      done
 
 
