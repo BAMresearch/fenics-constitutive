@@ -28,9 +28,6 @@ jobs:
       - name: checkout repo content
         uses: actions/checkout@v2
 
-      - name: install-extra-deps
-        uses: ./.github/actions/install-extra-deps
-
       - name: Setup Mambaforge
         uses: conda-incubator/setup-miniconda@v2
         with:
