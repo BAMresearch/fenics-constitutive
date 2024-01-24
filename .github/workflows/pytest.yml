@@ -39,15 +39,15 @@ jobs:
       - name: Set cache date
         run: echo "DATE=$(date +'%Y%m%d')" >> $GITHUB_ENV
 
-      - uses: actions/cache@v2
-        with:
-          path: "/usr/share/miniconda3/envs/fenics-constitutive"
-          key: conda-${{ hashFiles('environment.yml') }}-${{ env.DATE }}-${{ env.CACHE_NUMBER }}
-        id: cache
+      #- uses: actions/cache@v2
+      #  with:
+      #    path: "/usr/share/miniconda3/envs/fenics-constitutive"
+      #    key: conda-${{ hashFiles('environment.yml') }}-${{ env.DATE }}-${{ env.CACHE_NUMBER }}
+      #  id: cache
 
       - name: Update environment
         run: mamba env update -n fenics-constitutive -f environment.yml
-        if: steps.cache.outputs.cache-hit != 'true'
+        #if: steps.cache.outputs.cache-hit != 'true'
 
       - name: pytest
         id : pytest
