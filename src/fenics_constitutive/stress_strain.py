@@ -22,11 +22,11 @@ def ufl_mandel_strain(
     assert u.ufl_shape == (constraint.geometric_dim(),)
     match constraint:
         case Constraint.UNIAXIAL_STRAIN:
-            return ufl.grad(u)
+            return ufl.nabla_grad(u)
         case Constraint.UNIAXIAL_STRESS:
-            return ufl.grad(u)
+            return ufl.nabla_grad(u)
         case Constraint.PLANE_STRAIN:
-            grad_u = ufl.grad(u)
+            grad_u = ufl.nabla_grad(u)
             return ufl.as_vector(
                 [
                     grad_u[0, 0],
@@ -36,7 +36,7 @@ def ufl_mandel_strain(
                 ]
             )
         case Constraint.PLANE_STRESS:
-            grad_u = ufl.grad(u)
+            grad_u = ufl.nabla_grad(u)
             return ufl.as_vector(
                 [
                     grad_u[0, 0],
@@ -46,7 +46,7 @@ def ufl_mandel_strain(
                 ]
             )
         case Constraint.FULL:
-            grad_u = ufl.grad(u)
+            grad_u = ufl.nabla_grad(u)
             return ufl.as_vector(
                 [
                     grad_u[0, 0],
