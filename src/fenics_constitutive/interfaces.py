@@ -1,7 +1,7 @@
-import numpy as np
 from abc import ABC, abstractmethod, abstractproperty
 from enum import Enum
 
+import numpy as np
 
 __all__ = [
     "Constraint",
@@ -46,11 +46,11 @@ class Constraint(Enum):
                 return 4
             case Constraint.FULL:
                 return 6
-    
+
     def geometric_dim(self) -> int:
         """
         The geometric dimension for the constraint.
-        
+
         Returns:
             The geometric dimension.
         """
@@ -97,7 +97,7 @@ class IncrSmallStrainModel(ABC):
         """
         Called after the solver has converged to update anything that is not
         contained in the history variable(s).
-        For example: The model could contain the current time which is not 
+        For example: The model could contain the current time which is not
         stored in the history, but needs to be updated after each evaluation.
         """
         pass
@@ -106,12 +106,12 @@ class IncrSmallStrainModel(ABC):
     def constraint(self) -> Constraint:
         """
         The constraint that the model is implemented for.
-        
+
         Returns:
             The constraint.
         """
         pass
-    
+
     @property
     def stress_strain_dim(self) -> int:
         """
@@ -121,7 +121,7 @@ class IncrSmallStrainModel(ABC):
             The stress-strain dimension.
         """
         return self.constraint.stress_strain_dim()
-    
+
     @property
     def geometric_dim(self) -> int:
         """
@@ -140,9 +140,8 @@ class IncrSmallStrainModel(ABC):
         array, then the dimension of the array is returned. If the history variables are stored
         in seperate arrays (or functions), then a dictionary is returned with the name of the
         history variable as key and the dimension of the history variable as value.
-        
+
         Returns:
-            The dimension of the history variable(s). 
+            The dimension of the history variable(s).
         """
         pass
-    

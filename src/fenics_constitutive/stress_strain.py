@@ -1,6 +1,7 @@
 import numpy as np
-from .interfaces import Constraint
 import ufl
+
+from .interfaces import Constraint
 
 __all__ = ["ufl_mandel_strain", "strain_from_grad_u"]
 
