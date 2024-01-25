@@ -11,7 +11,7 @@ def ufl_mandel_strain(
     """
     Compute the Mandel-strain from the displacement field.
 
-    Parameters:
+    Args:
         u: Displacement field.
         constraint: Constraint that the model is implemented for.
 
@@ -64,7 +64,7 @@ def strain_from_grad_u(grad_u: np.ndarray, constraint: Constraint) -> np.ndarray
     Compute the Mandel-strain from the gradient of displacement (or increments of both
     quantities).
 
-    Parameters:
+    Args:
         grad_u: Gradient of displacement field.
         constraint: Constraint that the model is implemented for.
 

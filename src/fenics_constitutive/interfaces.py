@@ -10,6 +10,18 @@ __all__ = [
 
 
 class Constraint(Enum):
+    """
+    Enum for the model constraint.
+
+    The constraint can either be:
+    - UNIAXIAL_STRAIN
+    - UNIAXIAL_STRESS
+    - PLANE_STRAIN
+    - PLANE_STRESS
+    - FULL
+
+    """
+
     UNIAXIAL_STRAIN = 1
     UNIAXIAL_STRESS = 2
     PLANE_STRAIN = 3
@@ -17,6 +29,12 @@ class Constraint(Enum):
     FULL = 5
 
     def stress_strain_dim(self) -> int:
+        """
+        The stress-strain dimension of the constraint.
+
+        Returns:
+            The stress-strain dimension.
+        """
         match self:
             case Constraint.UNIAXIAL_STRAIN:
                 return 1
@@ -30,6 +48,12 @@ class Constraint(Enum):
                 return 6
     
     def geometric_dim(self) -> int:
+        """
+        The geometric dimension for the constraint.
+        
+        Returns:
+            The geometric dimension.
+        """
         match self:
             case Constraint.UNIAXIAL_STRAIN:
                 return 1
@@ -44,7 +68,9 @@ class Constraint(Enum):
 
 
 class IncrSmallStrainModel(ABC):
-    """Interface for incremental small strain models."""
+    """
+    Interface for incremental small strain models.
+    """
 
     @abstractmethod
     def evaluate(
@@ -57,7 +83,7 @@ class IncrSmallStrainModel(ABC):
     ) -> None:
         """Evaluate the constitutive model and overwrite the stress, tangent and history.
 
-        Parameters:
+        Args:
             del_t : The time increment.
             grad_del_u : The gradient of the increment of the displacement field.
             mandel_stress : The Mandel stress.
@@ -116,7 +142,7 @@ class IncrSmallStrainModel(ABC):
         history variable as key and the dimension of the history variable as value.
         
         Returns:
-            The dimension of the history variable. 
+            The dimension of the history variable(s). 
         """
         pass
     
