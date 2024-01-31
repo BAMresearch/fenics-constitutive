@@ -7,5 +7,6 @@ dependencies:
   - fenics-dolfinx=0.6.0
   - numpy
   - pip
+  - pytest
   - pip:
     - -e .
