@@ -3,10 +3,12 @@ import numpy as np
 
 
 class LinearElasticityModel(IncrSmallStrainModel):
-    def __init__(self, E: float, nu: float, constraint: Constraint):
+    def __init__(self, parameters: dict[str, float], constraint: Constraint):
         self._constraint = constraint
-        mu = E / (2 * (1 + nu))
-        lam = E * nu / ((1 + nu) * (1 - 2 * nu))
+        E = parameters["E"]
+        nu = parameters["nu"]
+        mu = E / (2.0 * (1.0 + nu))
+        lam = E * nu / ((1.0 + nu) * (1.0 - 2.0 * nu))
         match constraint:
             case Constraint.FULL:
                 # see https://en.wikipedia.org/wiki/Hooke%27s_law
