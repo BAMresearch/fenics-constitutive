@@ -141,6 +141,8 @@ isort.required-imports = ["from __future__ import annotations"]
 "tests/**" = ["T20"]
 "noxfile.py" = ["T20"]
 
+[tool.ruff.lint.pydocstyle]
+convention = "google"
 
 [tool.pylint]
 py-version = "3.8"

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from abc import ABC, abstractmethod, abstractproperty
 from enum import Enum
 
@@ -6,6 +8,7 @@ import numpy as np
 __all__ = [
     "Constraint",
     "IncrSmallStrainModel",
+    "check_constraint",
 ]
 
 
@@ -28,6 +31,33 @@ class Constraint(Enum):
     PLANE_STRESS = 4
     FULL = 5
 
+    @staticmethod
+    def from_str(string: str) -> Constraint:
+        """
+        Convert a string to a constraint.
+
+        Args:
+            string : The string to convert.
+
+        Returns:
+            The constraint.
+        """
+        match string:
+            case "UNIAXIAL_STRAIN":
+                return Constraint.UNIAXIAL_STRAIN
+            case "UNIAXIAL_STRESS":
+                return Constraint.UNIAXIAL_STRESS
+            case "PLANE_STRAIN":
+                return Constraint.PLANE_STRAIN
+            case "PLANE_STRESS":
+                return Constraint.PLANE_STRESS
+            case "FULL":
+                return Constraint.FULL
+            case _:
+                error = f"Unknown constraint: {string}"
+                raise ValueError(error)
+
+    @property
     def stress_strain_dim(self) -> int:
         """
         The stress-strain dimension of the constraint.
@@ -47,6 +77,7 @@ class Constraint(Enum):
             case Constraint.FULL:
                 return 6
 
+    @property
     def geometric_dim(self) -> int:
         """
         The geometric dimension for the constraint.
@@ -65,6 +96,30 @@ class Constraint(Enum):
                 return 2
             case Constraint.FULL:
                 return 3
+
+
+def check_constraint(model: IncrSmallStrainModel) -> bool:
+    """
+    Check if the constraint of the model is compatible with the constraint of the solver.
+
+    Args:
+        model : The constitutive model.
+    
+    Returns:
+        True if the constraint is compatible, False otherwise.
+    """
+    try:
+        constraint = Constraint.from_str(model.constraint)
+    except ValueError:
+        return False
+
+    if constraint.stress_strain_dim != model.stress_strain_dim:
+        return False
+
+    if constraint.geometric_dim != model.geometric_dim:
+        return False
+
+    return True
 
 
 class IncrSmallStrainModel(ABC):
@@ -90,7 +145,6 @@ class IncrSmallStrainModel(ABC):
             tangent : The tangent.
             history : The history variable(s).
         """
-        pass
 
     @abstractmethod
     def update(self) -> None:
@@ -100,19 +154,23 @@ class IncrSmallStrainModel(ABC):
         For example: The model could contain the current time which is not
         stored in the history, but needs to be updated after each evaluation.
         """
-        pass
 
     @abstractproperty
-    def constraint(self) -> Constraint:
+    def constraint(self) -> str:
         """
         The constraint that the model is implemented for.
+        Cases:
+        - "UNIAXIAL_STRAIN"
+        - "UNIAXIAL_STRESS"
+        - "PLANE_STRAIN"
+        - "PLANE_STRESS"
+        - "FULL"
 
         Returns:
-            The constraint.
+            The constraint as string.
         """
-        pass
 
-    @property
+    @abstractproperty
     def stress_strain_dim(self) -> int:
         """
         The stress-strain dimension that the model is implemented for.
@@ -120,9 +178,8 @@ class IncrSmallStrainModel(ABC):
         Returns:
             The stress-strain dimension.
         """
-        return self.constraint.stress_strain_dim()
 
-    @property
+    @abstractproperty
     def geometric_dim(self) -> int:
         """
         The geometric dimension that the model is implemented for.
@@ -130,7 +187,6 @@ class IncrSmallStrainModel(ABC):
         Returns:
             The geometric dimension.
         """
-        return self.constraint.geometric_dim()
 
     @abstractproperty
     def history_dim(self) -> int | dict[str, int | tuple[int, int]]:
@@ -144,4 +200,3 @@ class IncrSmallStrainModel(ABC):
         Returns:
             The dimension of the history variable(s).
         """
-        pass
