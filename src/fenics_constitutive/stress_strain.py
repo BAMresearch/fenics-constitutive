@@ -21,7 +21,7 @@ def ufl_mandel_strain(
     Returns:
         Vector-valued UFL expression of the mandel strain.
     """
-    assert u.ufl_shape == (constraint.geometric_dim(),)
+    assert u.ufl_shape == (constraint.geometric_dim,)
     match constraint:
         case Constraint.UNIAXIAL_STRAIN:
             return ufl.nabla_grad(u)
@@ -73,10 +73,10 @@ def strain_from_grad_u(grad_u: np.ndarray, constraint: Constraint) -> np.ndarray
     Returns:
         Numpy array containing the strain for all IPs.
     """
-    strain_dim = constraint.stress_strain_dim()
-    n_gauss = int(grad_u.size / (constraint.geometric_dim() ** 2))
+    strain_dim = constraint.stress_strain_dim
+    n_gauss = int(grad_u.size / (constraint.geometric_dim ** 2))
     strain = np.zeros(strain_dim * n_gauss)
-    grad_u_view = grad_u.reshape(-1, constraint.geometric_dim() ** 2)
+    grad_u_view = grad_u.reshape(-1, constraint.geometric_dim ** 2)
     strain_view = strain.reshape(-1, strain_dim)
 
     match constraint:

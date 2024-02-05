@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import basix
 import dolfinx as df
 import numpy as np
@@ -42,17 +44,17 @@ def test_strain_from_grad_u():
 
 
 @pytest.mark.parametrize(
-    ("constraint"),
+    "constraint",
     [
-        [Constraint.UNIAXIAL_STRAIN],
-        [Constraint.UNIAXIAL_STRESS],
-        [Constraint.PLANE_STRAIN],
-        [Constraint.PLANE_STRESS],
-        [Constraint.FULL],
+        Constraint.UNIAXIAL_STRAIN,
+        Constraint.UNIAXIAL_STRESS,
+        Constraint.PLANE_STRAIN,
+        Constraint.PLANE_STRESS,
+        Constraint.FULL,
     ],
 )
 def test_ufl_strain_equals_array_conversion(constraint: Constraint):
-    match constraint.geometric_dim():
+    match constraint.geometric_dim:
         case 1:
             mesh = df.mesh.create_unit_interval(MPI.COMM_WORLD, 2)
 
@@ -71,7 +73,7 @@ def test_ufl_strain_equals_array_conversion(constraint: Constraint):
 
     P1 = df.fem.VectorFunctionSpace(mesh, ("Lagrange", 1))
     u = df.fem.Function(P1)
-    grad_u_ufl = ufl.grad(u)
+    grad_u_ufl = ufl.nabla_grad(u)
     mandel_strain_ufl = ufl_mandel_strain(u, constraint)
     u.interpolate(lam)
 
@@ -89,3 +91,59 @@ def test_ufl_strain_equals_array_conversion(constraint: Constraint):
     strain_array = expr_mandel_strain.eval(np.arange(n_cells, dtype=np.int32)).flatten()
     strain_array_from_grad_u = strain_from_grad_u(grad_u_array, constraint)
     assert np.allclose(strain_array, strain_array_from_grad_u)
+
+
+@pytest.mark.parametrize(
+    "constraint",
+    [
+        Constraint.UNIAXIAL_STRAIN,
+        Constraint.UNIAXIAL_STRESS,
+        Constraint.PLANE_STRAIN,
+        Constraint.PLANE_STRESS,
+        Constraint.FULL,
+    ],
+)
+def test_inner_product(constraint: Constraint):
+    match constraint.geometric_dim:
+        case 1:
+            mesh = df.mesh.create_unit_interval(MPI.COMM_WORLD, 2)
+
+            def lam(x):
+                return x[0] * 0.1
+        case 2:
+            mesh = df.mesh.create_unit_square(MPI.COMM_WORLD, 2, 2)
+
+            def lam(x):
+                return x[0] * 0.1, x[1] * 0.2
+        case 3:
+            mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 2, 2, 2)
+
+            def lam(x):
+                return x[0] * 0.1, x[1] * 0.2, x[2] * 0.3
+
+    P1 = df.fem.VectorFunctionSpace(mesh, ("Lagrange", 1))
+    u = df.fem.Function(P1)
+    eps_tensor_ufl = ufl.sym(ufl.nabla_grad(u))
+    mandel_strain_ufl = ufl_mandel_strain(u, constraint)
+    u.interpolate(lam)
+
+    points, weights = basix.make_quadrature(
+        basix.quadrature.string_to_type("default"),
+        basix.cell.string_to_type(mesh.ufl_cell().cellname()),
+        1,
+    )
+
+    expr_eps_tensor = df.fem.Expression(eps_tensor_ufl, points)
+    expr_mandel_strain = df.fem.Expression(mandel_strain_ufl, points)
+
+    n_cells = mesh.topology.index_map(mesh.topology.dim).size_local
+    eps_tensor_array = expr_eps_tensor.eval(np.arange(n_cells, dtype=np.int32)).reshape(
+        -1, constraint.geometric_dim**2
+    )
+    strain_array = expr_mandel_strain.eval(np.arange(n_cells, dtype=np.int32)).reshape(
+        -1, constraint.stress_strain_dim
+    )
+
+    inner_eps_tensor = eps_tensor_array @ eps_tensor_array.T
+    inner_strain = strain_array @ strain_array.T
+    assert np.allclose(inner_eps_tensor, inner_strain)
