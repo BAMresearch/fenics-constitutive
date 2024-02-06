@@ -104,6 +104,8 @@ import dolfinx as df
 import ufl
 import basix
 
+from fenics_constitutive.interfaces import Constraint, IncrSmallStrainModel
+
 """
 
 Solution of the constitutive law
@@ -123,20 +125,20 @@ constitutive law. Another option is the use of
 """
 
 
-class RambergOsgood3D(object):
+class RambergOsgood3D(IncrSmallStrainModel):
     gdim = 3
 
-    def __init__(self, e=210e3, nu=0.3, alpha=0.01, n=5, sigy=500.0):
+    def __init__(self, param: dict[str, float]):
         # material parameters, constants
-        self.e = e
-        self.nu = nu
-        self.alpha = alpha
-        self.n = n
-        self.sigy = sigy
-        self.k = e / (1.0 - 2.0 * nu)
-        self.g = e / 2.0 / (1.0 + nu)
-        self.lam = e * nu / (1 + nu) / (1 - 2 * nu)
-        self.mu = e / (2 * (1 + nu))
+        self.e = param["e"]
+        self.nu = param["nu"]
+        self.alpha = param["alpha"]
+        self.n = param["n"]
+        self.sigy = param["sigy"]
+        self.k = self.e / (1.0 - 2.0 * self.nu)
+        self.g = self.e / 2.0 / (1.0 + self.nu)
+        self.lam = self.e * self.nu / (1 + self.nu) / (1 - 2 * self.nu)
+        self.mu = self.e / (2 * (1 + self.nu))
         self.Cel = np.array(  # elastic tangent
             [
                 [self.lam + 2 * self.mu, self.lam, self.lam, 0.0, 0.0, 0.0],
@@ -161,16 +163,16 @@ class RambergOsgood3D(object):
     def evaluate(
         self,
         del_t: float,
-        del_strain: np.ndarray,
-        stress: np.ndarray,
+        grad_del_u: np.ndarray,
+        mandel_stress: np.ndarray,
         tangent: np.ndarray,
-        history: np.ndarray,
+        history: np.ndarray | dict[str, np.ndarray],
     ) -> None:
 
-        stress_view = stress.reshape(-1, self.stress_dim)
+        stress_view = mandel_stress.reshape(-1, self.stress_dim)
         tangent_view = tangent.reshape(-1, self.stress_dim ** 2)
 
-        for n, eps in enumerate(del_strain.reshape(-1, self.stress_dim)):
+        for n, eps in enumerate(grad_del_u.reshape(-1, self.stress_dim)):
             # eps = strain at time t + delta t
             tr_eps = np.sum(eps[:3])
             eps_dev = eps - tr_eps * self.I2 / 3
@@ -233,11 +235,16 @@ class RambergOsgood3D(object):
                 ) + 1.0 / 3.0 * (self.k - 2 * sv / (3 * ev)) * np.outer(self.I2, self.I2)
                 tangent_view[n] = tangent.flatten()
 
-    def history_dim(self) -> int:
-        return 0
-
     def update(self) -> None:
         pass
+
+    @property
+    def constraint(self) -> Constraint:
+        return Constraint.FULL
+
+    @property
+    def history_dim(self) -> int:
+        return 0
 
 
 """
