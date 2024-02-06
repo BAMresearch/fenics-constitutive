@@ -10,3 +10,4 @@ website
 *.xdmf
 *.bak
 README.rst 
+_version.py
