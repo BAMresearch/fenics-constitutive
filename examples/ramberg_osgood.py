@@ -96,15 +96,18 @@ We start by importing the usual ``dolfinx`` modules and other packages.
 
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FormatStrFormatter
-from typing import Any, Callable
+from typing import Callable
 from mpi4py import MPI
-from petsc4py import PETSc
 import numpy as np
 import dolfinx as df
 import ufl
-import basix
 
-from fenics_constitutive.interfaces import Constraint, IncrSmallStrainModel
+from fenics_constitutive.interfaces import (
+    Constraint,
+    IncrSmallStrainModel,
+    IncrSmallStrainProblem,
+)
+from fenics_constitutive.stress_strain import ufl_mandel_strain
 
 """
 
@@ -153,11 +156,15 @@ class RambergOsgood3D(IncrSmallStrainModel):
         self.sv_tol = 1e-12
         self.maxiter = 50
         # helpers voigt notation
-        self.I2 = np.zeros(self.stress_strain_dim, dtype=np.float64)  # Identity of rank 2 tensor
+        self.I2 = np.zeros(
+            self.stress_strain_dim, dtype=np.float64
+        )  # Identity of rank 2 tensor
         self.I2[0] = 1.0
         self.I2[1] = 1.0
         self.I2[2] = 1.0
-        self.I4 = np.eye(self.stress_strain_dim, dtype=np.float64)  # Identity of rank 4 tensor
+        self.I4 = np.eye(
+            self.stress_strain_dim, dtype=np.float64
+        )  # Identity of rank 4 tensor
 
     def evaluate(
         self,
@@ -167,9 +174,8 @@ class RambergOsgood3D(IncrSmallStrainModel):
         tangent: np.ndarray,
         history: np.ndarray | dict[str, np.ndarray],
     ) -> None:
-
         stress_view = mandel_stress.reshape(-1, self.stress_strain_dim)
-        tangent_view = tangent.reshape(-1, self.stress_strain_dim ** 2)
+        tangent_view = tangent.reshape(-1, self.stress_strain_dim**2)
 
         for n, eps in enumerate(grad_del_u.reshape(-1, self.stress_strain_dim)):
             # eps = strain at time t + delta t
@@ -195,16 +201,20 @@ class RambergOsgood3D(IncrSmallStrainModel):
                     sv = sv_initial
                 else:
                     # initial_guess is > sigy
-                    sv = (self.sigy ** (self.n - 1.0) * self.e * ev / self.alpha) ** (1.0 / self.n)
+                    sv = (self.sigy ** (self.n - 1.0) * self.e * ev / self.alpha) ** (
+                        1.0 / self.n
+                    )
 
                 def f(x):
-                    stuff = 1.0 / (2.0 * self.mu) + 3.0 / (2.0 * self.e) * self.alpha * (x / self.sigy) ** (
-                        self.n - 1.0
-                    )
+                    stuff = 1.0 / (2.0 * self.mu) + 3.0 / (
+                        2.0 * self.e
+                    ) * self.alpha * (x / self.sigy) ** (self.n - 1.0)
                     return stuff * 2.0 / 3.0 * x - ev
 
                 def df(x):
-                    return 1.0 / (3.0 * self.mu) + self.n * self.alpha / self.e * (x / self.sigy) ** (self.n - 1.0)
+                    return 1.0 / (3.0 * self.mu) + self.n * self.alpha / self.e * (
+                        x / self.sigy
+                    ) ** (self.n - 1.0)
 
                 s = f(sv)
                 ds = df(sv)
@@ -223,7 +233,11 @@ class RambergOsgood3D(IncrSmallStrainModel):
                 sig = tr_sig * self.I2 / 3.0 + sig_dev
                 stress_view[n] = sig
 
-                nenner = sv / (3.0 * self.mu) + self.alpha * self.n * self.sigy / self.e * ((sv / self.sigy) ** (self.n))
+                nenner = sv / (
+                    3.0 * self.mu
+                ) + self.alpha * self.n * self.sigy / self.e * (
+                    (sv / self.sigy) ** (self.n)
+                )
                 tangent = 2 * sv / 3 / ev * (
                     self.I4
                     - 2.0
@@ -231,7 +245,9 @@ class RambergOsgood3D(IncrSmallStrainModel):
                     / ev
                     * (1.0 / ev - 1.0 / nenner)
                     * np.outer(eps_dev, eps_dev)
-                ) + 1.0 / 3.0 * (self.k - 2 * sv / (3 * ev)) * np.outer(self.I2, self.I2)
+                ) + 1.0 / 3.0 * (self.k - 2 * sv / (3 * ev)) * np.outer(
+                    self.I2, self.I2
+                )
                 tangent_view[n] = tangent.flatten()
 
     def update(self) -> None:
@@ -265,7 +281,7 @@ as well.
 
 
 def create_meshtags(
-        domain: df.mesh.Mesh, entity_dim: int, markers: dict[str, tuple[int, Callable]]
+    domain: df.mesh.Mesh, entity_dim: int, markers: dict[str, tuple[int, Callable]]
 ) -> tuple[df.mesh.MeshTagsMetaClass, dict[str, int]]:
     """Creates meshtags for the given markers.
 
@@ -295,168 +311,20 @@ def create_meshtags(
     entity_indices = np.hstack(entity_indices).astype(np.int32)
     entity_markers = np.hstack(entity_markers).astype(np.int32)
     sorted_facets = np.argsort(entity_indices)
-    mesh_tags = df.mesh.meshtags(domain, edim, entity_indices[sorted_facets], entity_markers[sorted_facets])
+    mesh_tags = df.mesh.meshtags(
+        domain, edim, entity_indices[sorted_facets], entity_markers[sorted_facets]
+    )
     return mesh_tags, marked
 
 
-def build_view(cells, V):
-    mesh = V.mesh
-    submesh, cell_map, _, _ = df.mesh.create_submesh(mesh, mesh.topology.dim, cells)
-    fe = V.ufl_element()
-    V_sub = df.fem.FunctionSpace(submesh, fe)
-
-    submesh = V_sub.mesh
-    view_parent = []
-    view_child = []
-
-    num_sub_cells = submesh.topology.index_map(submesh.topology.dim).size_local
-    for cell in range(num_sub_cells):
-        view_child.append(V_sub.dofmap.cell_dofs(cell))
-        view_parent.append(V.dofmap.cell_dofs(cell_map[cell]))
-    if view_child:
-        return (
-            np.hstack(view_parent),
-            np.hstack(view_child),
-            V_sub,
-        )
-    else:
-        # it may be that a process does not own any of the cells in the submesh
-        return (
-            np.array([], dtype=np.int32),
-            np.array([], dtype=np.int32),
-            V_sub,
-        )
-
-
-class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
-    def __init__(
-        self,
-        # laws = [(law_1, cells_1), (law_2, cells_2), ...]
-        laws: list[tuple[Any, np.ndarray]],
-        u: df.fem.Function,
-        q_degree: int = 2,
-    ):
-        mesh = u.function_space.mesh
-        map_c = mesh.topology.index_map(mesh.topology.dim)
-        num_cells = map_c.size_local + map_c.num_ghosts
-        self.cells = np.arange(0, num_cells, dtype=np.int32)
-
-        self.gdim = mesh.ufl_cell().geometric_dimension()
-        QVe = ufl.VectorElement(
-            "Quadrature", mesh.ufl_cell(), q_degree, quad_scheme="default", dim=6
-        )
-        QTe = ufl.TensorElement(
-            "Quadrature",
-            mesh.ufl_cell(),
-            q_degree,
-            quad_scheme="default",
-            shape=(6, 6),
-        )
-        QV = df.fem.FunctionSpace(mesh, QVe)
-        QT = df.fem.FunctionSpace(mesh, QTe)
-
-        self.laws = []
-        self.QV_views = []
-        self.QT_views = []
-        self._strain = []
-        self._stress = []
-        self._tangent = []
-
-        with df.common.Timer("submeshes-and-data-structures"):
-            for law, cells in laws:
-                self.laws.append((law, cells))
-
-                # ### submesh and subspace for strain, stress
-                QV_parent, QV_child, QV_sub = build_view(cells, QV)
-                self.QV_views.append((QV_parent, QV_child, QV_sub))
-                self._strain.append(df.fem.Function(QV_sub))
-                self._stress.append(df.fem.Function(QV_sub))
-
-                # ### submesh and subspace for tanget
-                QT_parent, QT_child, QT_sub = build_view(cells, QT)
-                self.QT_views.append((QT_parent, QT_child, QT_sub))
-                self._tangent.append(df.fem.Function(QT_sub))
-
-        self.stress = df.fem.Function(QV)
-        self.tangent = df.fem.Function(QT)
-
-        u_, du = ufl.TestFunction(u.function_space), ufl.TrialFunction(u.function_space)
-
-        self.metadata = {"quadrature_degree": q_degree, "quadrature_scheme": "default"}
-        self.dxm = ufl.dx(metadata=self.metadata)
-
-        eps = self.eps
-        self.R_form = ufl.inner(eps(u_), self.stress) * self.dxm
-        self.dR_form = ufl.inner(eps(du), ufl.dot(self.tangent, eps(u_))) * self.dxm
-        self.u = u
-
-        basix_celltype = getattr(basix.CellType, mesh.topology.cell_type.name)
-        self.q_points, _ = basix.make_quadrature(basix_celltype, q_degree)
-        self.strain_expr = df.fem.Expression(eps(u), self.q_points)
-
-    def compile(self, bcs):
-        # compile should have same args as super().__init__ !!
-        # otherwise no control over how to compile the ufl form
-
-        R = self.R_form
-        u = self.u
-        dR = self.dR_form
-        super().__init__(R, u, bcs=bcs, J=dR)
-
-    def form(self, x: PETSc.Vec):
-        """This function is called before the residual or Jacobian is
-        computed. This is usually used to update ghost values.
-        Parameters
-        ----------
-        x
-            The vector containing the latest solution
-        """
-        super().form(x)
-
-        # FIXME
-        time = 0.0
-        history = np.array([])
-
-        for k, (law, cells) in enumerate(self.laws):
-            with df.common.Timer("strain_evaluation"):
-                self.strain_expr.eval(
-                    cells, self._strain[k].x.array.reshape(cells.size, -1)
-                )
-
-            with df.common.Timer("stress_evaluation"):
-                law.evaluate(
-                    time,
-                    self._strain[k].x.array,
-                    self._stress[k].x.array,
-                    self._tangent[k].x.array,
-                    history,
-                )
-
-            with df.common.Timer("stress-local-to-global"):
-                parent, child, _ = self.QV_views[k]
-                stress_global = self.stress.x.array.reshape(-1, 6)
-                stress_local = self._stress[k].x.array.reshape(-1, 6)
-                stress_global[parent] = stress_local[child]
-                c_parent, c_child, _ = self.QT_views[k]
-                tangent_global = self.tangent.x.array.reshape(-1, 36)
-                tangent_local = self._tangent[k].x.array.reshape(-1, 36)
-                tangent_global[c_parent] = tangent_local[c_child]
-
-        self.stress.x.scatter_forward()
-        self.tangent.x.scatter_forward()
+class RambergOsgoodProblem(IncrSmallStrainProblem):
+    def __init__(self, laws, u, q_degree: int = 2):
+        super().__init__(laws, u, q_degree=q_degree)
 
     def eps(self, u):
-        e = ufl.sym(ufl.grad(u))
-        return ufl.as_vector(
-            [
-                e[0, 0],
-                e[1, 1],
-                e[2, 2],
-                2**0.5 * e[0, 1],
-                2**0.5 * e[0, 2],
-                2**0.5 * e[1, 2],
-            ]
-        )
+        constraint = self.constraint
+        return ufl_mandel_strain(u, constraint)
+
 
 """
 
@@ -467,7 +335,7 @@ It is common practice in computational mechanics to store only six
 of the nine components of the symmetric (cauchy) stress and strain tensors.
 We choose an orthonormal tensor (voigt) basis which preserves the properties of
 the scalar product, hence the $\sqrt{2}$ below.
-For more information see e.g. the book 
+For more information see e.g. the book
 `Festkörpermechanik (Solid Mechanics), by Albrecht Bertram and Rainer Glüge, <https://opendata.uni-halle.de/bitstream/1981185920/11636/1/Bertram%20Gl%C3%BCge_Festk%C3%B6rpermechanik%202013.pdf>`_
 which is available (in german) online.
 
@@ -489,16 +357,16 @@ is given as
 
 """
 
-class RambergOsgoodSimpleTension:
 
-    def __init__(self, e, nu, alpha, n, sigy):
-        self.e = e
-        self.nu = nu
-        self.alpha = alpha
-        self.n = n
-        self.sigy = sigy
-        self.k = e / (1.0 - 2.0 * nu)
-        self.g = e / 2.0 / (1.0 + nu)
+class RambergOsgoodSimpleTension:
+    def __init__(self, param: dict[str, float]):
+        self.e = param["e"]
+        self.nu = param["nu"]
+        self.alpha = param["alpha"]
+        self.n = param["n"]
+        self.sigy = param["sigy"]
+        self.k = self.e / (1.0 - 2.0 * self.nu)
+        self.g = self.e / 2.0 / (1.0 + self.nu)
 
     def energy(self):
         assert np.sum(self.sigma) > 0.0
@@ -524,11 +392,11 @@ class RambergOsgoodSimpleTension:
         #     1.0 / 2.0 / G + 3 * ALPHA / 2.0 / E * (sigma / SIGY) ** (N - 1)
         # )
 
+
 # The function to run the force-controlled simple tension test.
 # We apply a constant force on the right surface, pulling in the
 # :math:`\boldsymbol{e}_1`-direction.
 def simple_tension_test(mesh, material, pltshow=False):
-
     function_space = df.fem.VectorFunctionSpace(mesh, ("Lagrange", 1))
     u = df.fem.Function(function_space)
 
@@ -592,10 +460,8 @@ def simple_tension_test(mesh, material, pltshow=False):
     max_load = 2718.0
     neumann_data = df.fem.Constant(mesh, (max_load, 0.0, 0.0))
 
-    num_cells = mesh.topology.index_map(mesh.topology.dim).size_global
-    cells = np.arange(num_cells, dtype=np.int32)
-    laws = [(material, cells)]
-    problem = IncrSmallStrainProblem(laws, u)
+    laws = [(material, None)]
+    problem = RambergOsgoodProblem(laws, u)
     # neumann
     test_function = ufl.TestFunction(u.function_space)
     fext = ufl.inner(neumann_data, test_function) * dA(neumann_tag)
@@ -603,7 +469,7 @@ def simple_tension_test(mesh, material, pltshow=False):
 
     # dirichlet
     dirichlet = [fix_ux, fix_uy, fix_uz, fix_rot_x1]
-    problem.compile(dirichlet) # optionally add form compiler options
+    problem.compile(dirichlet)  # optionally add form compiler options
 
     solver = df.nls.petsc.NewtonSolver(MPI.COMM_WORLD, problem)
     solver.convergence_criterion = "incremental"
@@ -614,10 +480,10 @@ def simple_tension_test(mesh, material, pltshow=False):
     nTime = 10
     load_steps = np.linspace(0, 1, num=nTime + 1)[1:]
     iterations = np.array([], dtype=np.int32)
-    displacement = [0.0, ]
-    load = [0.0, ]
+    displacement = [0.0]
+    load = [0.0]
 
-    for (inc, time) in enumerate(load_steps):
+    for inc, time in enumerate(load_steps):
         print("Load Increment:", inc)
 
         # external force
@@ -634,19 +500,38 @@ def simple_tension_test(mesh, material, pltshow=False):
         displacement.append(u_right.item(0))
         load.append(current_load)
 
-    # ### Comparison with analytical solution
     displacement = np.array(displacement)
     load = np.array(load)
-    sol = RambergOsgoodSimpleTension(e=material.e, nu=material.nu, alpha=material.alpha, n=material.n, sigy=material.sigy)
-    sol.solve(max_load, num_points=51)
+    return load, displacement
+
+
+# main function to run the simple tension test.
+def main(args):
+    n = args.num_cells
+    mesh = df.mesh.create_unit_cube(
+        MPI.COMM_WORLD, n, n, n, df.mesh.CellType.hexahedron
+    )
+    matparam = {
+        "e": 210e3,
+        "nu": 0.3,
+        "alpha": 0.01,
+        "n": 5,
+        "sigy": 500.0,
+    }
+    material = RambergOsgood3D(matparam)
+    sigma_h, eps_h = simple_tension_test(mesh, material)
+
+    # ### Comparison with analytical solution
+    sol = RambergOsgoodSimpleTension(matparam)
+    sol.solve(sigma_h[-1], num_points=51)
     w = sol.energy()
-    I = np.trapz(load, displacement)
+    I = np.trapz(sigma_h, eps_h)
     assert np.isclose((w - I) / w, 0.0, atol=1e-2)
 
-    if pltshow:
+    if args.show:
         ax = plt.subplots()[1]
         ax.plot(sol.eps, sol.sigma, "r-", label="analytical")
-        ax.plot(displacement, load, "bo", label="num")
+        ax.plot(eps_h, sigma_h, "bo", label="num")
         ax.set_xlabel(r"$\varepsilon_{xx}$")
         ax.set_ylabel(r"$\sigma_{xx}$")
         ax.legend()
@@ -655,18 +540,15 @@ def simple_tension_test(mesh, material, pltshow=False):
 
 
 if __name__ == "__main__":
-    n = 1
-    mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, n, n, n, df.mesh.CellType.hexahedron)
-    E = 210e3
-    NU = 0.3
-    ALPHA = 0.01
-    N = 5
-    SIGY = 500.0
-    material = RambergOsgood3D(e=E, nu=NU, alpha=ALPHA, n=N, sigy=SIGY)
-    simple_tension_test(mesh, material, pltshow=True)
+    import sys
+    import argparse
 
-"""
-Setting ``pltshow=True`` you should see something like this:
-
-.. image:: ro.png
-"""
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "num_cells",
+        type=int,
+        help="Number of cells in each spatial direction of the unit cube.",
+    )
+    parser.add_argument("--show", action="store_true", help="Show plot.")
+    args = parser.parse_args(sys.argv[1:])
+    main(args)
