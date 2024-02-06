@@ -19,7 +19,6 @@ def ufl_mandel_strain(
     Returns:
         Vector-valued UFL expression of the mandel strain.
     """
-    strain_dim = constraint.stress_strain_dim()
     assert u.ufl_shape == (constraint.geometric_dim(),)
     match constraint:
         case Constraint.UNIAXIAL_STRAIN:
