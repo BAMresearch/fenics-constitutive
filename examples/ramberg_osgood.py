@@ -152,13 +152,12 @@ class RambergOsgood3D(IncrSmallStrainModel):
         self.zero_strain_tolerance = 1e-12
         self.sv_tol = 1e-12
         self.maxiter = 50
-        self.stress_dim = 6
         # helpers voigt notation
-        self.I2 = np.zeros(self.stress_dim, dtype=np.float64)  # Identity of rank 2 tensor
+        self.I2 = np.zeros(self.stress_strain_dim, dtype=np.float64)  # Identity of rank 2 tensor
         self.I2[0] = 1.0
         self.I2[1] = 1.0
         self.I2[2] = 1.0
-        self.I4 = np.eye(self.stress_dim, dtype=np.float64)  # Identity of rank 4 tensor
+        self.I4 = np.eye(self.stress_strain_dim, dtype=np.float64)  # Identity of rank 4 tensor
 
     def evaluate(
         self,
@@ -169,10 +168,10 @@ class RambergOsgood3D(IncrSmallStrainModel):
         history: np.ndarray | dict[str, np.ndarray],
     ) -> None:
 
-        stress_view = mandel_stress.reshape(-1, self.stress_dim)
-        tangent_view = tangent.reshape(-1, self.stress_dim ** 2)
+        stress_view = mandel_stress.reshape(-1, self.stress_strain_dim)
+        tangent_view = tangent.reshape(-1, self.stress_strain_dim ** 2)
 
-        for n, eps in enumerate(grad_del_u.reshape(-1, self.stress_dim)):
+        for n, eps in enumerate(grad_del_u.reshape(-1, self.stress_strain_dim)):
             # eps = strain at time t + delta t
             tr_eps = np.sum(eps[:3])
             eps_dev = eps - tr_eps * self.I2 / 3
