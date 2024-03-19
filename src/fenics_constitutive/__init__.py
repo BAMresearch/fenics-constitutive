@@ -10,5 +10,7 @@ from __future__ import annotations
 from ._version import version as __version__
 from .interfaces import *
 from .stress_strain import *
+from .solver import *
+from .maps import *
 
 __all__ = ["__version__"]

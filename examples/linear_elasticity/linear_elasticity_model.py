@@ -34,8 +34,9 @@ class LinearElasticityModel(IncrSmallStrainModel):
                     ]
                 )
             case Constraint.PLANE_STRESS:
-                # We assert that the strain is being provided with 0 in the z-direction
-                # This matrix just multiplies the z component by 1.0
+                # We do not make any assumptions about strain in the z-direction 
+                # This matrix just multiplies the z component by 0.0 which results
+                # in a plane stress state
                 # see https://en.wikipedia.org/wiki/Hooke%27s_law
                 self.D = (
                     E
@@ -44,7 +45,7 @@ class LinearElasticityModel(IncrSmallStrainModel):
                         [
                             [1.0, nu, 0.0, 0.0],
                             [nu, 1.0, 0.0, 0.0],
-                            [0.0, 0.0, 1.0, 0.0],
+                            [0.0, 0.0, 0.0, 0.0],
                             [0.0, 0.0, 0.0, (1.0 - nu)],
                         ]
                     )
