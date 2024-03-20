@@ -249,13 +249,14 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
 
                 with df.common.Timer("stress_evaluation"):
                     self.submesh_maps[k].map_to_child(self.stress_0, self._stress[k])
-                    self._history_1[k].x.array[:] = self._history_0[k].x.array
+                    if law.history_dim is not None:
+                        self._history_1[0].x.array[:] = self._history_0[0].x.array
                     law.evaluate(
                         self._time,
                         self._del_grad_u[k].x.array,
                         self._stress[k].x.array,
                         self._tangent[k].x.array,
-                        self._history_1[k].x.array,  # history,
+                        self._history_1[k].x.array if law.history_dim is not None else None,
                     )
 
                 with df.common.Timer("stress-local-to-global"):
