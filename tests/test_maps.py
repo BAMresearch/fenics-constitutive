@@ -6,7 +6,7 @@ from mpi4py import MPI
 from fenics_constitutive import SubSpaceMap, _build_view, build_subspace_map
 
 
-def test_subspace_map_vector_equals_tensor():
+def test_subspace_vector_map_vector_equals_tensor_map():
     mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 5, 7, 11)
 
     map_c = mesh.topology.index_map(mesh.topology.dim)
@@ -14,8 +14,12 @@ def test_subspace_map_vector_equals_tensor():
     cells = np.arange(0, num_cells, dtype=np.int32)
 
     Q = ufl.FiniteElement("Quadrature", mesh.ufl_cell(), 2, quad_scheme="default")
-    QV = ufl.VectorElement("Quadrature", mesh.ufl_cell(), 2, quad_scheme="default", dim=3)
-    QT = ufl.TensorElement("Quadrature", mesh.ufl_cell(), 2, quad_scheme="default", shape=(3, 3))
+    QV = ufl.VectorElement(
+        "Quadrature", mesh.ufl_cell(), 2, quad_scheme="default", dim=3
+    )
+    QT = ufl.TensorElement(
+        "Quadrature", mesh.ufl_cell(), 2, quad_scheme="default", shape=(3, 3)
+    )
 
     Q_space = df.fem.FunctionSpace(mesh, Q)
     QV_space = df.fem.FunctionSpace(mesh, QV)
@@ -25,22 +29,23 @@ def test_subspace_map_vector_equals_tensor():
     QV_map, _ = _build_view(cells, QV_space)
     QT_map, _ = _build_view(cells, QT_space)
 
-    assert np.all(Q_map.parent==QV_map.parent)
-    assert np.all(Q_map.child==QV_map.child)
-    assert np.all(Q_map.parent==QT_map.parent)
-    assert np.all(Q_map.child==QT_map.child)
-    
+    assert np.all(Q_map.parent == QV_map.parent)
+    assert np.all(Q_map.child == QV_map.child)
+    assert np.all(Q_map.parent == QT_map.parent)
+    assert np.all(Q_map.child == QT_map.child)
+
     for _ in range(10):
-        cell_sample = np.random.permutation(cells)[:num_cells//2]
+        cell_sample = np.random.permutation(cells)[: num_cells // 2]
 
         Q_map, _ = build_subspace_map(cells, Q_space)
         QV_map, _ = build_subspace_map(cells, QV_space)
         QT_map, _ = build_subspace_map(cells, QT_space)
 
-        assert np.all(Q_map.parent==QV_map.parent)
-        assert np.all(Q_map.child==QV_map.child)
-        assert np.all(Q_map.parent==QT_map.parent)
-        assert np.all(Q_map.child==QT_map.child)
+        assert np.all(Q_map.parent == QV_map.parent)
+        assert np.all(Q_map.child == QV_map.child)
+        assert np.all(Q_map.parent == QT_map.parent)
+        assert np.all(Q_map.child == QT_map.child)
+
 
 def test_map_evaluation():
     mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 5, 7, 11)
@@ -50,8 +55,12 @@ def test_map_evaluation():
     cells = np.arange(0, num_cells, dtype=np.int32)
 
     Q = ufl.FiniteElement("Quadrature", mesh.ufl_cell(), 2, quad_scheme="default")
-    QV = ufl.VectorElement("Quadrature", mesh.ufl_cell(), 2, quad_scheme="default", dim=3)
-    QT = ufl.TensorElement("Quadrature", mesh.ufl_cell(), 2, quad_scheme="default", shape=(3, 3))
+    QV = ufl.VectorElement(
+        "Quadrature", mesh.ufl_cell(), 2, quad_scheme="default", dim=3
+    )
+    QT = ufl.TensorElement(
+        "Quadrature", mesh.ufl_cell(), 2, quad_scheme="default", shape=(3, 3)
+    )
 
     Q_space = df.fem.FunctionSpace(mesh, Q)
     QV_space = df.fem.FunctionSpace(mesh, QV)
@@ -64,15 +73,19 @@ def test_map_evaluation():
     qt = df.fem.Function(QT_space)
     qt_test = qt.copy()
 
-    q.x.array[:] = np.random.random(q.x.array.shape)
-    qv.x.array[:] = np.random.random(qv.x.array.shape)
-    qt.x.array[:] = np.random.random(qt.x.array.shape)
-    
+    scalar_array = np.random.random(q.x.array.shape)
+    q.x.array[:] = scalar_array
+    vector_array = np.random.random(qv.x.array.shape)
+    qv.x.array[:] = vector_array
+    tensor_array = np.random.random(qt.x.array.shape)
+    qt.x.array[:] = tensor_array
 
     for _ in range(10):
-        cell_sample = np.random.permutation(cells)[:num_cells//2]
+        cell_sample = np.random.permutation(cells)[: num_cells // 2]
 
-        Q_sub_map, submesh = build_subspace_map(cell_sample, Q_space, return_subspace=False)
+        Q_sub_map, submesh = build_subspace_map(
+            cell_sample, Q_space, return_subspace=False
+        )
         Q_sub = df.fem.FunctionSpace(submesh, Q)
         QV_sub = df.fem.FunctionSpace(submesh, QV)
         QT_sub = df.fem.FunctionSpace(submesh, QT)
@@ -89,14 +102,14 @@ def test_map_evaluation():
         Q_sub_map.map_to_parent(qv_sub, qv_test)
         Q_sub_map.map_to_parent(qt_sub, qt_test)
 
-        q_view = q.x.array.reshape(num_cells, -1)
+        q_view = scalar_array.reshape(num_cells, -1)
         q_test_view = q_test.x.array.reshape(num_cells, -1)
         assert np.all(q_view[cell_sample] == q_test_view[cell_sample])
-        
-        qv_view = qv.x.array.reshape(num_cells, -1)
+
+        qv_view = vector_array.reshape(num_cells, -1)
         qv_test_view = qv_test.x.array.reshape(num_cells, -1)
         assert np.all(qv_view[cell_sample] == qv_test_view[cell_sample])
 
-        qt_view = qt.x.array.reshape(num_cells, -1)
+        qt_view = tensor_array.reshape(num_cells, -1)
         qt_test_view = qt_test.x.array.reshape(num_cells, -1)
         assert np.all(qt_view[cell_sample] == qt_test_view[cell_sample])
