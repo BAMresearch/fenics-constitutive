@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import dolfinx as df
 import numpy as np
+import pytest
 from dolfinx.nls.petsc import NewtonSolver
 from linear_elasticity_model import LinearElasticityModel
 from mpi4py import MPI
@@ -57,8 +58,16 @@ def test_uniaxial_stress():
         youngs_modulus * 0.02
     )
 
-
-def test_uniaxial_stress_two_laws():
+@pytest.mark.parametrize(
+    ["factor"],
+    [
+        [0.5],
+        [2.0],
+        [3.0],
+        [4.0],
+    ],
+)
+def test_uniaxial_stress_two_laws(factor: float):
     mesh = df.mesh.create_unit_interval(MPI.COMM_WORLD, 2)
     V = df.fem.FunctionSpace(mesh, ("CG", 1))
     u = df.fem.Function(V)
@@ -72,7 +81,7 @@ def test_uniaxial_stress_two_laws():
         ),
         (
             LinearElasticityModel(
-                parameters={"E": 2.0 * youngs_modulus, "nu": poissons_ratio},
+                parameters={"E": factor * youngs_modulus, "nu": poissons_ratio},
                 constraint=Constraint.UNIAXIAL_STRESS,
             ),
             np.array([1], dtype=np.int32),
@@ -100,10 +109,13 @@ def test_uniaxial_stress_two_laws():
     solver = NewtonSolver(MPI.COMM_WORLD, problem)
     n, converged = solver.solve(u)
     problem.update()
+
+    # Is the stress homogenous?
     assert abs(problem.stress_0.x.array[0] - problem.stress_0.x.array[1]) < 1e-10 / abs(
         problem.stress_0.x.array[0]
     )
 
+    # Does the stiffer element have a proportionally lower strain?
     assert abs(
-        problem._del_grad_u[0].x.array[0] - 2.0 * problem._del_grad_u[1].x.array[0]
+        problem._del_grad_u[0].x.array[0] - factor * problem._del_grad_u[1].x.array[0]
     ) < 1e-10 / abs(problem._del_grad_u[0].x.array[0])
