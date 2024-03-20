@@ -15,12 +15,12 @@ def build_history(
     law: IncrSmallStrainModel, mesh: df.mesh.Mesh, q_degree: int
 ) -> df.fem.Function | dict[str, df.fem.Function] | None:
     """Build the history space and function(s) for the given law.
-    
+
     Args:
         law: The constitutive law.
         mesh: Either the full mesh for a homogenous domain or the submesh.
         q_degree: The quadrature degree.
-    
+
     Returns:
         The history function(s) for the given law.
 
@@ -85,7 +85,9 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
         ), "All laws must have the same constraint"
 
         gdim = mesh.ufl_cell().geometric_dimension()
-        assert constraint.geometric_dim() == gdim, "Geometric dimension mismatch between mesh and laws"
+        assert (
+            constraint.geometric_dim() == gdim
+        ), "Geometric dimension mismatch between mesh and laws"
 
         QVe = ufl.VectorElement(
             "Quadrature",
@@ -133,16 +135,16 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
                     )
                     self.submesh_maps.append(subspace_map)
                     self._stress.append(df.fem.Function(QV_subspace))
-                    
-                    #subspace for grad u
+
+                    # subspace for grad u
                     Q_grad_u_subspace = df.fem.FunctionSpace(submesh, Q_grad_u_e)
                     self._del_grad_u.append(df.fem.Function(Q_grad_u_subspace))
 
-                    #subspace for tanget
+                    # subspace for tanget
                     QT_subspace = df.fem.FunctionSpace(submesh, QTe)
                     self._tangent.append(df.fem.Function(QT_subspace))
 
-                    #subspaces for history
+                    # subspaces for history
                     history_0 = build_history(law, submesh, q_degree)
                     history_1 = (
                         {key: fn.copy() for key, fn in history_0.items()}
@@ -154,12 +156,12 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
             else:
                 law, cells = laws[0]
                 self.laws.append((law, cells))
-                
-                #subspace for grad u
+
+                # subspace for grad u
                 Q_grad_u_space = df.fem.FunctionSpace(mesh, Q_grad_u_e)
                 self._del_grad_u.append(df.fem.Function(Q_grad_u_space))
 
-                #Spaces for history
+                # Spaces for history
                 history_0 = build_history(law, mesh, q_degree)
                 history_1 = (
                     {key: fn.copy() for key, fn in history_0.items()}
@@ -222,7 +224,9 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
                 self._u,
                 self._bcs,
                 self.dR_form,
-                form_compiler_options=self._form_compiler_options if self._form_compiler_options is not None else {},
+                form_compiler_options=self._form_compiler_options
+                if self._form_compiler_options is not None
+                else {},
                 jit_options=self._jit_options if self._jit_options is not None else {},
             )
 
@@ -244,8 +248,10 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
         if len(self.laws) > 1:
             for k, (law, cells) in enumerate(self.laws):
                 with df.common.Timer("strain_evaluation"):
-                    #TODO: test this!!
-                    self.del_grad_u_expr.eval(cells, self._del_grad_u[k].x.array.reshape(cells.size, -1))
+                    # TODO: test this!!
+                    self.del_grad_u_expr.eval(
+                        cells, self._del_grad_u[k].x.array.reshape(cells.size, -1)
+                    )
 
                 with df.common.Timer("stress_evaluation"):
                     self.submesh_maps[k].map_to_child(self.stress_0, self._stress[k])
@@ -256,7 +262,9 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
                         self._del_grad_u[k].x.array,
                         self._stress[k].x.array,
                         self._tangent[k].x.array,
-                        self._history_1[k].x.array if law.history_dim is not None else None,
+                        self._history_1[k].x.array
+                        if law.history_dim is not None
+                        else None,
                     )
 
                 with df.common.Timer("stress-local-to-global"):
@@ -265,7 +273,9 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
         else:
             law, cells = self.laws[0]
             with df.common.Timer("strain_evaluation"):
-                self.del_grad_u_expr.eval(cells, self._del_grad_u[0].x.array.reshape(cells.size, -1))
+                self.del_grad_u_expr.eval(
+                    cells, self._del_grad_u[0].x.array.reshape(cells.size, -1)
+                )
 
             with df.common.Timer("stress_evaluation"):
                 self.stress_1.x.array[:] = self.stress_0.x.array
@@ -276,7 +286,9 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
                     self._del_grad_u[0].x.array,
                     self.stress_1.x.array,
                     self.tangent.x.array,
-                    self._history_1[0].x.array if law.history_dim is not None else None,  # history,
+                    self._history_1[0].x.array
+                    if law.history_dim is not None
+                    else None,  # history,
                 )
 
         self.stress_1.x.scatter_forward()
@@ -290,7 +302,7 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
 
         self.stress_0.x.array[:] = self.stress_1.x.array
         self.stress_0.x.scatter_forward()
-        
+
         for k, (law, _) in enumerate(self.laws):
             match law.history_dim:
                 case int():
@@ -300,5 +312,7 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
                     pass
                 case dict():
                     for key in law.history_dim:
-                        self._history_0[k][key].x.array[:] = self._history_1[k][key].x.array
+                        self._history_0[k][key].x.array[:] = self._history_1[k][
+                            key
+                        ].x.array
                         self._history_0[k][key].x.scatter_forward()
