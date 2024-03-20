@@ -3,7 +3,7 @@ import numpy as np
 import ufl
 from mpi4py import MPI
 
-from fenics_constitutive import SubSpaceMap, _build_view, build_subspace_map
+from fenics_constitutive import SubSpaceMap, build_subspace_map
 
 
 def test_subspace_vector_map_vector_equals_tensor_map():
@@ -26,8 +26,8 @@ def test_subspace_vector_map_vector_equals_tensor_map():
     QT_space = df.fem.FunctionSpace(mesh, QT)
 
     Q_map, _ = build_subspace_map(cells, Q_space)
-    QV_map, _ = _build_view(cells, QV_space)
-    QT_map, _ = _build_view(cells, QT_space)
+    QV_map, _ = build_subspace_map(cells, QV_space)
+    QT_map, _ = build_subspace_map(cells, QT_space)
 
     assert np.all(Q_map.parent == QV_map.parent)
     assert np.all(Q_map.child == QV_map.child)
