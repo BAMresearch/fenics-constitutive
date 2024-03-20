@@ -74,6 +74,7 @@ filterwarnings = [
 log_cli_level = "INFO"
 testpaths = [
   "tests",
+  "examples",
 ]
 
 
