@@ -103,7 +103,7 @@ disallow_incomplete_defs = true
 
 
 [tool.ruff]
-src = ["src"]
+src = ["src", "tests", "examples"]
 
 [tool.ruff.lint]
 extend-select = [

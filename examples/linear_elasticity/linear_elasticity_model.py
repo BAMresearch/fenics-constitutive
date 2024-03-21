@@ -1,5 +1,8 @@
-from fenics_constitutive import Constraint, IncrSmallStrainModel, strain_from_grad_u
+from __future__ import annotations
+
 import numpy as np
+
+from fenics_constitutive import Constraint, IncrSmallStrainModel, strain_from_grad_u
 
 
 class LinearElasticityModel(IncrSmallStrainModel):
@@ -34,7 +37,7 @@ class LinearElasticityModel(IncrSmallStrainModel):
                     ]
                 )
             case Constraint.PLANE_STRESS:
-                # We do not make any assumptions about strain in the z-direction 
+                # We do not make any assumptions about strain in the z-direction
                 # This matrix just multiplies the z component by 0.0 which results
                 # in a plane stress state
                 # see https://en.wikipedia.org/wiki/Hooke%27s_law
@@ -58,7 +61,8 @@ class LinearElasticityModel(IncrSmallStrainModel):
                 # see https://csmbrannon.net/2012/08/02/distinction-between-uniaxial-stress-and-uniaxial-strain/
                 self.D = np.array([[E]])
             case _:
-                raise NotImplementedError("Constraint not implemented")
+                msg = "Constraint not implemented"
+                raise NotImplementedError(msg)
 
     def evaluate(
         self,

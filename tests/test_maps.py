@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 import dolfinx as df
 import numpy as np
 import ufl
 from mpi4py import MPI
 
-from fenics_constitutive import SubSpaceMap, build_subspace_map
+from fenics_constitutive import build_subspace_map
 
 
 def test_subspace_vector_map_vector_equals_tensor_map():
@@ -37,9 +39,9 @@ def test_subspace_vector_map_vector_equals_tensor_map():
     for _ in range(10):
         cell_sample = np.random.permutation(cells)[: num_cells // 2]
 
-        Q_map, _ = build_subspace_map(cells, Q_space)
-        QV_map, _ = build_subspace_map(cells, QV_space)
-        QT_map, _ = build_subspace_map(cells, QT_space)
+        Q_map, _ = build_subspace_map(cell_sample, Q_space)
+        QV_map, _ = build_subspace_map(cell_sample, QV_space)
+        QT_map, _ = build_subspace_map(cell_sample, QT_space)
 
         assert np.all(Q_map.parent == QV_map.parent)
         assert np.all(Q_map.child == QV_map.child)

@@ -61,12 +61,12 @@ def test_uniaxial_stress():
 
 
 @pytest.mark.parametrize(
-    ["factor"],
+    ("factor"),
     [
-        [0.5],
-        [2.0],
-        [3.0],
-        [4.0],
+        (0.5),
+        (2.0),
+        (3.0),
+        (4.0),
     ],
 )
 def test_uniaxial_stress_two_laws(factor: float):
@@ -164,6 +164,7 @@ def test_uniaxial_strain():
         analytical_stress
     )
 
+
 def test_plane_strain():
     # sanity check if out of plane stress is NOT zero
     mesh = df.mesh.create_unit_square(MPI.COMM_WORLD, 2, 2)
@@ -179,7 +180,7 @@ def test_plane_strain():
 
     def right_boundary(x):
         return np.isclose(x[0], 1.0)
-    
+
     dofs_left = df.fem.locate_dofs_geometrical(V, left_boundary)
     dofs_right = df.fem.locate_dofs_geometrical(V, right_boundary)
     bc_left = df.fem.dirichletbc(np.array([0.0, 0.0]), dofs_left, V)
@@ -194,7 +195,6 @@ def test_plane_strain():
     solver = NewtonSolver(MPI.COMM_WORLD, problem)
     n, converged = solver.solve(u)
     problem.update()
-    print(problem.stress_0.x.array.reshape(-1, law.constraint.stress_strain_dim()))
     assert (
         np.linalg.norm(
             problem.stress_0.x.array.reshape(-1, law.constraint.stress_strain_dim())[
