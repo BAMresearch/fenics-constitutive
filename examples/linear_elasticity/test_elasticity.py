@@ -164,6 +164,87 @@ def test_uniaxial_strain():
         analytical_stress
     )
 
+def test_plane_strain():
+    # sanity check if out of plane stress is NOT zero
+    mesh = df.mesh.create_unit_square(MPI.COMM_WORLD, 2, 2)
+    V = df.fem.VectorFunctionSpace(mesh, ("CG", 1))
+    u = df.fem.Function(V)
+    law = LinearElasticityModel(
+        parameters={"E": youngs_modulus, "nu": poissons_ratio},
+        constraint=Constraint.PLANE_STRAIN,
+    )
+
+    def left_boundary(x):
+        return np.isclose(x[0], 0.0)
+
+    def right_boundary(x):
+        return np.isclose(x[0], 1.0)
+    
+    dofs_left = df.fem.locate_dofs_geometrical(V, left_boundary)
+    dofs_right = df.fem.locate_dofs_geometrical(V, right_boundary)
+    bc_left = df.fem.dirichletbc(np.array([0.0, 0.0]), dofs_left, V)
+    bc_right = df.fem.dirichletbc(np.array([0.01, 0.0]), dofs_right, V)
+
+    problem = IncrSmallStrainProblem(
+        law,
+        u,
+        [bc_left, bc_right],
+    )
+
+    solver = NewtonSolver(MPI.COMM_WORLD, problem)
+    n, converged = solver.solve(u)
+    problem.update()
+    print(problem.stress_0.x.array.reshape(-1, law.constraint.stress_strain_dim()))
+    assert (
+        np.linalg.norm(
+            problem.stress_0.x.array.reshape(-1, law.constraint.stress_strain_dim())[
+                :, 2
+            ]
+        )
+        > 1e-2
+    )
+
+
+def test_plane_stress():
+    # just a sanity check if out of plane stress is really zero
+    mesh = df.mesh.create_unit_square(MPI.COMM_WORLD, 2, 2)
+    V = df.fem.VectorFunctionSpace(mesh, ("CG", 1))
+    u = df.fem.Function(V)
+    law = LinearElasticityModel(
+        parameters={"E": youngs_modulus, "nu": poissons_ratio},
+        constraint=Constraint.PLANE_STRESS,
+    )
+
+    def left_boundary(x):
+        return np.isclose(x[0], 0.0)
+
+    def right_boundary(x):
+        return np.isclose(x[0], 1.0)
+
+    # displacement = df.fem.Constant(mesh_2d, np.ndarray([0.01,0.0]))
+    dofs_left = df.fem.locate_dofs_geometrical(V, left_boundary)
+    dofs_right = df.fem.locate_dofs_geometrical(V, right_boundary)
+    bc_left = df.fem.dirichletbc(np.array([0.0, 0.0]), dofs_left, V)
+    bc_right = df.fem.dirichletbc(np.array([0.01, 0.0]), dofs_right, V)
+
+    problem = IncrSmallStrainProblem(
+        law,
+        u,
+        [bc_left, bc_right],
+    )
+
+    solver = NewtonSolver(MPI.COMM_WORLD, problem)
+    n, converged = solver.solve(u)
+    problem.update()
+    assert (
+        np.linalg.norm(
+            problem.stress_0.x.array.reshape(-1, law.constraint.stress_strain_dim())[
+                :, 2
+            ]
+        )
+        < 1e-10
+    )
+
 
 def test_3d():
     # test the 3d case against a pure fenics implementation
@@ -184,7 +265,7 @@ def test_3d():
     # displacement = df.fem.Constant(mesh_2d, np.ndarray([0.01,0.0]))
     dofs_left = df.fem.locate_dofs_geometrical(V, left_boundary)
     dofs_right = df.fem.locate_dofs_geometrical(V, right_boundary)
-    bc_left = df.fem.dirichletbc(np.array([0.0,0.0, 0.0]), dofs_left, V)
+    bc_left = df.fem.dirichletbc(np.array([0.0, 0.0, 0.0]), dofs_left, V)
     bc_right = df.fem.dirichletbc(np.array([0.01, 0.0, 0.0]), dofs_right, V)
 
     problem = IncrSmallStrainProblem(
@@ -211,13 +292,16 @@ def test_3d():
             youngs_modulus / (2.0 * (1.0 + poissons_ratio)),
         )
         return 2.0 * mu * eps + lam * ufl.tr(eps) * ufl.Identity(len(v))
+
     zero = df.fem.Constant(mesh, np.array([0.0, 0.0, 0.0]))
     a = ufl.inner(ufl.grad(v_), sigma(u_)) * ufl.dx
-    L = ufl.dot(zero ,v_) * ufl.dx
+    L = ufl.dot(zero, v_) * ufl.dx
 
     u_fenics = u.copy()
     problem_fenics = df.fem.petsc.LinearProblem(a, L, [bc_left, bc_right], u=u_fenics)
     problem_fenics.solve()
 
     # Check that the solution is the same
-    assert np.linalg.norm(u_fenics.x.array - u.x.array) < 1e-8/np.linalg.norm(u_fenics.x.array)
+    assert np.linalg.norm(u_fenics.x.array - u.x.array) < 1e-8 / np.linalg.norm(
+        u_fenics.x.array
+    )
