@@ -27,8 +27,8 @@ class LinearElasticityModel(IncrSmallStrainModel):
                 # see https://en.wikipedia.org/wiki/Hooke%27s_law
                 self.D = np.array(
                     [
-                        [2.0 * mu + lam, lam, 0.0, 0.0],
-                        [lam, 2.0 * mu + lam, 0.0, 0.0],
+                        [2.0 * mu + lam, lam, lam, 0.0],
+                        [lam, 2.0 * mu + lam, lam, 0.0],
                         [lam, lam, 2.0 * mu + lam, 0.0],
                         [0.0, 0.0, 0.0, 2.0 * mu],
                     ]
