@@ -1,10 +1,13 @@
-from mpi4py import MPI
-import ufl
-from fenics_constitutive import Constraint, strain_from_grad_u, ufl_mandel_strain
+from __future__ import annotations
+
+import basix
+import dolfinx as df
 import numpy as np
 import pytest
-import dolfinx as df
-import basix
+import ufl
+from mpi4py import MPI
+
+from fenics_constitutive import Constraint, strain_from_grad_u, ufl_mandel_strain
 
 
 def test_strain_from_grad_u():
@@ -41,26 +44,33 @@ def test_strain_from_grad_u():
 
 
 @pytest.mark.parametrize(
-    ["constraint"],
+    ("constraint"),
     [
-        [Constraint.UNIAXIAL_STRAIN],
-        [Constraint.UNIAXIAL_STRESS],
-        [Constraint.PLANE_STRAIN],
-        [Constraint.PLANE_STRESS],
-        [Constraint.FULL],
+        (Constraint.UNIAXIAL_STRAIN),
+        (Constraint.UNIAXIAL_STRESS),
+        (Constraint.PLANE_STRAIN),
+        (Constraint.PLANE_STRESS),
+        (Constraint.FULL),
     ],
 )
 def test_ufl_strain_equals_array_conversion(constraint: Constraint):
     match constraint.geometric_dim():
         case 1:
             mesh = df.mesh.create_unit_interval(MPI.COMM_WORLD, 2)
-            lam = lambda x: x[0] * 0.1
+
+            def lam(x):
+                return x[0] * 0.1
         case 2:
             mesh = df.mesh.create_unit_square(MPI.COMM_WORLD, 2, 2)
-            lam = lambda x: (x[0] * 0.1, x[1] * 0.2)
+
+            def lam(x):
+                return x[0] * 0.1, x[1] * 0.2
         case 3:
             mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 2, 2, 2)
-            lam = lambda x: (x[0] * 0.1, x[1] * 0.2, x[2] * 0.3)
+
+            def lam(x):
+                return x[0] * 0.1, x[1] * 0.2, x[2] * 0.3
+
     P1 = df.fem.VectorFunctionSpace(mesh, ("Lagrange", 1))
     u = df.fem.Function(P1)
     grad_u_ufl = ufl.grad(u)
@@ -73,13 +83,9 @@ def test_ufl_strain_equals_array_conversion(constraint: Constraint):
         1,
     )
 
-    expr_grad_u = df.fem.Expression(
-        grad_u_ufl, points
-    )
-    expr_mandel_strain = df.fem.Expression(
-        mandel_strain_ufl, points
-    )
-    
+    expr_grad_u = df.fem.Expression(grad_u_ufl, points)
+    expr_mandel_strain = df.fem.Expression(mandel_strain_ufl, points)
+
     n_cells = mesh.topology.index_map(mesh.topology.dim).size_local
     grad_u_array = expr_grad_u.eval(np.arange(n_cells, dtype=np.int32)).flatten()
     strain_array = expr_mandel_strain.eval(np.arange(n_cells, dtype=np.int32)).flatten()
