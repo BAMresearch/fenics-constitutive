@@ -94,6 +94,8 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
         form_compiler_options: dict | None = None,
         jit_options: dict | None = None,
     ):
+        print("help, i am in init")
+        print("help, i am in init")
         mesh = u.function_space.mesh
         map_c = mesh.topology.index_map(mesh.topology.dim)
         num_cells = map_c.size_local + map_c.num_ghosts
@@ -229,7 +231,7 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
     @property
     def a(self) -> df.fem.FormMetaClass:
         """Compiled bilinear form (the Jacobian form)"""
-
+        print("help, i am in a")
         if not hasattr(self, "_a"):
             # ensure compilation of UFL forms
             super().__init__(
@@ -255,7 +257,7 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
 
         """
         super().form(x)
-
+        print("help, i am in form")
         assert (
             x.array.data == self._u.vector.array.data
         ), "The solution vector must be the same as the one passed to the MechanicsProblem"
@@ -293,14 +295,21 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
 
             with df.common.Timer("stress_evaluation"):
                 self.stress_1.x.array[:] = self.stress_0.x.array
-                if law.history_dim is not None:
+                history_input = None
+                if isinstance(law.history_dim, int):
                     self._history_1[0].x.array[:] = self._history_0[0].x.array
+                    history_input = self._history_1[0].x.array
+                elif isinstance(law.history_dim, dict):
+                    history_input = {}
+                    for key in law.history_dim:
+                        self._history_1[0][key].x.array[:] = self._history_0[0][key].x.array
+                        history_input[key] = self._history_1[0][key].x.array
                 law.evaluate(
                     self._time,
                     self._del_grad_u[0].x.array,
                     self.stress_1.x.array,
                     self.tangent.x.array,
-                    self._history_1[0].x.array if law.history_dim is not None else None,
+                    history_input,
                 )
 
         self.stress_1.x.scatter_forward()
