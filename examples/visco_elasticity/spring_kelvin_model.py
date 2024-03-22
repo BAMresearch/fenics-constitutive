@@ -59,7 +59,8 @@ class SpringKelvinModel(IncrSmallStrainModel):
         # n_gauss = grad_del_u.size // (self.geometric_dim**2)
         mandel_view = mandel_stress.reshape(-1, self.stress_strain_dim)
         strain_increment = strain_from_grad_u(grad_del_u, self.constraint).reshape(-1, self.stress_strain_dim)
-        strain_visco_n = history['strain_visko'].reshape(-1, self.stress_strain_dim)
+        strain_visco_view = history.reshape(-1, self.stress_strain_dim)
+        tangent_view = tangent.reshape(-1, self.stress_strain_dim**2)
 
         # loop over gauss points
         for n, eps in enumerate(strain_increment):
@@ -67,7 +68,7 @@ class SpringKelvinModel(IncrSmallStrainModel):
             print('eps', eps)
             print('n', n)
             stress_n = mandel_view[n]
-            strain_visco_n = strain_visco_n[n]
+            strain_visco_n = strain_visco_view[n]
 
             # compute visko strain 1D case only !!!
             factor = (1 / del_t + 1 / self.tau + self.E_0 / (self.tau * self.E_1))
@@ -80,9 +81,9 @@ class SpringKelvinModel(IncrSmallStrainModel):
 
             # update values
             mandel_view[n] += dstress
-            history['strain_visco'][n] += deps_visko
-            history['strain'][n] += eps
-            tangent[n] = D.flatten()
+            strain_visco_view[n] += deps_visko
+            #history['strain'][n] += eps
+            tangent_view[n] = D.flatten()
 
 
     @property
@@ -90,7 +91,8 @@ class SpringKelvinModel(IncrSmallStrainModel):
         return self._constraint
 
     @property
-    def history_dim(self) -> None:
+    def history_dim(self) -> int:
+        return self.stress_strain_dim
         return {'strain_visco': self.stress_strain_dim, 'strain': self.stress_strain_dim}
 
     def update(self) -> None:
