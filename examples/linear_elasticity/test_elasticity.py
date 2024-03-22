@@ -43,18 +43,24 @@ def test_uniaxial_stress():
 
     solver = NewtonSolver(MPI.COMM_WORLD, problem)
     n, converged = solver.solve(u)
+
+    # Compare the result with the analytical solution
     assert abs(problem.stress_1.x.array[0] - youngs_modulus * 0.01) < 1e-10 / (
         youngs_modulus * 0.01
     )
 
     problem.update()
+    # Check that the stress is updated correctly
     assert abs(problem.stress_0.x.array[0] - youngs_modulus * 0.01) < 1e-10 / (
         youngs_modulus * 0.01
     )
+    # Check that the displacement is updated correctly
     assert np.max(problem._u0.x.array) == displacement.value
 
     displacement.value = 0.02
     n, converged = solver.solve(u)
+
+    # Compare the result of the updated problem with new BC with the analytical solution
     assert abs(problem.stress_1.x.array[0] - youngs_modulus * 0.02) < 1e-10 / (
         youngs_modulus * 0.02
     )

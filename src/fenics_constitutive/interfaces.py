@@ -83,7 +83,8 @@ class IncrSmallStrainModel(ABC):
         tangent: np.ndarray,
         history: np.ndarray | dict[str, np.ndarray] | None,
     ) -> None:
-        """Evaluate the constitutive model and overwrite the stress, tangent and history.
+        """
+        Evaluate the constitutive model and overwrite the stress, tangent and history.
 
         Args:
             del_t : The time increment.

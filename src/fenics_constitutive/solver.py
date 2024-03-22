@@ -63,6 +63,28 @@ def build_history(
 
 
 class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
+    """
+    A nonlinear problem for incremental small strain models. To be used with
+    the dolfinx NewtonSolver.
+
+    Args:
+        laws: A list of tuples where the first element is the constitutive law and the second
+            element is the cells for the submesh. If only one law is provided, it is assumed
+            that the domain is homogenous.
+        u: The displacement field. This is the unknown in the nonlinear problem.
+        bcs: The Dirichlet boundary conditions.
+        q_degree: The quadrature degree (Polynomial degree which the quadrature rule needs to integrate exactly).
+        form_compiler_options: The options for the form compiler.
+        jit_options: The options for the JIT compiler.
+
+    Note:
+        If `super().__init__(R, u, bcs, dR)` is called within the __init__ method,
+        the user cannot add Neumann BCs. Therefore, the compilation (i.e. call to
+        `super().__init__()`) is done when `df.nls.petsc.NewtonSolver` is initialized.
+        The solver will call `self._A = fem.petsc.create_matrix(problem.a)` and hence
+        we override the property ``a`` of NonlinearProblem to ensure that the form is compiled.
+    """
+
     def __init__(
         self,
         laws: list[tuple[IncrSmallStrainModel, np.ndarray]] | IncrSmallStrainModel,
@@ -204,15 +226,6 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
             ufl.nabla_grad(self._u - self._u0), self.q_points
         )
 
-        # ### Note on JIT compilation of UFL forms
-        # if super().__init__(R, u, bcs, dR) is called within ElasticityProblem.__init__
-        # the user cannot add Neumann BCs.
-        # Therefore, the compilation (i.e. call to super().__init__()) is done when
-        # df.nls.petsc.NewtonSolver is initialized.
-        # df.nls.petsc.NewtonSolver will call
-        # self._A = fem.petsc.create_matrix(problem.a) and hence it would suffice
-        # to override the property ``a`` of NonlinearProblem.
-
     @property
     def a(self) -> df.fem.FormMetaClass:
         """Compiled bilinear form (the Jacobian form)"""
@@ -232,13 +245,14 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
 
         return self._a
 
-    def form(self, x: PETSc.Vec):
+    def form(self, x: PETSc.Vec) -> None:
         """This function is called before the residual or Jacobian is
-        computed. This is usually used to update ghost values.
-        Parameters
-        ----------
-        x
-            The vector containing the latest solution
+        computed. This is usually used to update ghost values, but here
+        we use it to update the stress, tangent and history.
+
+        Args:
+            x: The vector containing the latest solution
+
         """
         super().form(x)
 
@@ -286,17 +300,16 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
                     self._del_grad_u[0].x.array,
                     self.stress_1.x.array,
                     self.tangent.x.array,
-                    self._history_1[0].x.array
-                    if law.history_dim is not None
-                    else None,  # history,
+                    self._history_1[0].x.array if law.history_dim is not None else None,
                 )
 
         self.stress_1.x.scatter_forward()
         self.tangent.x.scatter_forward()
 
-    def update(self):
-        # update the current displacement, stress and history
-        # works for both homogeneous and inhomogeneous domains
+    def update(self) -> None:
+        """
+        Update the current displacement, stress and history.
+        """
         self._u0.x.array[:] = self._u.x.array
         self._u0.x.scatter_forward()
 
