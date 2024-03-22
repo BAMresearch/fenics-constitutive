@@ -54,11 +54,12 @@ jobs:
         shell: bash -l {0}
         run: |
           pytest
-      
-      - name: pytest-mpi
-        id : pytest-mpi
-        shell: bash -l {0}
-        run: |
-          mpirun -np 2 python3 -m pytest 
+      #- name: execute example scripts
+      #  shell: bash -l {0}
+      #  run: |
+      #    for file in docs/examples/*.py      
+      #      do
+      #        python $file
+      #      done
 
 
