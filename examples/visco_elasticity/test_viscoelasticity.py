@@ -6,7 +6,6 @@ import pytest
 import ufl
 from dolfinx.nls.petsc import NewtonSolver
 from spring_kelvin_model import SpringKelvinModel
-from linear_elasticity.linear_elasticity_model import LinearElasticityModel
 from mpi4py import MPI
 
 from fenics_constitutive import Constraint, IncrSmallStrainProblem
