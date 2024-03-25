@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from abc import ABC, abstractmethod, abstractproperty
 from enum import Enum
 
@@ -81,7 +83,8 @@ class IncrSmallStrainModel(ABC):
         tangent: np.ndarray,
         history: np.ndarray | dict[str, np.ndarray] | None,
     ) -> None:
-        """Evaluate the constitutive model and overwrite the stress, tangent and history.
+        """
+        Evaluate the constitutive model and overwrite the stress, tangent and history.
 
         Args:
             del_t : The time increment.
@@ -90,7 +93,6 @@ class IncrSmallStrainModel(ABC):
             tangent : The tangent.
             history : The history variable(s).
         """
-        pass
 
     @abstractmethod
     def update(self) -> None:
@@ -100,7 +102,6 @@ class IncrSmallStrainModel(ABC):
         For example: The model could contain the current time which is not
         stored in the history, but needs to be updated after each evaluation.
         """
-        pass
 
     @abstractproperty
     def constraint(self) -> Constraint:
@@ -110,7 +111,6 @@ class IncrSmallStrainModel(ABC):
         Returns:
             The constraint.
         """
-        pass
 
     @property
     def stress_strain_dim(self) -> int:
@@ -144,4 +144,3 @@ class IncrSmallStrainModel(ABC):
         Returns:
             The dimension of the history variable(s).
         """
-        pass
