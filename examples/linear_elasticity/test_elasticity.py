@@ -15,7 +15,7 @@ poissons_ratio = 0.3
 
 
 def test_uniaxial_stress():
-    mesh = df.mesh.create_unit_interval(MPI.COMM_WORLD, 2)
+    mesh = df.mesh.create_unit_interval(MPI.COMM_WORLD, 4)
     V = df.fem.FunctionSpace(mesh, ("CG", 1))
     u = df.fem.Function(V)
     law = LinearElasticityModel(
@@ -39,6 +39,7 @@ def test_uniaxial_stress():
         law,
         u,
         [bc_left, bc_right],
+        1,
     )
 
     solver = NewtonSolver(MPI.COMM_WORLD, problem)
@@ -112,6 +113,7 @@ def test_uniaxial_stress_two_laws(factor: float):
         laws,
         u,
         [bc_left, bc_right],
+        1,
     )
 
     solver = NewtonSolver(MPI.COMM_WORLD, problem)
@@ -154,6 +156,7 @@ def test_uniaxial_strain():
         law,
         u,
         [bc_left, bc_right],
+        1,
     )
 
     solver = NewtonSolver(MPI.COMM_WORLD, problem)
@@ -196,6 +199,7 @@ def test_plane_strain():
         law,
         u,
         [bc_left, bc_right],
+        1,
     )
 
     solver = NewtonSolver(MPI.COMM_WORLD, problem)
@@ -237,6 +241,7 @@ def test_plane_stress():
         law,
         u,
         [bc_left, bc_right],
+        1,
     )
 
     solver = NewtonSolver(MPI.COMM_WORLD, problem)
@@ -278,6 +283,7 @@ def test_3d():
         law,
         u,
         [bc_left, bc_right],
+        1,
     )
 
     solver = NewtonSolver(MPI.COMM_WORLD, problem)
@@ -311,3 +317,7 @@ def test_3d():
     assert np.linalg.norm(u_fenics.x.array - u.x.array) < 1e-8 / np.linalg.norm(
         u_fenics.x.array
     )
+
+
+if __name__ == "__main__":
+    test_uniaxial_stress()

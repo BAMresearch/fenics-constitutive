@@ -26,6 +26,7 @@ class SubSpaceMap:
     sub_mesh: df.mesh.Mesh
     parent_mesh: df.mesh.Mesh
 
+    @df.common.timed("constitutive: map_to_parent_mesh")
     def map_to_parent(self, sub: df.fem.Function, parent: df.fem.Function) -> None:
         """
         Map the values from the subspace to the parent space.
@@ -47,6 +48,7 @@ class SubSpaceMap:
         parent_array[self.parent] = sub_array[self.child]
         parent.x.scatter_forward()
 
+    @df.common.timed("constitutive: map_to_child_mesh")
     def map_to_child(self, parent: df.fem.Function, sub: df.fem.Function) -> None:
         """
         Map the values from the parent space to the subspace.
@@ -69,6 +71,7 @@ class SubSpaceMap:
         sub.x.scatter_forward()
 
 
+@df.common.timed("constitutive: build_subspace_map")
 def build_subspace_map(
     cells: np.ndarray, V: df.fem.FunctionSpace, return_subspace=False
 ) -> (
@@ -117,6 +120,6 @@ def build_subspace_map(
         )
     if return_subspace:
         return map, submesh, V_sub
-    else:
-        del V_sub
-        return map, submesh
+
+    del V_sub
+    return map, submesh

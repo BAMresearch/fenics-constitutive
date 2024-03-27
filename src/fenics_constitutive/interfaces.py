@@ -133,7 +133,7 @@ class IncrSmallStrainModel(ABC):
         return self.constraint.geometric_dim()
 
     @abstractproperty
-    def history_dim(self) -> int | dict[str, int | tuple[int, int]] | None:
+    def history_dim(self) -> dict[str, int | tuple[int, int]] | None:
         """
         The dimensions of history variable(s). This is needed to tell the solver which quadrature
         spaces or arrays to build. If all history variables are stored in a single
