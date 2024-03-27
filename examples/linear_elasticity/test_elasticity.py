@@ -7,6 +7,7 @@ import ufl
 from dolfinx.nls.petsc import NewtonSolver
 from linear_elasticity_model import LinearElasticityModel
 from mpi4py import MPI
+from petsc4py import PETSc
 
 from fenics_constitutive import Constraint, IncrSmallStrainProblem
 
@@ -40,8 +41,18 @@ def test_uniaxial_stress():
         u,
         [bc_left, bc_right],
     )
-
+    
+    df.log.set_log_level(df.log.LogLevel.INFO)
     solver = NewtonSolver(MPI.COMM_WORLD, problem)
+    #ksp = solver.krylov_solver
+    #opts = PETSc.Options()
+    #print(opts.getAll())
+    #option_prefix = ksp.getOptionsPrefix()
+    #opts[f"{option_prefix}ksp_type"] = "gmres"
+    #opts[f"{option_prefix}pc_factor_mat_solver_type"] = "none"
+    #opts[f"{option_prefix}pc_type"] = "none"
+
+    #print(opts.getAll())
     n, converged = solver.solve(u)
 
     # Compare the result with the analytical solution
@@ -311,3 +322,6 @@ def test_3d():
     assert np.linalg.norm(u_fenics.x.array - u.x.array) < 1e-8 / np.linalg.norm(
         u_fenics.x.array
     )
+
+if __name__ == "__main__":
+    test_uniaxial_stress()

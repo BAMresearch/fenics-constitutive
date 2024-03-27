@@ -230,7 +230,7 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
             x: The vector containing the latest solution
 
         """
-        super().form(x)
+        #super().form(x)
         assert (
             x.array.data == self._u.vector.array.data
         ), "The solution vector must be the same as the one passed to the MechanicsProblem"
@@ -242,6 +242,7 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
             self.del_grad_u_expr.eval(
                 cells, self._del_grad_u[k].x.array.reshape(cells.size, -1)
             )
+            self._del_grad_u[k].x.scatter_forward()
             if len(self.laws) > 1:
                 self.submesh_maps[k].map_to_child(self.stress_0, self._stress[k])
                 stress_input = self._stress[k].x.array
@@ -268,6 +269,8 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
                 self.submesh_maps[k].map_to_parent(self._stress[k], self.stress_1)
                 self.submesh_maps[k].map_to_parent(self._tangent[k], self.tangent)
 
+        self.stress_1.x.scatter_forward()
+        self.tangent.x.scatter_forward()
         # else:
         #     law, cells = self.laws[0]
         #     self.del_grad_u_expr.eval(
@@ -289,8 +292,6 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
         #         history_input,
         #     )
 
-        self.stress_1.x.scatter_forward()
-        self.tangent.x.scatter_forward()
 
     def update(self) -> None:
         """
