@@ -80,7 +80,7 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
         laws: list[tuple[IncrSmallStrainModel, np.ndarray]] | IncrSmallStrainModel,
         u: df.fem.Function,
         bcs: list[df.fem.DirichletBCMetaClass],
-        q_degree: int = 1,
+        q_degree: int,
         form_compiler_options: dict | None = None,
         jit_options: dict | None = None,
     ):

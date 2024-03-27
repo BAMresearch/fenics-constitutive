@@ -7,7 +7,6 @@ import ufl
 from dolfinx.nls.petsc import NewtonSolver
 from linear_elasticity_model import LinearElasticityModel
 from mpi4py import MPI
-from petsc4py import PETSc
 
 from fenics_constitutive import Constraint, IncrSmallStrainProblem
 
@@ -40,6 +39,7 @@ def test_uniaxial_stress():
         law,
         u,
         [bc_left, bc_right],
+        1,
     )
 
     solver = NewtonSolver(MPI.COMM_WORLD, problem)
@@ -113,6 +113,7 @@ def test_uniaxial_stress_two_laws(factor: float):
         laws,
         u,
         [bc_left, bc_right],
+        1,
     )
 
     solver = NewtonSolver(MPI.COMM_WORLD, problem)
@@ -155,6 +156,7 @@ def test_uniaxial_strain():
         law,
         u,
         [bc_left, bc_right],
+        1,
     )
 
     solver = NewtonSolver(MPI.COMM_WORLD, problem)
@@ -197,6 +199,7 @@ def test_plane_strain():
         law,
         u,
         [bc_left, bc_right],
+        1,
     )
 
     solver = NewtonSolver(MPI.COMM_WORLD, problem)
@@ -238,6 +241,7 @@ def test_plane_stress():
         law,
         u,
         [bc_left, bc_right],
+        1,
     )
 
     solver = NewtonSolver(MPI.COMM_WORLD, problem)
@@ -279,6 +283,7 @@ def test_3d():
         law,
         u,
         [bc_left, bc_right],
+        1,
     )
 
     solver = NewtonSolver(MPI.COMM_WORLD, problem)
