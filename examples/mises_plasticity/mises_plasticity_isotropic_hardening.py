@@ -49,7 +49,10 @@ class VonMises3D(IncrSmallStrainModel):
             eps_dev = eps - tr_eps * self.I2 / 3 # deviatoric strain
 
             # deviatoric trial internal forces (trial stress)
-            sigtr = 2 * self.p_mu * (eps_dev - eps_n[n])
+            del_sigtr = 2 * self.p_mu * eps_dev # incremental trial stress
+            stress_n_dev =  stress_view[n] - np.sum(stress_view[n][:3]) * self.I2 / 3 # total deviatoric stress in last time step
+            sigtr = stress_n_dev + del_sigtr # total (deviatoric) trial stress in current time step
+
             # norm of deviatoric trial internal forces
             sigtrn = np.sqrt(np.dot(sigtr, sigtr))
 
@@ -108,9 +111,10 @@ class VonMises3D(IncrSmallStrainModel):
             eps_n[n] += gamma * xn
             alpha[n] += np.sqrt(2 / 3) * gamma
 
-            # determine elastic-plastic stresses (with volumetric part)
-            sh =  self.p_ka * tr_eps * self.I2 + sigtr - 2 * self.p_mu * gamma * xn
-            stress_view[n] = sh
+            # determine incremental elastic-plastic stresses (with volumetric part)
+            sh = self.p_ka * tr_eps * self.I2 + del_sigtr - 2 * self.p_mu * gamma * xn
+            # update total stresses
+            stress_view[n] += sh
 
             # determine elastic-plastic moduli
             aah = self.p_ka * self.xioi + 2 * self.p_mu * (1 - 2 * self.p_mu * xc2) * self.xpp + 4 * self.p_mu * self.p_mu * (xc2 - xc1) * np.outer(xn,xn)
