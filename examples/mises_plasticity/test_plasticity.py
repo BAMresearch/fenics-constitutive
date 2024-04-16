@@ -2,259 +2,18 @@ from __future__ import annotations
 
 import dolfinx as df
 import numpy as np
-import pytest
-import ufl
 from dolfinx.nls.petsc import NewtonSolver
 from mises_plasticity_isotropic_hardening import VonMises3D
 from mpi4py import MPI
 
+import matplotlib.pyplot as plt
+from matplotlib.ticker import FormatStrFormatter
+
 from fenics_constitutive import Constraint, IncrSmallStrainProblem
 
-youngs_modulus = 42.0
-poissons_ratio = 0.3
 
-
-# def test_uniaxial_stress():
-#     mesh = df.mesh.create_unit_interval(MPI.COMM_WORLD, 2)
-#     V = df.fem.FunctionSpace(mesh, ("CG", 1))
-#     u = df.fem.Function(V)
-#     law = LinearElasticityModel(
-#         parameters={"E": youngs_modulus, "nu": poissons_ratio},
-#         constraint=Constraint.UNIAXIAL_STRESS,
-#     )
-
-#     def left_boundary(x):
-#         return np.isclose(x[0], 0.0)
-
-#     def right_boundary(x):
-#         return np.isclose(x[0], 1.0)
-
-#     displacement = df.fem.Constant(mesh, 0.01)
-#     dofs_left = df.fem.locate_dofs_geometrical(V, left_boundary)
-#     dofs_right = df.fem.locate_dofs_geometrical(V, right_boundary)
-#     bc_left = df.fem.dirichletbc(df.fem.Constant(mesh, 0.0), dofs_left, V)
-#     bc_right = df.fem.dirichletbc(displacement, dofs_right, V)
-
-#     problem = IncrSmallStrainProblem(
-#         law,
-#         u,
-#         [bc_left, bc_right],
-#     )
-
-#     solver = NewtonSolver(MPI.COMM_WORLD, problem)
-#     n, converged = solver.solve(u)
-
-#     # Compare the result with the analytical solution
-#     assert abs(problem.stress_1.x.array[0] - youngs_modulus * 0.01) < 1e-10 / (
-#         youngs_modulus * 0.01
-#     )
-
-#     problem.update()
-#     # Check that the stress is updated correctly
-#     assert abs(problem.stress_0.x.array[0] - youngs_modulus * 0.01) < 1e-10 / (
-#         youngs_modulus * 0.01
-#     )
-#     # Check that the displacement is updated correctly
-#     assert np.max(problem._u0.x.array) == displacement.value
-
-#     displacement.value = 0.02
-#     n, converged = solver.solve(u)
-
-#     # Compare the result of the updated problem with new BC with the analytical solution
-#     assert abs(problem.stress_1.x.array[0] - youngs_modulus * 0.02) < 1e-10 / (
-#         youngs_modulus * 0.02
-#     )
-
-
-# @pytest.mark.parametrize(
-#     ("factor"),
-#     [
-#         (0.5),
-#         (2.0),
-#         (3.0),
-#         (4.0),
-#     ],
-# )
-# def test_uniaxial_stress_two_laws(factor: float):
-#     mesh = df.mesh.create_unit_interval(MPI.COMM_WORLD, 2)
-#     V = df.fem.FunctionSpace(mesh, ("CG", 1))
-#     u = df.fem.Function(V)
-#     laws = [
-#         (
-#             LinearElasticityModel(
-#                 parameters={"E": youngs_modulus, "nu": poissons_ratio},
-#                 constraint=Constraint.UNIAXIAL_STRESS,
-#             ),
-#             np.array([0], dtype=np.int32),
-#         ),
-#         (
-#             LinearElasticityModel(
-#                 parameters={"E": factor * youngs_modulus, "nu": poissons_ratio},
-#                 constraint=Constraint.UNIAXIAL_STRESS,
-#             ),
-#             np.array([1], dtype=np.int32),
-#         ),
-#     ]
-
-#     def left_boundary(x):
-#         return np.isclose(x[0], 0.0)
-
-#     def right_boundary(x):
-#         return np.isclose(x[0], 1.0)
-
-#     displacement = df.fem.Constant(mesh, 0.01)
-#     dofs_left = df.fem.locate_dofs_geometrical(V, left_boundary)
-#     dofs_right = df.fem.locate_dofs_geometrical(V, right_boundary)
-#     bc_left = df.fem.dirichletbc(df.fem.Constant(mesh, 0.0), dofs_left, V)
-#     bc_right = df.fem.dirichletbc(displacement, dofs_right, V)
-
-#     problem = IncrSmallStrainProblem(
-#         laws,
-#         u,
-#         [bc_left, bc_right],
-#     )
-
-#     solver = NewtonSolver(MPI.COMM_WORLD, problem)
-#     n, converged = solver.solve(u)
-#     problem.update()
-
-#     # Is the stress homogenous?
-#     assert abs(problem.stress_0.x.array[0] - problem.stress_0.x.array[1]) < 1e-10 / abs(
-#         problem.stress_0.x.array[0]
-#     )
-
-#     # Does the stiffer element have a proportionally lower strain?
-#     assert abs(
-#         problem._del_grad_u[0].x.array[0] - factor * problem._del_grad_u[1].x.array[0]
-#     ) < 1e-10 / abs(problem._del_grad_u[0].x.array[0])
-
-
-# def test_uniaxial_strain():
-#     mesh = df.mesh.create_unit_interval(MPI.COMM_WORLD, 2)
-#     V = df.fem.FunctionSpace(mesh, ("CG", 1))
-#     u = df.fem.Function(V)
-#     law = LinearElasticityModel(
-#         parameters={"E": youngs_modulus, "nu": poissons_ratio},
-#         constraint=Constraint.UNIAXIAL_STRAIN,
-#     )
-
-#     def left_boundary(x):
-#         return np.isclose(x[0], 0.0)
-
-#     def right_boundary(x):
-#         return np.isclose(x[0], 1.0)
-
-#     displacement = df.fem.Constant(mesh, 0.01)
-#     dofs_left = df.fem.locate_dofs_geometrical(V, left_boundary)
-#     dofs_right = df.fem.locate_dofs_geometrical(V, right_boundary)
-#     bc_left = df.fem.dirichletbc(df.fem.Constant(mesh, 0.0), dofs_left, V)
-#     bc_right = df.fem.dirichletbc(displacement, dofs_right, V)
-
-#     problem = IncrSmallStrainProblem(
-#         law,
-#         u,
-#         [bc_left, bc_right],
-#     )
-
-#     solver = NewtonSolver(MPI.COMM_WORLD, problem)
-#     n, converged = solver.solve(u)
-#     problem.update()
-
-#     analytical_stress = (
-#         youngs_modulus
-#         * (1.0 - poissons_ratio)
-#         / ((1.0 + poissons_ratio) * (1.0 - 2.0 * poissons_ratio))
-#     ) * displacement.value
-
-#     assert abs(problem.stress_0.x.array[0] - analytical_stress) < 1e-10 / (
-#         analytical_stress
-#     )
-
-
-# def test_plane_strain():
-#     # sanity check if out of plane stress is NOT zero
-#     mesh = df.mesh.create_unit_square(MPI.COMM_WORLD, 2, 2)
-#     V = df.fem.VectorFunctionSpace(mesh, ("CG", 1))
-#     u = df.fem.Function(V)
-#     law = LinearElasticityModel(
-#         parameters={"E": youngs_modulus, "nu": poissons_ratio},
-#         constraint=Constraint.PLANE_STRAIN,
-#     )
-
-#     def left_boundary(x):
-#         return np.isclose(x[0], 0.0)
-
-#     def right_boundary(x):
-#         return np.isclose(x[0], 1.0)
-
-#     dofs_left = df.fem.locate_dofs_geometrical(V, left_boundary)
-#     dofs_right = df.fem.locate_dofs_geometrical(V, right_boundary)
-#     bc_left = df.fem.dirichletbc(np.array([0.0, 0.0]), dofs_left, V)
-#     bc_right = df.fem.dirichletbc(np.array([0.01, 0.0]), dofs_right, V)
-
-#     problem = IncrSmallStrainProblem(
-#         law,
-#         u,
-#         [bc_left, bc_right],
-#     )
-
-#     solver = NewtonSolver(MPI.COMM_WORLD, problem)
-#     n, converged = solver.solve(u)
-#     problem.update()
-#     assert (
-#         np.linalg.norm(
-#             problem.stress_0.x.array.reshape(-1, law.constraint.stress_strain_dim())[
-#                 :, 2
-#             ]
-#         )
-#         > 1e-2
-#     )
-
-
-# def test_plane_stress():
-#     # just a sanity check if out of plane stress is really zero
-#     mesh = df.mesh.create_unit_square(MPI.COMM_WORLD, 2, 2)
-#     V = df.fem.VectorFunctionSpace(mesh, ("CG", 1))
-#     u = df.fem.Function(V)
-#     law = LinearElasticityModel(
-#         parameters={"E": youngs_modulus, "nu": poissons_ratio},
-#         constraint=Constraint.PLANE_STRESS,
-#     )
-
-#     def left_boundary(x):
-#         return np.isclose(x[0], 0.0)
-
-#     def right_boundary(x):
-#         return np.isclose(x[0], 1.0)
-
-#     # displacement = df.fem.Constant(mesh_2d, np.ndarray([0.01,0.0]))
-#     dofs_left = df.fem.locate_dofs_geometrical(V, left_boundary)
-#     dofs_right = df.fem.locate_dofs_geometrical(V, right_boundary)
-#     bc_left = df.fem.dirichletbc(np.array([0.0, 0.0]), dofs_left, V)
-#     bc_right = df.fem.dirichletbc(np.array([0.01, 0.0]), dofs_right, V)
-
-#     problem = IncrSmallStrainProblem(
-#         law,
-#         u,
-#         [bc_left, bc_right],
-#     )
-
-#     solver = NewtonSolver(MPI.COMM_WORLD, problem)
-#     n, converged = solver.solve(u)
-#     problem.update()
-#     assert (
-#         np.linalg.norm(
-#             problem.stress_0.x.array.reshape(-1, law.constraint.stress_strain_dim())[
-#                 :, 2
-#             ]
-#         )
-#         < 1e-10
-#     )
-
-
-def test_3d():
-    # test the 3d case against a pure fenics implementation
-    mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 10, 10, 10)
+def test_3d(): # uniaxial strain 3d
+    mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 1, 1, 1)
     V = df.fem.VectorFunctionSpace(mesh, ("CG", 1))
     u = df.fem.Function(V)
     matparam = {
@@ -264,60 +23,87 @@ def test_3d():
         "p_y00":2500,
         "p_w": 200,
     }
-    law = VonMises3D(
-        matparam,
-    )
+    law = VonMises3D(matparam)
 
-    def left_boundary(x):
+    def left(x):
         return np.isclose(x[0], 0.0)
 
-    def right_boundary(x):
+    def right(x):
         return np.isclose(x[0], 1.0)
 
-    # displacement = df.fem.Constant(mesh_2d, np.ndarray([0.01,0.0]))
-    dofs_left = df.fem.locate_dofs_geometrical(V, left_boundary)
-    dofs_right = df.fem.locate_dofs_geometrical(V, right_boundary)
-    bc_left = df.fem.dirichletbc(np.array([0.0, 0.0, 0.0]), dofs_left, V)
-    bc_right = df.fem.dirichletbc(np.array([0.01, 0.0, 0.0]), dofs_right, V)
+    tdim = mesh.topology.dim
+    fdim = tdim - 1
 
-    problem = IncrSmallStrainProblem(
-        law,
-        u,
-        [bc_left, bc_right],
+    left_facets = df.mesh.locate_entities_boundary(mesh, fdim, left)
+    right_facets = df.mesh.locate_entities_boundary(mesh, fdim, right)
+    #
+    # ### Dirichlet BCs
+    zero_scalar = df.fem.Constant(mesh, 0.0)
+    scalar_x = df.fem.Constant(mesh, 0.015)
+    fix_ux_left = df.fem.dirichletbc(
+        zero_scalar,
+        df.fem.locate_dofs_topological(V.sub(0), fdim, left_facets),
+        V.sub(0),
+    )
+    move_ux_right = df.fem.dirichletbc(
+        scalar_x,
+        df.fem.locate_dofs_topological(V.sub(0), fdim, right_facets),
+        V.sub(0),
     )
 
+    dirichlet = [fix_ux_left, move_ux_right]
+    #
+    problem = IncrSmallStrainProblem(law, u, dirichlet)
+
     solver = NewtonSolver(MPI.COMM_WORLD, problem)
-    n, converged = solver.solve(u)
-    problem.update()
-    print(problem._history_0[0]["alpha"].x.array)
-    assert False
-    # v_, u_ = ufl.TestFunction(V), ufl.TrialFunction(V)
 
-    # def eps(v):
-    #     return ufl.sym(ufl.grad(v))
+    nTime = 100
+    max_disp = 0.05
+    load_steps = np.linspace(0, 1, num=nTime + 1)[1:]
+    iterations = np.array([], dtype=np.int32)
+    displacement = [0.0]
+    load = [0.0]
 
-    # def sigma(v):
-    #     eps = ufl.sym(ufl.grad(v))
-    #     lam, mu = (
-    #         youngs_modulus
-    #         * poissons_ratio
-    #         / ((1.0 + poissons_ratio) * (1.0 - 2.0 * poissons_ratio)),
-    #         youngs_modulus / (2.0 * (1.0 + poissons_ratio)),
-    #     )
-    #     return 2.0 * mu * eps + lam * ufl.tr(eps) * ufl.Identity(len(v))
+    for inc, time in enumerate(load_steps):
+        print("Load Increment:", inc)
 
-    # zero = df.fem.Constant(mesh, np.array([0.0, 0.0, 0.0]))
-    # a = ufl.inner(ufl.grad(v_), sigma(u_)) * ufl.dx
-    # L = ufl.dot(zero, v_) * ufl.dx
+        current_disp = time * max_disp
+        scalar_x.value = (current_disp)
 
-    # u_fenics = u.copy()
-    # problem_fenics = df.fem.petsc.LinearProblem(a, L, [bc_left, bc_right], u=u_fenics)
-    # problem_fenics.solve()
+        niter, converged = solver.solve(u)
+        problem.update()
 
-    # # Check that the solution is the same
-    # assert np.linalg.norm(u_fenics.x.array - u.x.array) < 1e-8 / np.linalg.norm(
-    #     u_fenics.x.array
-    # )
+        print(f"Converged: {converged} in {niter} iterations.")
+        iterations = np.append(iterations, niter)
+
+        stress_values = []
+        stress_values.append(problem.stress_0.x.array.copy())
+        stress_values = stress_values[0]
+        stress_values = stress_values[::6][0]
+
+        displacement.append(current_disp)
+        load.append(stress_values)
+
+    displacement = np.array(displacement)
+    load = np.array(load)
+
+    assert load[-1] <= matparam["p_y00"]
+    indices = load <= matparam["p_y0"]
+    v = (3 * 175000 - 2 * 80769) / (2 * (3 * 175000 + 80769))
+    trace = displacement[indices][1] - 2 * v * displacement[indices][1]
+    dev = displacement[indices][1] - trace / 3
+    #print((175000 * trace + 2 * 80769 * dev) / displacement[indices][1])
+    assert abs((load[indices][1] / displacement[indices][1]) - ((175000 * trace + 2 * 80769 * dev) / displacement[indices][1])) < 1e-8
+
+
+    ax = plt.subplots()[1]
+    # ax.plot(sol.eps, sol.sigma, "r-", label="analytical")
+    ax.plot(displacement, load, label="numerical")
+    ax.set_xlabel(r"$\varepsilon_{xx}$")
+    ax.set_ylabel(r"$\sigma_{xx}$")
+    ax.legend()
+    ax.xaxis.set_major_formatter(FormatStrFormatter("%.2f"))
+    plt.show()
 
 if __name__ == "__main__":
     test_3d()
