@@ -9,5 +9,6 @@ dependencies:
   - pip
   - pytest
   - pytest-mpi
+  - numba
   - pip:
     - -e .
