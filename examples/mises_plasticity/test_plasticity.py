@@ -93,10 +93,11 @@ def test_uniaxial_strain_3d():
 
     # if material behaves linearly under the elastic range with correct slope
     indices = load + tolerance < matparam["p_y0"]
-    v = (3 * 175000 - 2 * 80769) / (2 * (3 * 175000 + 80769))
+    v = (3 * matparam["p_ka"] - 2 * matparam["p_mu"]) / (2 * (3 * matparam["p_ka"] + matparam["p_mu"]))
     trace = displacement[indices][1] - 2 * v * displacement[indices][1]
     dev = displacement[indices][1] - trace / 3
-    assert np.all(abs(np.ediff1d(load[indices]) / np.ediff1d(displacement[indices]) - ((175000 * trace + 2 * 80769 * dev) / displacement[indices][1])) < 1e-7)
+    slope = (matparam["p_ka"] * trace + 2 * matparam["p_mu"] * dev) / displacement[indices][1]
+    assert np.all(abs(np.ediff1d(load[indices]) / np.ediff1d(displacement[indices]) - slope) < 1e-7)
 
     ax = plt.subplots()[1]
     ax.plot(displacement, load, label="numerical")
@@ -191,10 +192,10 @@ def test_uniaxial_cyclic_strain_3d():
     load_interval_1 = load[:int(nTime / 4 + 2)]
     disp_interval_1 = displacement[:int(nTime / 4 + 2)]
     indices = abs(load_interval_1) + tolerance < matparam["p_y0"]
-    v = (3 * 175000 - 2 * 80769) / (2 * (3 * 175000 + 80769))
+    v = (3 * matparam["p_ka"] - 2 * matparam["p_mu"]) / (2 * (3 * matparam["p_ka"] + matparam["p_mu"]))
     trace = disp_interval_1[indices][1] - 2 * v * disp_interval_1[indices][1]
     dev = disp_interval_1[indices][1] - trace / 3
-    slope = ((175000 * trace + 2 * 80769 * dev) / disp_interval_1[indices][1])
+    slope = ((matparam["p_ka"] * trace + 2 * matparam["p_mu"] * dev) / disp_interval_1[indices][1])
     assert np.all(abs(np.ediff1d(load_interval_1[indices][1:]) / np.ediff1d(disp_interval_1[indices][1:]) - slope) < 1e-7)
 
     # if material behaves linearly under the elastic range in 2/4 and 3/4 loading phase with correct slope
