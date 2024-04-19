@@ -5,10 +5,8 @@ import numpy as np
 from dolfinx.nls.petsc import NewtonSolver
 from mises_plasticity_isotropic_hardening import VonMises3D
 from mpi4py import MPI
-
-import matplotlib.pyplot as plt
-from matplotlib.ticker import FormatStrFormatter
-
+# import matplotlib.pyplot as plt
+# from matplotlib.ticker import FormatStrFormatter
 from fenics_constitutive import Constraint, IncrSmallStrainProblem
 
 
