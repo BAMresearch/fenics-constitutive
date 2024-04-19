@@ -99,13 +99,14 @@ def test_uniaxial_strain_3d():
     slope = (matparam["p_ka"] * trace + 2 * matparam["p_mu"] * dev) / displacement[indices][1]
     assert np.all(abs(np.ediff1d(load[indices]) / np.ediff1d(displacement[indices]) - slope) < 1e-7)
 
-    ax = plt.subplots()[1]
-    ax.plot(displacement, load, label="numerical")
-    ax.set_xlabel(r"$\varepsilon_{xx}$")
-    ax.set_ylabel(r"$\sigma_{xx}$")
-    ax.legend()
-    ax.xaxis.set_major_formatter(FormatStrFormatter("%.2f"))
-    plt.show()
+    # ax = plt.subplots()[1]
+    # ax.plot(displacement, load)
+    # ax.set_xlabel(r"$\varepsilon_{xx}$")
+    # ax.set_ylabel(r"$\sigma_{xx}$")
+    # ax.set_title("Monotonic Loading")
+    # #ax.legend()
+    # ax.xaxis.set_major_formatter(FormatStrFormatter("%.2f"))
+    # plt.show()
 
 def test_uniaxial_cyclic_strain_3d():
     mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 1, 1, 1)
@@ -155,7 +156,6 @@ def test_uniaxial_cyclic_strain_3d():
     nTime = 100
     max_disp = 0.05
     load_steps = np.linspace(np.pi, -np.pi, num=nTime + 1)
-    print(load_steps[int(nTime/2 - 1)])
     iterations = np.array([], dtype=np.int32)
     displacement = [0.0]
     load = [0.0]
@@ -212,14 +212,15 @@ def test_uniaxial_cyclic_strain_3d():
     indices = abs(load_interval_3) + tolerance < max(np.max(load_interval_1),abs(np.min(load_interval_2)), matparam["p_y0"])
     assert np.all(abs(np.ediff1d(load_interval_3[indices]) / np.ediff1d(disp_interval_3[indices]) - slope) < 1e-7)
 
-    ax = plt.subplots()[1]
-    # ax.plot(sol.eps, sol.sigma, "r-", label="analytical")
-    ax.plot(displacement, load, label="numerical")
-    ax.set_xlabel(r"$\varepsilon_{xx}$")
-    ax.set_ylabel(r"$\sigma_{xx}$")
-    ax.legend()
-    ax.xaxis.set_major_formatter(FormatStrFormatter("%.2f"))
-    plt.show()
+    # ax = plt.subplots()[1]
+    # # ax.plot(sol.eps, sol.sigma, "r-", label="analytical")
+    # ax.plot(displacement, load)
+    # ax.set_xlabel(r"$\varepsilon_{xx}$")
+    # ax.set_ylabel(r"$\sigma_{xx}$")
+    # #ax.legend()
+    # ax.set_title("Cyclic Loading")
+    # ax.xaxis.set_major_formatter(FormatStrFormatter("%.2f"))
+    # plt.show()
 
 # if __name__ == "__main__":
 #     test_uniaxial_cyclic_strain_3d()
