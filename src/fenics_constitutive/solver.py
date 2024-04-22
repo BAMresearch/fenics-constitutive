@@ -13,7 +13,7 @@ from .stress_strain import ufl_mandel_strain
 
 def build_history(
     law: IncrSmallStrainModel, mesh: df.mesh.Mesh, q_degree: int
-) -> df.fem.Function | dict[str, df.fem.Function] | None:
+) -> dict[str, df.fem.Function] | None:
     """Build the history space and function(s) for the given law.
 
     Args:
@@ -25,40 +25,30 @@ def build_history(
         The history function(s) for the given law.
 
     """
-    match law.history_dim:
-        case int():
-            Qh = ufl.VectorElement(
-                "Quadrature",
-                mesh.ufl_cell(),
-                q_degree,
-                quad_scheme="default",
-                dim=law.history_dim,
-            )
-            history_space = df.fem.FunctionSpace(mesh, Qh)
-            history = df.fem.Function(history_space)
-        case None:
-            history = None
-        case dict():
-            history = {}
-            for key, value in law.history_dim.items():
-                if isinstance(value, int):
-                    Qh = ufl.VectorElement(
-                        "Quadrature",
-                        mesh.ufl_cell(),
-                        q_degree,
-                        quad_scheme="default",
-                        dim=value,
-                    )
-                elif isinstance(value, tuple):
-                    Qh = ufl.TensorElement(
-                        "Quadrature",
-                        mesh.ufl_cell(),
-                        q_degree,
-                        quad_scheme="default",
-                        shape=value,
-                    )
-                history_space = df.fem.FunctionSpace(mesh, Qh)
-                history[key] = df.fem.Function(history_space)
+    if law.history_dim is None:
+        return None
+
+    history = {}
+    for key, value in law.history_dim.items():
+        match value:
+            case int():
+                Qh = ufl.VectorElement(
+                    "Quadrature",
+                    mesh.ufl_cell(),
+                    q_degree,
+                    quad_scheme="default",
+                    dim=value,
+                )
+            case tuple():
+                Qh = ufl.TensorElement(
+                    "Quadrature",
+                    mesh.ufl_cell(),
+                    q_degree,
+                    quad_scheme="default",
+                    shape=value,
+                )
+        history_space = df.fem.FunctionSpace(mesh, Qh)
+        history[key] = df.fem.Function(history_space)
     return history
 
 
@@ -90,12 +80,10 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
         laws: list[tuple[IncrSmallStrainModel, np.ndarray]] | IncrSmallStrainModel,
         u: df.fem.Function,
         bcs: list[df.fem.DirichletBCMetaClass],
-        q_degree: int = 1,
+        q_degree: int,
         form_compiler_options: dict | None = None,
         jit_options: dict | None = None,
     ):
-        print("help, i am in init")
-        print("help, i am in init")
         mesh = u.function_space.mesh
         map_c = mesh.topology.index_map(mesh.topology.dim)
         num_cells = map_c.size_local + map_c.num_ghosts
@@ -148,52 +136,38 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
 
         self._time = 0.0  # time at the end of the increment
 
-        with df.common.Timer("submeshes-and-data-structures"):
+        # if len(laws) > 1:
+        for law, cells in laws:
+            self.laws.append((law, cells))
+
+            # default case for homogenous domain
+            submesh = mesh
+
             if len(laws) > 1:
-                for law, cells in laws:
-                    self.laws.append((law, cells))
-
-                    # ### submesh and subspace for strain, stress
-                    subspace_map, submesh, QV_subspace = build_subspace_map(
-                        cells, QV, return_subspace=True
-                    )
-                    self.submesh_maps.append(subspace_map)
-                    self._stress.append(df.fem.Function(QV_subspace))
-
-                    # subspace for grad u
-                    Q_grad_u_subspace = df.fem.FunctionSpace(submesh, Q_grad_u_e)
-                    self._del_grad_u.append(df.fem.Function(Q_grad_u_subspace))
-
-                    # subspace for tanget
-                    QT_subspace = df.fem.FunctionSpace(submesh, QTe)
-                    self._tangent.append(df.fem.Function(QT_subspace))
-
-                    # subspaces for history
-                    history_0 = build_history(law, submesh, q_degree)
-                    history_1 = (
-                        {key: fn.copy() for key, fn in history_0.items()}
-                        if isinstance(history_0, dict)
-                        else history_0
-                    )
-                    self._history_0.append(history_0)
-                    self._history_1.append(history_1)
-            else:
-                law, cells = laws[0]
-                self.laws.append((law, cells))
-
-                # subspace for grad u
-                Q_grad_u_space = df.fem.FunctionSpace(mesh, Q_grad_u_e)
-                self._del_grad_u.append(df.fem.Function(Q_grad_u_space))
-
-                # Spaces for history
-                history_0 = build_history(law, mesh, q_degree)
-                history_1 = (
-                    {key: fn.copy() for key, fn in history_0.items()}
-                    if isinstance(history_0, dict)
-                    else history_0
+                # ### submesh and subspace for strain, stress
+                subspace_map, submesh, QV_subspace = build_subspace_map(
+                    cells, QV, return_subspace=True
                 )
-                self._history_0.append(history_0)
-                self._history_1.append(history_1)
+                self.submesh_maps.append(subspace_map)
+                self._stress.append(df.fem.Function(QV_subspace))
+
+            # subspace for grad u
+            Q_grad_u_subspace = df.fem.FunctionSpace(submesh, Q_grad_u_e)
+            self._del_grad_u.append(df.fem.Function(Q_grad_u_subspace))
+
+            # subspace for tanget
+            QT_subspace = df.fem.FunctionSpace(submesh, QTe)
+            self._tangent.append(df.fem.Function(QT_subspace))
+
+            # subspaces for history
+            history_0 = build_history(law, submesh, q_degree)
+            history_1 = (
+                {key: fn.copy() for key, fn in history_0.items()}
+                if isinstance(history_0, dict)
+                else history_0
+            )
+            self._history_0.append(history_0)
+            self._history_1.append(history_1)
 
         self.stress_0 = df.fem.Function(QV)
         self.stress_1 = df.fem.Function(QV)
@@ -231,7 +205,7 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
     @property
     def a(self) -> df.fem.FormMetaClass:
         """Compiled bilinear form (the Jacobian form)"""
-        print("help, i am in a")
+
         if not hasattr(self, "_a"):
             # ensure compilation of UFL forms
             super().__init__(
@@ -257,60 +231,44 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
 
         """
         super().form(x)
-        print("help, i am in form")
         assert (
             x.array.data == self._u.vector.array.data
         ), "The solution vector must be the same as the one passed to the MechanicsProblem"
-        if len(self.laws) > 1:
-            for k, (law, cells) in enumerate(self.laws):
-                with df.common.Timer("strain_evaluation"):
-                    # TODO: test this!!
-                    self.del_grad_u_expr.eval(
-                        cells, self._del_grad_u[k].x.array.reshape(cells.size, -1)
-                    )
 
-                with df.common.Timer("stress_evaluation"):
-                    self.submesh_maps[k].map_to_child(self.stress_0, self._stress[k])
-                    if law.history_dim is not None:
-                        self._history_1[0].x.array[:] = self._history_0[0].x.array
-                    law.evaluate(
-                        self._time,
-                        self._del_grad_u[k].x.array,
-                        self._stress[k].x.array,
-                        self._tangent[k].x.array,
-                        self._history_1[k].x.array
-                        if law.history_dim is not None
-                        else None,
-                    )
-
-                with df.common.Timer("stress-local-to-global"):
-                    self.submesh_maps[k].map_to_parent(self._stress[k], self.stress_1)
-                    self.submesh_maps[k].map_to_parent(self._tangent[k], self.tangent)
-        else:
-            law, cells = self.laws[0]
-            with df.common.Timer("strain_evaluation"):
-                self.del_grad_u_expr.eval(
-                    cells, self._del_grad_u[0].x.array.reshape(cells.size, -1)
-                )
-
-            with df.common.Timer("stress_evaluation"):
+        # if len(self.laws) > 1:
+        for k, (law, cells) in enumerate(self.laws):
+            # TODO: test this!
+            # Replace with `self._del_grad_u[k].interpolate(...)` in 0.8.0
+            self.del_grad_u_expr.eval(
+                cells, self._del_grad_u[k].x.array.reshape(cells.size, -1)
+            )
+            self._del_grad_u[k].x.scatter_forward()
+            if len(self.laws) > 1:
+                self.submesh_maps[k].map_to_child(self.stress_0, self._stress[k])
+                stress_input = self._stress[k].x.array
+                tangent_input = self._tangent[k].x.array
+            else:
                 self.stress_1.x.array[:] = self.stress_0.x.array
-                history_input = None
-                if isinstance(law.history_dim, int):
-                    self._history_1[0].x.array[:] = self._history_0[0].x.array
-                    history_input = self._history_1[0].x.array
-                elif isinstance(law.history_dim, dict):
-                    history_input = {}
-                    for key in law.history_dim:
-                        self._history_1[0][key].x.array[:] = self._history_0[0][key].x.array
-                        history_input[key] = self._history_1[0][key].x.array
-                law.evaluate(
-                    self._time,
-                    self._del_grad_u[0].x.array,
-                    self.stress_1.x.array,
-                    self.tangent.x.array,
-                    history_input,
-                )
+                self.stress_1.x.scatter_forward()
+                stress_input = self.stress_1.x.array
+                tangent_input = self.tangent.x.array
+
+            history_input = None
+            if law.history_dim is not None:
+                history_input = {}
+                for key in law.history_dim:
+                    self._history_1[k][key].x.array[:] = self._history_0[k][key].x.array
+                    history_input[key] = self._history_1[k][key].x.array
+            law.evaluate(
+                self._time,
+                self._del_grad_u[k].x.array,
+                stress_input,
+                tangent_input,
+                history_input,
+            )
+            if len(self.laws) > 1:
+                self.submesh_maps[k].map_to_parent(self._stress[k], self.stress_1)
+                self.submesh_maps[k].map_to_parent(self._tangent[k], self.tangent)
 
         self.stress_1.x.scatter_forward()
         self.tangent.x.scatter_forward()
@@ -326,15 +284,7 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
         self.stress_0.x.scatter_forward()
 
         for k, (law, _) in enumerate(self.laws):
-            match law.history_dim:
-                case int():
-                    self._history_0[k].x.array[:] = self._history_1[k].x.array
-                    self._history_0[k].x.scatter_forward()
-                case None:
-                    pass
-                case dict():
-                    for key in law.history_dim:
-                        self._history_0[k][key].x.array[:] = self._history_1[k][
-                            key
-                        ].x.array
-                        self._history_0[k][key].x.scatter_forward()
+            if law.history_dim is not None:
+                for key in law.history_dim:
+                    self._history_0[k][key].x.array[:] = self._history_1[k][key].x.array
+                    self._history_0[k][key].x.scatter_forward()
