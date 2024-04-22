@@ -48,7 +48,7 @@ def test_uniaxial_strain_3d():
 
     dirichlet = [fix_ux_left, move_ux_right]
     #
-    problem = IncrSmallStrainProblem(law, u, dirichlet)
+    problem = IncrSmallStrainProblem(law, u, dirichlet, q_degree=2)
 
     solver = NewtonSolver(MPI.COMM_WORLD, problem)
 
@@ -135,7 +135,7 @@ def test_uniaxial_cyclic_strain_3d():
 
     dirichlet = [fix_ux_left, move_ux_right]
     #
-    problem = IncrSmallStrainProblem(law, u, dirichlet)
+    problem = IncrSmallStrainProblem(law, u, dirichlet, q_degree=2)
 
     solver = NewtonSolver(MPI.COMM_WORLD, problem)
 
