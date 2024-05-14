@@ -83,7 +83,8 @@ class IncrSmallStrainModel(ABC):
         tangent: np.ndarray,
         history: np.ndarray | dict[str, np.ndarray] | None,
     ) -> None:
-        """Evaluate the constitutive model and overwrite the stress, tangent and history.
+        """
+        Evaluate the constitutive model and overwrite the stress, tangent and history.
 
         Args:
             del_t : The time increment.
@@ -132,7 +133,7 @@ class IncrSmallStrainModel(ABC):
         return self.constraint.geometric_dim()
 
     @abstractproperty
-    def history_dim(self) -> int | dict[str, int | tuple[int, int]] | None:
+    def history_dim(self) -> dict[str, int | tuple[int, int]] | None:
         """
         The dimensions of history variable(s). This is needed to tell the solver which quadrature
         spaces or arrays to build. If all history variables are stored in a single

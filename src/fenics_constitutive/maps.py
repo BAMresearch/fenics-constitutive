@@ -10,12 +10,31 @@ __all__ = ["SubSpaceMap", "build_subspace_map"]
 
 @dataclass
 class SubSpaceMap:
+    """
+    Map between a subspace and a parent space.
+
+    Args:
+        parent: The dof indices of the parent space.
+        child: The dof indices of the child space.
+        sub_mesh: The mesh of the subspace.
+        parent_mesh: The mesh of the parent space.
+
+    """
+
     parent: np.ndarray
     child: np.ndarray
     sub_mesh: df.mesh.Mesh
     parent_mesh: df.mesh.Mesh
 
+    @df.common.timed("constitutive: map_to_parent_mesh")
     def map_to_parent(self, sub: df.fem.Function, parent: df.fem.Function) -> None:
+        """
+        Map the values from the subspace to the parent space.
+
+        Args:
+            sub: The function in the subspace.
+            parent: The function in the parent space.
+        """
         assert sub.function_space.mesh == self.sub_mesh, "Subspace mesh does not match"
         assert (
             parent.function_space.mesh == self.parent_mesh
@@ -29,7 +48,15 @@ class SubSpaceMap:
         parent_array[self.parent] = sub_array[self.child]
         parent.x.scatter_forward()
 
+    @df.common.timed("constitutive: map_to_child_mesh")
     def map_to_child(self, parent: df.fem.Function, sub: df.fem.Function) -> None:
+        """
+        Map the values from the parent space to the subspace.
+
+        Args:
+            parent: The function in the parent space.
+            sub: The function in the subspace.
+        """
         assert sub.function_space.mesh == self.sub_mesh, "Subspace mesh does not match"
         assert (
             parent.function_space.mesh == self.parent_mesh
@@ -44,12 +71,25 @@ class SubSpaceMap:
         sub.x.scatter_forward()
 
 
+@df.common.timed("constitutive: build_subspace_map")
 def build_subspace_map(
     cells: np.ndarray, V: df.fem.FunctionSpace, return_subspace=False
 ) -> (
     tuple[SubSpaceMap, df.mesh.Mesh]
     | tuple[SubSpaceMap, df.mesh.Mesh, df.fem.FunctionSpace]
 ):
+    """
+    Build a map between a subspace and a parent space. This currently needs
+    to build a functionspace which can optionally be returned.
+
+    Args:
+        cells: The cells of the subspace.
+        V: The parent function space.
+        return_subspace: Return the subspace function space.
+
+    Returns:
+        The subspace map, the submesh and optionally the subspace function space.
+    """
     mesh = V.mesh
     submesh, cell_map, _, _ = df.mesh.create_submesh(mesh, mesh.topology.dim, cells)
     fe = V.ufl_element()
@@ -80,6 +120,6 @@ def build_subspace_map(
         )
     if return_subspace:
         return map, submesh, V_sub
-    else:
-        del V_sub
-        return map, submesh
+
+    del V_sub
+    return map, submesh
