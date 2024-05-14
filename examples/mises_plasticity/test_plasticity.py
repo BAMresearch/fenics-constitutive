@@ -197,3 +197,6 @@ def test_uniaxial_cyclic_strain_3d():
     disp_interval_3 = displacement[int(3 * nTime / 4 + 1):]
     indices = abs(load_interval_3) + tolerance < max(np.max(load_interval_1),abs(np.min(load_interval_2)), matparam["p_y0"])
     assert np.all(abs(np.ediff1d(load_interval_3[indices]) / np.ediff1d(disp_interval_3[indices]) - slope) < 1e-7)
+
+if __name__ == "__main__":
+    test_uniaxial_strain_3d()
