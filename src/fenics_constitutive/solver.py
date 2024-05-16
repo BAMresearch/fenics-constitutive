@@ -259,7 +259,7 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
                 for key in law.history_dim:
                     self._history_1[k][key].x.array[:] = self._history_0[k][key].x.array
                     history_input[key] = self._history_1[k][key].x.array
-            print('check in solver time', self._time)
+
             law.evaluate(
                 self._time,
                 self._del_grad_u[k].x.array,

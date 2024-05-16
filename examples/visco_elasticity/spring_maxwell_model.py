@@ -5,12 +5,12 @@ import numpy as np
 from fenics_constitutive import Constraint, IncrSmallStrainModel, strain_from_grad_u
 
 
-class SpringKelvinModel(IncrSmallStrainModel):
-    ''' viscoelastic model based on 1D Three Parameter Model with spring and Kelvin body in row
+class SpringMaxwellModel(IncrSmallStrainModel):
+    ''' viscoelastic model based on 1D Three Parameter Model with spring and Maxwell body in parallel
 
-                               |--- E_1: spring ---|
-           --- E_0: spring  ---|                   |--
-                               |--- eta: damper ---|
+             |----------- E_0: spring  ----------|
+           --|                                   |--
+             |--- E_1: spring --- eta: damper ---|
 
     with deviatoric assumptions for 3D generalization (volumetric part of visco strain == 0 damper just working on deviatoric part)
     time integration: backward Euler
@@ -30,8 +30,8 @@ class SpringKelvinModel(IncrSmallStrainModel):
         self.mu0 = self.E0 / (2.0 * (1.0 + self.nu))
         self.lam0 = self.E0 * self.nu / ((1.0 + self.nu) * (1.0 - 2.0 * self.nu))
         self.mu1 = self.E1 / (2.0 * (1.0 + self.nu))
+        self.lam1 = self.E1 * self.nu / ((1.0 + self.nu) * (1.0 - 2.0 * self.nu))
 
-        self.I2 = np.zeros(self.stress_strain_dim, dtype=np.float64)  # Identity of rank 2 tensor
         self.compute_elasticity() # initialize elasticity tensor
 
     def compute_elasticity(self):
@@ -47,9 +47,16 @@ class SpringKelvinModel(IncrSmallStrainModel):
                         [0.0, 0.0, 0.0, 0.0, 0.0, 2.0 * self.mu0],
                     ]
                 )
-                self.I2[0] = 1.0
-                self.I2[1] = 1.0
-                self.I2[2] = 1.0
+                self.D_1 = np.array(
+                    [
+                        [2.0 * self.mu1 + self.lam1, self.lam1, self.lam1, 0.0, 0.0, 0.0],
+                        [self.lam1, 2.0 * self.mu1 + self.lam1, self.lam1, 0.0, 0.0, 0.0],
+                        [self.lam1, self.lam1, 2.0 * self.mu0 + self.lam1, 0.0, 0.0, 0.0],
+                        [0.0, 0.0, 0.0, 2.0 * self.mu1, 0.0, 0.0],
+                        [0.0, 0.0, 0.0, 0.0, 2.0 * self.mu1, 0.0],
+                        [0.0, 0.0, 0.0, 0.0, 0.0, 2.0 * self.mu1],
+                    ]
+                )
 
             case Constraint.PLANE_STRAIN:
                 self.D_0 = np.array(
@@ -60,8 +67,14 @@ class SpringKelvinModel(IncrSmallStrainModel):
                         [0.0, 0.0, 0.0, 2.0 * self.mu0],
                     ]
                 )
-                self.I2[0] = 1.0
-                self.I2[1] = 1.0
+                self.D_1 = np.array(
+                    [
+                        [2.0 * self.mu1 + self.lam1, self.lam1, self.lam1, 0.0],
+                        [self.lam1, 2.0 * self.mu1 + self.lam1, self.lam1, 0.0],
+                        [self.lam1, self.lam1, 2.0 * self.mu1 + self.lam1, 0.0],
+                        [0.0, 0.0, 0.0, 2.0 * self.mu1],
+                    ]
+                )
 
             case Constraint.PLANE_STRESS:
                 self.D_0 = (
@@ -76,12 +89,22 @@ class SpringKelvinModel(IncrSmallStrainModel):
                     ]
                 )
                 )
-                self.I2[0] = 1.0
-                self.I2[1] = 1.0
+                self.D_1 = (
+                        self.E1
+                        / (1 - self.nu ** 2.0)
+                        * np.array(
+                    [
+                        [1.0, self.nu, 0.0, 0.0],
+                        [self.nu, 1.0, 0.0, 0.0],
+                        [0.0, 0.0, 0.0, 0.0],
+                        [0.0, 0.0, 0.0, (1.0 - self.nu)],
+                    ]
+                )
+                )
 
             case Constraint.UNIAXIAL_STRESS:
                 self.D_0 = np.array([[self.E0]])
-                self.I2[0] = 1.0
+                self.D_1 = np.array([[self.E1]])
             case _:
                 msg = "Constraint not implemented"
                 raise NotImplementedError(msg)
@@ -99,8 +122,7 @@ class SpringKelvinModel(IncrSmallStrainModel):
             == mandel_stress.size // self.stress_strain_dim
             == tangent.size // (self.stress_strain_dim**2)
         )
-
-        # reshape gauss point arrays
+        # n_gauss = grad_del_u.size // (self.geometric_dim**2)
         mandel_view = mandel_stress.reshape(-1, self.stress_strain_dim)
         tangent_view = tangent.reshape(-1, self.stress_strain_dim ** 2)
         strain_increment = strain_from_grad_u(grad_del_u, self.constraint).reshape(-1, self.stress_strain_dim)
@@ -112,21 +134,19 @@ class SpringKelvinModel(IncrSmallStrainModel):
 
             if del_t == 0:
                 # linear step visko strain is zero
-                dstress = self.D_0 @ eps
-                D = self.D_0
+                dstress = self.D_0 @ eps + self.D_1 @ eps
+                D = self.D_0 + self.D_1
 
             else:
-                # visco step
-                factor = (1 / del_t + 1 / self.tau + self.mu0 / (self.tau * self.mu1))
+                strain_total = strain_n[n] + eps
+                factor = (1 / del_t + 1 / self.tau)
                 deps_visko = 1/factor * (
-                              1 / (self.tau * 2 * self.mu1) * mandel_view[n]
+                              1 / (self.tau * 2 * self.mu1) * self.D_1 @ strain_total
                               - 1 / self.tau * strain_visco_n[n]
-                              + self.mu0 / (self.tau * self.mu1) * eps
-                              + self.lam0 / (self.tau * 2 * self.mu1) *  np.sum(eps[:3]) * self.I2
                               )
 
-                dstress = self.D_0 @ eps - 2*self.mu0 * deps_visko
-                D = (1 - self.mu0/(self.tau*self.mu1*factor)) * self.D_0
+                dstress = self.D_0 @ eps + self.D_1 @ eps - 2*self.mu1 * deps_visko
+                D = self.D_0 + (1 - 1/(self.tau*factor)) * self.D_1
 
                 # update values
                 strain_visco_n[n] += deps_visko
