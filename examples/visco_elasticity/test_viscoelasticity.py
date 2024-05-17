@@ -227,8 +227,90 @@ def test_relaxation(case: dict, mat: IncrSmallStrainModel):
     assert abs(viscostrain[0] - 0) < 1e-8
     assert viscostrain[-1] > 0
 
+def test_kelvin_vs_maxwell():
+
+    mesh = df.mesh.create_unit_interval(MPI.COMM_WORLD, 2)
+    V = df.fem.FunctionSpace(mesh, ("CG", 1))
+    u = df.fem.Function(V)
+
+    #Kelvin material
+    law_K = SpringKelvinModel(
+        parameters={"E0": youngs_modulus, "E1": visco_modulus, "tau": relaxation_time, "nu": poissons_ratio},
+        constraint=Constraint.UNIAXIAL_STRESS,
+    )
+    # transfer Kelvin parameters to Maxwell (see Technische Mechanik 4)
+    E0_M = (youngs_modulus * visco_modulus) / (youngs_modulus + visco_modulus)
+    E1_M = youngs_modulus ** 2 / (youngs_modulus + visco_modulus)
+    tau_M = (youngs_modulus / (youngs_modulus + visco_modulus)) ** 2 * relaxation_time
+
+    #Maxwell material
+    law_M = SpringMaxwellModel(
+        parameters={"E0": E0_M, "E1": E1_M, "tau": tau_M, "nu": poissons_ratio},
+        constraint=Constraint.UNIAXIAL_STRESS,
+    )
+
+    def left_boundary(x):
+        return np.isclose(x[0], 0.0)
+
+    def right_boundary(x):
+        return np.isclose(x[0], 1.0)
+
+    displacement = df.fem.Constant(mesh, 0.001)
+    dofs_left = df.fem.locate_dofs_geometrical(V, left_boundary)
+    dofs_right = df.fem.locate_dofs_geometrical(V, right_boundary)
+    bc_left = df.fem.dirichletbc(df.fem.Constant(mesh, 0.0), dofs_left, V)
+    bc_right = df.fem.dirichletbc(displacement, dofs_right, V)
+
+    # solve Kelvin problem without linear step
+    problems = [IncrSmallStrainProblem(
+        law_K,
+        u,
+        [bc_left, bc_right],
+        4,
+    ), IncrSmallStrainProblem(
+        law_M,
+        u,
+        [bc_left, bc_right],
+        4,
+    )]
+
+    stress_p, strain_p = [], []
+
+    # solve both problems
+    for prob_i in problems:
+        solver = NewtonSolver(MPI.COMM_WORLD, prob_i)
+
+        time = [0]
+        stress = []
+        strain = []
+
+        dt = 0.001
+        prob_i._time = dt
+        total_time = 10*dt #1*relaxation_time
+        while time[-1] < total_time:
+            time.append(time[-1]+dt)
+            niter, converged = solver.solve(u)
+            prob_i.update()
+            #print(f"time {time[-1]} Converged: {converged} in {niter} iterations.")
+
+            stress.append(prob_i.stress_1.x.array[-1])
+            strain.append(prob_i._history_1[0]['strain'].x.array[-1])
+
+        stress_p.append(stress)
+        strain_p.append(strain)
+
+    #print('Kelvin', stress_p[0], strain_p[0])
+    #print('Maxwell', stress_p[1], strain_p[1])
+
+    # print(np.linalg.norm(np.array(stress_p[0])-np.array(stress_p[1])))
+    # accuracy depends on time step size!
+    assert abs(np.linalg.norm(np.array(stress_p[0])-np.array(stress_p[1]))) < 1e-3
+
+
 
 if __name__ == "__main__":
     # test_relaxation_uniaxial_stress(SpringMaxwellModel)
 
-    test_relaxation({'dim': 3}, SpringMaxwellModel)
+    # test_relaxation({'dim': 3}, SpringMaxwellModel)
+
+    test_kelvin_vs_maxwell()
