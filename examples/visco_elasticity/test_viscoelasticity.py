@@ -5,8 +5,8 @@ import numpy as np
 import pytest
 import ufl
 from dolfinx.nls.petsc import NewtonSolver
-from spring_kelvin_model01 import SpringKelvinModel
-from spring_maxwell_model01 import SpringMaxwellModel
+from spring_kelvin_model import SpringKelvinModel
+from spring_maxwell_model import SpringMaxwellModel
 from mpi4py import MPI
 
 from fenics_constitutive import Constraint, IncrSmallStrainProblem, IncrSmallStrainModel
