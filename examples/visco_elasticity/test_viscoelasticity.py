@@ -5,8 +5,8 @@ import numpy as np
 import pytest
 import ufl
 from dolfinx.nls.petsc import NewtonSolver
-from spring_kelvin_model import SpringKelvinModel
-from spring_maxwell_model import SpringMaxwellModel
+from spring_kelvin_model01 import SpringKelvinModel
+from spring_maxwell_model01 import SpringMaxwellModel
 from mpi4py import MPI
 
 from fenics_constitutive import Constraint, IncrSmallStrainProblem, IncrSmallStrainModel
@@ -72,7 +72,7 @@ def test_relaxation_uniaxial_stress(mat: IncrSmallStrainModel):
         time.append(time[-1]+dt)
         niter, converged = solver.solve(u)
         problem.update()
-        print(f"time {time[-1]} Converged: {converged} in {niter} iterations.")
+        # print(f"time {time[-1]} Converged: {converged} in {niter} iterations.")
 
         # print(problem.stress_1.x.array)  # mandel stress at time t
         # print(u.x.array)
@@ -309,8 +309,10 @@ def test_kelvin_vs_maxwell():
 
 
 if __name__ == "__main__":
-    # test_relaxation_uniaxial_stress(SpringMaxwellModel)
+
+    # test_relaxation_uniaxial_stress(SpringKelvinModel)
+    test_relaxation_uniaxial_stress(SpringMaxwellModel)
 
     # test_relaxation({'dim': 3}, SpringMaxwellModel)
 
-    test_kelvin_vs_maxwell()
+    # test_kelvin_vs_maxwell()

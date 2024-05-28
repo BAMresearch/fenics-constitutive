@@ -101,40 +101,38 @@ class SpringKelvinModel(IncrSmallStrainModel):
         )
 
         # reshape gauss point arrays
+        n_gauss = grad_del_u.size // (self.geometric_dim ** 2)
         mandel_view = mandel_stress.reshape(-1, self.stress_strain_dim)
-        tangent_view = tangent.reshape(-1, self.stress_strain_dim ** 2)
+
         strain_increment = strain_from_grad_u(grad_del_u, self.constraint).reshape(-1, self.stress_strain_dim)
         strain_visco_n = history['strain_visco'].reshape(-1, self.stress_strain_dim)
         strain_n = history['strain'].reshape(-1, self.stress_strain_dim)
 
-        # loop over gauss points
-        for n, eps in enumerate(strain_increment):
+        I2 = np.tile(self.I2, n_gauss).reshape(-1, self.stress_strain_dim)
+        tr_eps = np.sum(strain_increment[:, :self.geometric_dim], axis=1)[:, np.newaxis]
 
-            if del_t == 0:
-                # linear step visko strain is zero
-                dstress = self.D_0 @ eps
-                D = self.D_0
+        if del_t == 0:
+            # linear step visko strain is zero
+            D = self.D_0
+            mandel_view += strain_increment @ D
+            _deps_visko = np.zeros_like(strain_increment)
+        else:
+            # visco step
+            factor = (1 / del_t + 1 / self.tau + self.E0 / (self.tau * self.E1))
 
-            else:
-                # visco step
-                factor = (1 / del_t + 1 / self.tau + self.mu0 / (self.tau * self.mu1))
-                deps_visko = 1/factor * (
-                              1 / (self.tau * 2 * self.mu1) * mandel_view[n]
-                              - 1 / self.tau * strain_visco_n[n]
-                              + self.mu0 / (self.tau * self.mu1) * eps
-                              + self.lam0 / (self.tau * 2 * self.mu1) *  np.sum(eps[:self.geometric_dim]) * self.I2
-                              )
+            _deps_visko = 1 / factor * (
+                        1 / (self.tau * 2 * self.mu1) * mandel_view
+                        - 1 / self.tau * strain_visco_n
+                        + self.mu0 / (self.tau * self.mu1) * strain_increment
+                        + self.lam0 / (self.tau * 2 * self.mu1) * tr_eps * I2
+                )
 
-                dstress = self.D_0 @ eps - 2*self.mu0 * deps_visko
-                D = (1 - self.mu0/(self.tau*self.mu1*factor)) * self.D_0
+            mandel_view += strain_increment @ self.D_0 - 2 * self.mu0 * _deps_visko
+            D = (1 - self.mu0 / (self.tau * self.mu1 * factor)) * self.D_0
 
-                # update values
-                strain_visco_n[n] += deps_visko
-
-            mandel_view[n] += dstress
-            strain_n[n] += eps
-            tangent_view[n] = D.flatten()
-
+        tangent[:] = np.tile(D.flatten(), n_gauss)
+        strain_visco_n += _deps_visko
+        strain_n += strain_increment
 
 
     @property
