@@ -21,7 +21,7 @@ class SpringMaxwellModel(IncrSmallStrainModel):
         self.E0 = parameters["E0"] # elastic modulus
         self.E1 = parameters["E1"] # visco modulus
         self.tau = parameters["tau"] # relaxation time == eta/(2 mu1) for 1D case eta/E1
-        if Constraint.UNIAXIAL_STRESS:
+        if constraint == Constraint.UNIAXIAL_STRESS:
             self.nu = 0.0
         else:
             self.nu = parameters["nu"] # Poisson's ratio
@@ -51,7 +51,7 @@ class SpringMaxwellModel(IncrSmallStrainModel):
                     [
                         [2.0 * self.mu1 + self.lam1, self.lam1, self.lam1, 0.0, 0.0, 0.0],
                         [self.lam1, 2.0 * self.mu1 + self.lam1, self.lam1, 0.0, 0.0, 0.0],
-                        [self.lam1, self.lam1, 2.0 * self.mu0 + self.lam1, 0.0, 0.0, 0.0],
+                        [self.lam1, self.lam1, 2.0 * self.mu1 + self.lam1, 0.0, 0.0, 0.0],
                         [0.0, 0.0, 0.0, 2.0 * self.mu1, 0.0, 0.0],
                         [0.0, 0.0, 0.0, 0.0, 2.0 * self.mu1, 0.0],
                         [0.0, 0.0, 0.0, 0.0, 0.0, 2.0 * self.mu1],

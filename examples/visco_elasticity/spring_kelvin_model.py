@@ -62,6 +62,7 @@ class SpringKelvinModel(IncrSmallStrainModel):
                 )
                 self.I2[0] = 1.0
                 self.I2[1] = 1.0
+                self.I2[2] = 1.0
 
             case Constraint.PLANE_STRESS:
                 self.D_0 = (

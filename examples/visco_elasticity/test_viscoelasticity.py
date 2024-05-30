@@ -22,7 +22,7 @@ def test_relaxation_uniaxial_stress(mat: IncrSmallStrainModel):
     V = df.fem.FunctionSpace(mesh, ("CG", 1))
     u = df.fem.Function(V)
     law = mat(
-        parameters={"E0": youngs_modulus, "E1": visco_modulus, "tau": relaxation_time, "nu": poissons_ratio},
+        parameters={"E0": youngs_modulus, "E1": visco_modulus, "tau": relaxation_time},
         constraint=Constraint.UNIAXIAL_STRESS,
     )
 
@@ -107,12 +107,12 @@ def test_relaxation_uniaxial_stress(mat: IncrSmallStrainModel):
 
 @pytest.mark.parametrize("mat", [SpringKelvinModel, SpringMaxwellModel])
 @pytest.mark.parametrize("case", [{'dim': 2, 'constraint': 'plane_stress'},
-                                   {'dim': 2, 'constraint': 'plane_strain'},
                                    {'dim': 3}])
 def test_relaxation(case: dict, mat: IncrSmallStrainModel):
+    '''uniaxial tension test for 2D and 3D, displacement controlled, symmetric boundaries'''
+
     if case['dim'] == 2:
         mesh = df.mesh.create_unit_square(MPI.COMM_WORLD, 2, 2)
-        bc_vector = np.array([0.0, 0.0])
 
         if case['constraint'] == 'plane_stress':
             law = mat(
@@ -127,12 +127,14 @@ def test_relaxation(case: dict, mat: IncrSmallStrainModel):
 
     elif case['dim'] == 3:
         mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 2, 2, 2)
-        bc_vector = np.array([0.0, 0.0, 0.0])
 
         law = mat(
             parameters={"E0": youngs_modulus, "E1": visco_modulus, "tau": relaxation_time, "nu": poissons_ratio},
             constraint=Constraint.FULL,
         )
+
+        def z_boundary(x):
+            return np.isclose(x[2], 0.0)
 
     else:
         raise ValueError(f"Dimension {case['dim']} not supported")
@@ -146,19 +148,52 @@ def test_relaxation(case: dict, mat: IncrSmallStrainModel):
     def right_boundary(x):
         return np.isclose(x[0], 1.0)
 
-    displacement = 0.01
-    dofs_left = df.fem.locate_dofs_geometrical(V, left_boundary)
-    dofs_right = df.fem.locate_dofs_geometrical(V, right_boundary)
-    bc_left = df.fem.dirichletbc(bc_vector, dofs_left, V)
-    # displacement in x direction
-    disp_vector = bc_vector.copy()
-    disp_vector[0] = displacement
-    bc_right = df.fem.dirichletbc(disp_vector, dofs_right, V)
+    def y_boundary(x):
+        return np.isclose(x[1], 0.0)
 
+    displacement = 0.01
+
+    # boundaries
+    fdim = mesh.topology.dim - 1
+    left_f = df.mesh.locate_entities_boundary(mesh, fdim, left_boundary)
+    right_f = df.mesh.locate_entities_boundary(mesh, fdim, right_boundary)
+    bc_y_f = df.mesh.locate_entities_boundary(mesh, fdim, y_boundary)
+
+    # displacement in x direction
+    move_ux_right = df.fem.dirichletbc(
+        df.fem.Constant(mesh, displacement),
+        df.fem.locate_dofs_topological(V.sub(0), fdim, right_f),
+        V.sub(0),
+    )
+
+    # symmetric boundaries for modelling uniaxial tension
+    zero_scalar = df.fem.Constant(mesh, 0.0)
+    fix_ux = df.fem.dirichletbc(
+        zero_scalar,
+        df.fem.locate_dofs_topological(V.sub(0), fdim, left_f),
+        V.sub(0),
+    )
+    fix_uy = df.fem.dirichletbc(
+        zero_scalar,
+        df.fem.locate_dofs_topological(V.sub(1), fdim, bc_y_f),
+        V.sub(1),
+    )
+    dirc_bcs = [fix_ux, fix_uy, move_ux_right]
+
+    if case['dim'] == 3:
+        bc_z_f = df.mesh.locate_entities_boundary(mesh, fdim, z_boundary)
+        fix_uz = df.fem.dirichletbc(
+            zero_scalar,
+            df.fem.locate_dofs_topological(V.sub(2), fdim, bc_z_f),
+            V.sub(2),
+        )
+        dirc_bcs = [fix_ux, fix_uy, fix_uz, move_ux_right]
+
+    # problem and solve
     problem = IncrSmallStrainProblem(
         law,
         u,
-        [bc_left, bc_right],
+        dirc_bcs,
         1,
     )
 
@@ -174,9 +209,6 @@ def test_relaxation(case: dict, mat: IncrSmallStrainModel):
     problem._time = 0
     solver.solve(u)
     problem.update()
-    print(u.x.array)
-    print(problem.stress_1.x.array)
-
 
     strain.append(problem._history_1[0]['strain'].x.array.max())
     viscostrain.append(problem._history_1[0]['strain_visco'].x.array.max())
@@ -194,8 +226,6 @@ def test_relaxation(case: dict, mat: IncrSmallStrainModel):
         problem.update()
         print(f"time {time[-1]} Converged: {converged} in {niter} iterations.")
 
-        # print(problem.stress_1.x.array)  # mandel stress at time t
-        # print(u.x.array)
         disp.append(u.x.array.max())
         stress.append(problem.stress_1.x.array.max())
         strain.append(problem._history_1[0]['strain'].x.array.max())
@@ -228,6 +258,7 @@ def test_relaxation(case: dict, mat: IncrSmallStrainModel):
     assert viscostrain[-1] > 0
 
 def test_kelvin_vs_maxwell():
+    """1D test with uniaxial stress, compare Kelvin and Maxwell model."""
 
     mesh = df.mesh.create_unit_interval(MPI.COMM_WORLD, 2)
     V = df.fem.FunctionSpace(mesh, ("CG", 1))
@@ -310,9 +341,16 @@ def test_kelvin_vs_maxwell():
 
 if __name__ == "__main__":
 
-    # test_relaxation_uniaxial_stress(SpringKelvinModel)
-    test_relaxation_uniaxial_stress(SpringMaxwellModel)
+    #test_relaxation_uniaxial_stress(SpringKelvinModel)
+    #test_relaxation_uniaxial_stress(SpringMaxwellModel)
 
-    # test_relaxation({'dim': 3}, SpringMaxwellModel)
+    test_relaxation({'dim': 2, 'constraint':'plane_stress'}, SpringMaxwellModel)
+    test_relaxation({'dim': 2, 'constraint':'plane_stress'}, SpringKelvinModel)
 
-    # test_kelvin_vs_maxwell()
+    test_relaxation({'dim': 3}, SpringMaxwellModel)
+    test_relaxation({'dim': 3}, SpringKelvinModel)
+
+    test_kelvin_vs_maxwell()
+
+    # test_creep({'dim': 2, 'constraint':'plane_strain'}, SpringMaxwellModel)
+    # test_creep({'dim': 2, 'constraint':'plane_strain'}, SpringKelvinModel)
