@@ -21,7 +21,7 @@ class SpringKelvinModel(IncrSmallStrainModel):
         self.E0 = parameters["E0"] # elastic modulus
         self.E1 = parameters["E1"] # visco modulus
         self.tau = parameters["tau"] # relaxation time == eta/(2 mu1) for 1D case eta/E1
-        if Constraint.UNIAXIAL_STRESS:
+        if constraint == Constraint.UNIAXIAL_STRESS:
             self.nu = 0.0
         else:
             self.nu = parameters["nu"] # Poisson's ratio
