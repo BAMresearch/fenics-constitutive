@@ -334,28 +334,21 @@ def test_kelvin_vs_maxwell():
 
 
 @pytest.mark.parametrize("mat", [SpringKelvinModel, SpringMaxwellModel])
-@pytest.mark.parametrize("case", [{'dim': 2, 'constraint': 'plane_stress'},
-                                   {'dim': 3}])
-def test_creep(case: dict, mat: IncrSmallStrainModel):
+@pytest.mark.parametrize("dim", [2, 3])
+def test_creep(dim: int, mat: IncrSmallStrainModel):
     '''creep under uniaxial tension test for 2D and 3D, stress controlled, symmetric boundaries'''
 
     f_max = 0.1
-    if case['dim'] == 2:
+    if dim == 2:
         mesh = df.mesh.create_unit_square(MPI.COMM_WORLD, 2, 2)
         load = (f_max, 0.0)
+        # only plane stress otherwise pure uniaxial bc not possible
+        law = mat(
+            parameters={"E0": youngs_modulus, "E1": visco_modulus, "tau": relaxation_time, "nu": poissons_ratio},
+            constraint=Constraint.PLANE_STRESS,
+        )
 
-        if case['constraint'] == 'plane_stress':
-            law = mat(
-                parameters={"E0": youngs_modulus, "E1": visco_modulus, "tau": relaxation_time, "nu": poissons_ratio},
-                constraint=Constraint.PLANE_STRESS,
-            )
-        elif case['constraint'] == 'plane_strain':
-            law = mat(
-                parameters={"E0": youngs_modulus, "E1": visco_modulus, "tau": relaxation_time, "nu": poissons_ratio},
-                constraint=Constraint.PLANE_STRAIN,
-            )
-
-    elif case['dim'] == 3:
+    elif dim == 3:
         mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 2, 2, 2)
         load = (f_max, 0.0, 0.0)
 
@@ -402,7 +395,7 @@ def test_creep(case: dict, mat: IncrSmallStrainModel):
     )
     dirc_bcs = [fix_ux, fix_uy]
 
-    if case['dim'] == 3:
+    if dim == 3:
         bc_z_f = df.mesh.locate_entities_boundary(mesh, fdim, z_boundary)
         fix_uz = df.fem.dirichletbc(
             zero_scalar,
@@ -656,18 +649,18 @@ if __name__ == "__main__":
     #test_relaxation_uniaxial_stress(SpringKelvinModel)
     #test_relaxation_uniaxial_stress(SpringMaxwellModel)
     #
-    # test_relaxation({'dim': 2, 'constraint':'plane_stress'}, SpringMaxwellModel)
-    # test_relaxation({'dim': 2, 'constraint':'plane_stress'}, SpringKelvinModel)
+    # test_relaxation(2, SpringMaxwellModel)
+    # test_relaxation(2, SpringKelvinModel)
     #
-    # test_relaxation({'dim': 3}, SpringMaxwellModel)
-    # test_relaxation({'dim': 3}, SpringKelvinModel)
+    # test_relaxation(3, SpringMaxwellModel)
+    # test_relaxation(3, SpringKelvinModel)
     #
     # test_kelvin_vs_maxwell()
 
-    # test_creep({'dim': 3}, SpringKelvinModel)
-    # test_creep({'dim': 3}, SpringMaxwellModel)
+    # test_creep(3, SpringKelvinModel)
+    # test_creep(3, SpringMaxwellModel)
 
-    # test_creep({'dim': 2, 'constraint':'plane_stress'}, SpringMaxwellModel)
-    # test_creep({'dim': 2, 'constraint':'plane_stress'}, SpringKelvinModel)
+    # test_creep(2, SpringMaxwellModel)
+    # test_creep(2, SpringKelvinModel)
 
     test_plane_strain(SpringKelvinModel)
