@@ -267,7 +267,7 @@ def test_kelvin_vs_maxwell():
     # transfer Kelvin parameters to Maxwell (see Technische Mechanik 4)
     E0_M = (youngs_modulus * visco_modulus) / (youngs_modulus + visco_modulus)
     E1_M = youngs_modulus ** 2 / (youngs_modulus + visco_modulus)
-    tau_M = (youngs_modulus / (youngs_modulus + visco_modulus)) ** 2 * relaxation_time
+    tau_M = visco_modulus / (youngs_modulus + visco_modulus) * relaxation_time
 
     #Maxwell material
     law_M = SpringMaxwellModel(
@@ -310,9 +310,9 @@ def test_kelvin_vs_maxwell():
         stress = []
         strain = []
 
-        dt = 0.001
+        dt = 0.1
         prob_i._time = dt
-        total_time = 10*dt #1*relaxation_time
+        total_time = 10*dt
         while time[-1] < total_time:
             time.append(time[-1]+dt)
             niter, converged = solver.solve(u)
@@ -325,12 +325,12 @@ def test_kelvin_vs_maxwell():
         stress_p.append(stress)
         strain_p.append(strain)
 
-    #print('Kelvin', stress_p[0], strain_p[0])
-    #print('Maxwell', stress_p[1], strain_p[1])
-
+    # print('Kelvin', stress_p[0], strain_p[0])
+    # print('Maxwell', stress_p[1], strain_p[1])
+    #
     # print(np.linalg.norm(np.array(stress_p[0])-np.array(stress_p[1])))
     # accuracy depends on time step size!
-    assert abs(np.linalg.norm(np.array(stress_p[0])-np.array(stress_p[1]))) < 1e-3
+    assert abs(np.linalg.norm(np.array(stress_p[0])-np.array(stress_p[1]))) < 1e-8
 
 
 @pytest.mark.parametrize("mat", [SpringKelvinModel, SpringMaxwellModel])
@@ -655,7 +655,7 @@ if __name__ == "__main__":
     # test_relaxation(3, SpringMaxwellModel)
     # test_relaxation(3, SpringKelvinModel)
     #
-    # test_kelvin_vs_maxwell()
+    test_kelvin_vs_maxwell()
 
     # test_creep(3, SpringKelvinModel)
     # test_creep(3, SpringMaxwellModel)
@@ -663,4 +663,4 @@ if __name__ == "__main__":
     # test_creep(2, SpringMaxwellModel)
     # test_creep(2, SpringKelvinModel)
 
-    test_plane_strain(SpringKelvinModel)
+    # test_plane_strain(SpringKelvinModel)
