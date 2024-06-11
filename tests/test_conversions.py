@@ -44,13 +44,13 @@ def test_strain_from_grad_u():
 
 
 @pytest.mark.parametrize(
-    "constraint",
+    ("constraint"),
     [
-        Constraint.UNIAXIAL_STRAIN,
-        Constraint.UNIAXIAL_STRESS,
-        Constraint.PLANE_STRAIN,
-        Constraint.PLANE_STRESS,
-        Constraint.FULL,
+        (Constraint.UNIAXIAL_STRAIN),
+        (Constraint.UNIAXIAL_STRESS),
+        (Constraint.PLANE_STRAIN),
+        (Constraint.PLANE_STRESS),
+        (Constraint.FULL),
     ],
 )
 def test_ufl_strain_equals_array_conversion(constraint: Constraint):

@@ -8,6 +8,7 @@ dependencies:
   - numpy
   - pip
   - pytest
+  - pytest-mpi
   - ruff
   - pip:
     - -e .

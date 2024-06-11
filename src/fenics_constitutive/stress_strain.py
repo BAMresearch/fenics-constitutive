@@ -21,7 +21,9 @@ def ufl_mandel_strain(
     Returns:
         Vector-valued UFL expression of the mandel strain.
     """
-    assert u.ufl_shape == (constraint.geometric_dim,)
+    shape = len(u.ufl_shape)
+    geometric_dim = u.ufl_shape[0] if shape > 0 else 1
+    assert geometric_dim == constraint.geometric_dim()
     match constraint:
         case Constraint.UNIAXIAL_STRAIN:
             return ufl.nabla_grad(u)
@@ -133,6 +135,6 @@ def strain_from_grad_u(grad_u: np.ndarray, constraint: Constraint) -> np.ndarray
             strain_view[:, 4] = 1 / 2**0.5 * (grad_u_view[:, 5] + grad_u_view[:, 7])
             strain_view[:, 5] = 1 / 2**0.5 * (grad_u_view[:, 2] + grad_u_view[:, 6])
         case _:
-            error = f"Unknown constraint: {constraint}"
-            raise NotImplementedError(error)
+            msg = "Constraint not supported."
+            raise NotImplementedError(msg)
     return strain
