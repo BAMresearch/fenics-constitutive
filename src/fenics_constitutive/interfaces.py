@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod, abstractproperty
 from enum import Enum
+from typing import Protocol, runtime_checkable
 
 import numpy as np
 
@@ -30,6 +31,25 @@ class Constraint(Enum):
     PLANE_STRAIN = 3
     PLANE_STRESS = 4
     FULL = 5
+
+    def __str__(self) -> str:
+        """
+        Convert the constraint to a string.
+
+        Returns:
+            The string representation of the constraint.
+        """
+        match self:
+            case Constraint.UNIAXIAL_STRAIN:
+                return "UNIAXIAL_STRAIN"
+            case Constraint.UNIAXIAL_STRESS:
+                return "UNIAXIAL_STRESS"
+            case Constraint.PLANE_STRAIN:
+                return "PLANE_STRAIN"
+            case Constraint.PLANE_STRESS:
+                return "PLANE_STRESS"
+            case Constraint.FULL:
+                return "FULL"
 
     @staticmethod
     def from_str(string: str) -> Constraint:
@@ -104,7 +124,7 @@ def check_constraint(model: IncrSmallStrainModel) -> bool:
 
     Args:
         model : The constitutive model.
-    
+
     Returns:
         True if the constraint is compatible, False otherwise.
     """
@@ -122,7 +142,8 @@ def check_constraint(model: IncrSmallStrainModel) -> bool:
     return True
 
 
-class IncrSmallStrainModel(ABC):
+@runtime_checkable
+class IncrSmallStrainModel(Protocol):
     """
     Interface for incremental small strain models.
     """

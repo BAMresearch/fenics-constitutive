@@ -6,7 +6,7 @@ import numpy as np
 import ufl
 from petsc4py import PETSc
 
-from .interfaces import IncrSmallStrainModel
+from .interfaces import Constraint, IncrSmallStrainModel
 from .maps import SubSpaceMap, build_subspace_map
 from .stress_strain import ufl_mandel_strain
 
@@ -91,14 +91,14 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
         if isinstance(laws, IncrSmallStrainModel):
             laws = [(laws, cells)]
 
-        constraint = laws[0][0].constraint
+        constraint = Constraint.from_str(laws[0][0].constraint)
         assert all(
-            law[0].constraint == constraint for law in laws
+            Constraint.from_str(law[0].constraint) == constraint for law in laws
         ), "All laws must have the same constraint"
 
         gdim = mesh.ufl_cell().geometric_dimension()
         assert (
-            constraint.geometric_dim() == gdim
+            constraint.geometric_dim == gdim
         ), "Geometric dimension mismatch between mesh and laws"
 
         QVe = ufl.VectorElement(
@@ -106,14 +106,14 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
             mesh.ufl_cell(),
             q_degree,
             quad_scheme="default",
-            dim=constraint.stress_strain_dim(),
+            dim=constraint.stress_strain_dim,
         )
         QTe = ufl.TensorElement(
             "Quadrature",
             mesh.ufl_cell(),
             q_degree,
             quad_scheme="default",
-            shape=(constraint.stress_strain_dim(), constraint.stress_strain_dim()),
+            shape=(constraint.stress_strain_dim, constraint.stress_strain_dim),
         )
         Q_grad_u_e = ufl.TensorElement(
             "Quadrature",

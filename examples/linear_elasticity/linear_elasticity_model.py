@@ -5,7 +5,7 @@ import numpy as np
 from fenics_constitutive import Constraint, IncrSmallStrainModel, strain_from_grad_u
 
 
-class LinearElasticityModel(IncrSmallStrainModel):
+class LinearElasticityModel:
     def __init__(self, parameters: dict[str, float], constraint: Constraint):
         self._constraint = constraint
         E = parameters["E"]
@@ -79,13 +79,21 @@ class LinearElasticityModel(IncrSmallStrainModel):
         )
         n_gauss = grad_del_u.size // (self.geometric_dim**2)
         mandel_view = mandel_stress.reshape(-1, self.stress_strain_dim)
-        strain_increment = strain_from_grad_u(grad_del_u, self.constraint)
+        strain_increment = strain_from_grad_u(grad_del_u, self._constraint)
         mandel_view += strain_increment.reshape(-1, self.stress_strain_dim) @ self.D
         tangent[:] = np.tile(self.D.flatten(), n_gauss)
 
     @property
-    def constraint(self) -> Constraint:
-        return self._constraint
+    def constraint(self) -> str:
+        return str(self._constraint)
+
+    @property
+    def stress_strain_dim(self) -> int:
+        return self._constraint.stress_strain_dim
+
+    @property
+    def geometric_dim(self) -> int:
+        return self._constraint.geometric_dim
 
     @property
     def history_dim(self) -> None:

@@ -205,14 +205,7 @@ def test_plane_strain():
     solver = NewtonSolver(MPI.COMM_WORLD, problem)
     n, converged = solver.solve(u)
     problem.update()
-    assert (
-        np.linalg.norm(
-            problem.stress_0.x.array.reshape(-1, law.constraint.stress_strain_dim())[
-                :, 2
-            ]
-        )
-        > 1e-2
-    )
+    assert np.linalg.norm(problem.stress_0.x.array.reshape(-1, 4)[:, 2]) > 1e-2
 
 
 def test_plane_stress():
@@ -247,14 +240,7 @@ def test_plane_stress():
     solver = NewtonSolver(MPI.COMM_WORLD, problem)
     n, converged = solver.solve(u)
     problem.update()
-    assert (
-        np.linalg.norm(
-            problem.stress_0.x.array.reshape(-1, law.constraint.stress_strain_dim())[
-                :, 2
-            ]
-        )
-        < 1e-10
-    )
+    assert np.linalg.norm(problem.stress_0.x.array.reshape(-1, 4)[:, 2]) < 1e-10
 
 
 def test_3d():
