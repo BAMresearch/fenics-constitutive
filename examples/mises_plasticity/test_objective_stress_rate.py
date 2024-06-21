@@ -158,46 +158,80 @@ def test_uniaxial_strain_3d():
         for i, coord in enumerate(corner_coords):
             constants[i].value = rotated_coords[i]-corner_coords[i] + u.x.array.reshape(-1,3)[i]
 
+        return rotated_coords
+
     problem = IncrSmallStrainProblem(law, u, [], q_degree=4, mesh_update=mesh_update, co_rotation=co_rotation)
     solver = NewtonSolver(MPI.COMM_WORLD, problem)
 
     n_steps_stretch = 20
     n_steps_rot = 20
-    total_angle = np.pi/2  # 90 degrees
-    total_disp = 1
-    angle_steps = np.linspace(0, total_angle, n_steps_rot + 1)[1:]
+    total_angle = np.pi/2 # 90 degrees
+    total_disp = 0.5
+    angle_steps = np.linspace(0, total_angle, n_steps_rot + 1)
     disp_steps = np.linspace(0, total_disp, n_steps_stretch + 1)
     iterations = []
     displacement = []
     load = []
+    invariant1 = []
+    invariant2 = []
+    invariant3 = []
+    princ_stresses = []
     # V_stress = df.fem.VectorFunctionSpace(mesh, ("DG", 2), dim=6)
     # stress_tensor = df.fem.Function(V_stress)
 
     with df.io.XDMFFile(mesh.comm, "Mesh_.xdmf", "w") as xdmf:
         xdmf.write_mesh(mesh)
-        for inc, disp in enumerate(disp_steps):
-
-            print("Stretch Increment:", inc)
-            stretch_x.value[0] = disp
-            problem.bcs = dirichlet_stretch
-
-            niter, converged = solver.solve(u)
-            problem.update()
-
-            print(f"Converged: {converged} in {niter} iterations.")
-            iterations = np.append(iterations, niter)
-
-            u.name = "Deformation"
-            xdmf.write_function(u, float(inc))
-
-            stress_values = []
-            stress_values.append(problem.stress_0.x.array.copy())
-
-            stress_values = stress_values[0]
-            stress_element = stress_values[0:6]
-
-            displacement.append(disp)
-            load.append(stress_element)
+        # for inc, disp in enumerate(disp_steps):
+        #
+        #     print("Stretch Increment:", inc)
+        #     stretch_x.value[0] = disp
+        #     problem.bcs = dirichlet_stretch
+        #
+        #     niter, converged = solver.solve(u)
+        #     problem.update()
+        #
+        #     print(f"Converged: {converged} in {niter} iterations.")
+        #     iterations = np.append(iterations, niter)
+        #
+        #     u.name = "Deformation"
+        #     xdmf.write_function(u, float(inc))
+        #
+        #     stress_values = []
+        #     stress_values.append(problem.stress_0.x.array.copy())
+        #
+        #     stress_values = stress_values[0]
+        #     stress_element = stress_values[0:6]
+        #
+        #     stress_matrix = np.zeros((3, 3), dtype=np.float64)
+        #
+        #     stress_matrix[0, 0] = stress_element[0]
+        #     stress_matrix[1, 1] = stress_element[1]
+        #     stress_matrix[2, 2] = stress_element[2]
+        #     stress_matrix[0, 1] = 1 / 2 ** 0.5 * (stress_element[3])
+        #     stress_matrix[1, 2] = 1 / 2 ** 0.5 * (stress_element[4])
+        #     stress_matrix[0, 2] = 1 / 2 ** 0.5 * (stress_element[5])
+        #     stress_matrix[1, 0] = stress_element[1]
+        #     stress_matrix[2, 1] = stress_element[2]
+        #     stress_matrix[2, 0] = stress_element[2]
+        #
+        #     # trace_sigma = stress_element[0] + stress_element[1] + stress_element[2]
+        #
+        #     I1 = np.trace(stress_matrix)
+        #     I2 = 0.5 * (I1 ** 2 - np.trace(stress_matrix @ stress_matrix))
+        #     I3 = np.linalg.det(stress_matrix)
+        #
+        #     principal_stresses = np.linalg.eigvalsh(stress_matrix)
+        #
+        #     princ_stresses.append(principal_stresses)
+        #
+        #     invariant1.append(I1)
+        #     invariant2.append(I2)
+        #     invariant3.append(I3)
+        #
+        #     # invariant1.append(stress_element[0] + stress_element[1] + stress_element[2])
+        #
+        #     displacement.append(disp)
+        #     load.append(stress_element)
 
         for inc, angle in enumerate(angle_steps):
 
@@ -208,12 +242,27 @@ def test_uniaxial_strain_3d():
                 corner_coords = mesh.geometry.x + u.x.array.reshape(-1, 3)
 
             print("Rotation Increment:", inc)
-            increment_angle = angle_steps[1] - angle_steps[0]
-            update_boundary_conditions(increment_angle, constants, corner_coords)
+            if inc == 0:
+                increment_angle = 0
+            else:
+                increment_angle = angle_steps[1] - angle_steps[0]
+            rotated_coords = update_boundary_conditions(increment_angle, constants, corner_coords)
+
+            # niter, converged = solver.solve(u)
+            # problem.update()
+
+
+            if inc>0 :
+                constants[1].value += (rotated_coords[1] - rotated_coords[0]) * 0.02
+                constants[3].value += (rotated_coords[3] - rotated_coords[2]) * 0.02
+                constants[5].value += (rotated_coords[5] - rotated_coords[4]) * 0.02
+                constants[7].value += (rotated_coords[7] - rotated_coords[6]) * 0.02
+
             problem.bcs = dirichlet_rot
 
             niter, converged = solver.solve(u)
             problem.update()
+
 
             print(f"Converged: {converged} in {niter} iterations.")
             iterations = np.append(iterations, niter)
@@ -223,7 +272,34 @@ def test_uniaxial_strain_3d():
             stress_values = stress_values[0]
             stress_element = stress_values[0:6]
 
+            stress_matrix = np.zeros((3, 3), dtype=np.float64)
+
+            stress_matrix[0, 0] = stress_element[0]
+            stress_matrix[1, 1] = stress_element[1]
+            stress_matrix[2, 2] = stress_element[2]
+            stress_matrix[0, 1] = 1 / 2 ** 0.5 * (stress_element[3])
+            stress_matrix[1, 2] = 1 / 2 ** 0.5 * (stress_element[4])
+            stress_matrix[0, 2] = 1 / 2 ** 0.5 * (stress_element[5])
+            stress_matrix[1, 0] = stress_element[1]
+            stress_matrix[2, 1] = stress_element[2]
+            stress_matrix[2, 0] = stress_element[2]
+
+            trace_sigma = stress_element[0]+stress_element[1]+stress_element[2]
+
+            I1 = np.trace(stress_matrix)
+            I2 = 0.5 * (I1 ** 2 - np.trace(stress_matrix @ stress_matrix))
+            I3 = np.linalg.det(stress_matrix)
+
+            principal_stresses = np.linalg.eigvalsh(stress_matrix)
+
+            princ_stresses.append(principal_stresses)
+            invariant1.append(I1)
+            invariant2.append(I2)
+            invariant3.append(I3)
+            # print('1st Stress Invariant is ', stress_element[0]+stress_element[1]+stress_element[2])
+            print(stress_element)
             displacement.append(angle)
+
             load.append(stress_element)
 
             u.name = "Deformation"
@@ -233,7 +309,11 @@ def test_uniaxial_strain_3d():
     load = np.array(load)
 
     ax = plt.subplots()[1]
-    ax.plot(np.linspace(0, 41, 41), load[:,:], label=['xx','yy','zz', 'xy','yz','xz'])
+    ax.plot(np.linspace(0, n_steps_rot+1, n_steps_rot+1), load[:,:], label=['xx','yy','zz', 'xy','yz','xz'])
+    # ax.plot(np.linspace(0, 21, 21), invariant1, label='invariant 1')
+    # ax.plot(np.linspace(0, 21, 21), invariant2, label='invariant 2')
+    # ax.plot(np.linspace(0, 21, 21), invariant3, label='invariant 3')
+    # ax.plot(np.linspace(0, 21, 21), princ_stresses, label=['principal stress 1','principal stress 2','principal stress 3'])
     ax.set_xlabel(r"$time$")
     ax.set_ylabel(r"$\sigma$")
     ax.legend()
