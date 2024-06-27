@@ -30,6 +30,7 @@ class VonMises3D(IncrSmallStrainModel):
 
     def evaluate(
         self,
+        time: float,
         del_t: float,
         grad_del_u: np.ndarray,
         mandel_stress: np.ndarray,

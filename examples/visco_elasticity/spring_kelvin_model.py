@@ -89,6 +89,7 @@ class SpringKelvinModel(IncrSmallStrainModel):
 
     def evaluate(
         self,
+        time: float,
         del_t: float,
         grad_del_u: np.ndarray,
         mandel_stress: np.ndarray,
@@ -112,24 +113,19 @@ class SpringKelvinModel(IncrSmallStrainModel):
         I2 = np.tile(self.I2, n_gauss).reshape(-1, self.stress_strain_dim)
         tr_eps = np.sum(strain_increment[:, :self.geometric_dim], axis=1)[:, np.newaxis]
 
-        if del_t == 0:
-            # linear step visko strain is zero
-            D = self.D_0
-            mandel_view += strain_increment @ D
-            _deps_visko = np.zeros_like(strain_increment)
-        else:
-            # visco step
-            factor = (1 / del_t + 1 / self.tau + self.mu0 / (self.tau * self.mu1))
+        assert del_t > 0, ("Time step must be defined and positive.")
 
-            _deps_visko = 1 / factor * (
-                        1 / (self.tau * 2 * self.mu1) * mandel_view
-                        - 1 / self.tau * strain_visco_n
-                        + self.mu0 / (self.tau * self.mu1) * strain_increment
-                        + self.lam0 / (self.tau * 2 * self.mu1) * tr_eps * I2
-                )
+        factor = (1 / del_t + 1 / self.tau + self.mu0 / (self.tau * self.mu1))
 
-            mandel_view += strain_increment @ self.D_0 - 2 * self.mu0 * _deps_visko
-            D = (1 - self.mu0 / (self.tau * self.mu1 * factor)) * self.D_0
+        _deps_visko = 1 / factor * (
+                    1 / (self.tau * 2 * self.mu1) * mandel_view
+                    - 1 / self.tau * strain_visco_n
+                    + self.mu0 / (self.tau * self.mu1) * strain_increment
+                    + self.lam0 / (self.tau * 2 * self.mu1) * tr_eps * I2
+            )
+
+        mandel_view += strain_increment @ self.D_0 - 2 * self.mu0 * _deps_visko
+        D = (1 - self.mu0 / (self.tau * self.mu1 * factor)) * self.D_0
 
         tangent[:] = np.tile(D.flatten(), n_gauss)
         strain_visco_n += _deps_visko

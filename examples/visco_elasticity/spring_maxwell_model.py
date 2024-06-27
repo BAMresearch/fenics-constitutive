@@ -111,6 +111,7 @@ class SpringMaxwellModel(IncrSmallStrainModel):
 
     def evaluate(
         self,
+        time: float,
         del_t: float,
         grad_del_u: np.ndarray,
         mandel_stress: np.ndarray,
@@ -131,22 +132,24 @@ class SpringMaxwellModel(IncrSmallStrainModel):
         strain_visco_n = history['strain_visco'].reshape(-1, self.stress_strain_dim)
         strain_n = history['strain'].reshape(-1, self.stress_strain_dim)
 
-        if del_t == 0:
-            # linear step visko strain is zero
-            D = self.D_0 + self.D_1
-            mandel_view += strain_increment @ D
-            _deps_visko = np.zeros_like(strain_increment)
-        else:
-            strain_total = strain_n + strain_increment
-            factor = (1 / del_t + 1 / self.tau)
-            _deps_visko = 1 / factor * (
-                    1 / (self.tau * 2 * self.mu1) * strain_total @ self.D_1
-                    - 1 / self.tau * strain_visco_n
-            )
+        # if del_t == 0:
+        #     # linear step visko strain is zero
+        #     D = self.D_0 + self.D_1
+        #     mandel_view += strain_increment @ D
+        #     _deps_visko = np.zeros_like(strain_increment)
+        # else:
+        assert del_t > 0, ("Time step must be defined and positive.")
 
-            dstress = strain_increment @ (self.D_0 + self.D_1) - 2 * self.mu1 * _deps_visko
-            mandel_view += dstress
-            D = self.D_0 + (1 - 1 / (self.tau * factor)) * self.D_1
+        strain_total = strain_n + strain_increment
+        factor = (1 / del_t + 1 / self.tau)
+        _deps_visko = 1 / factor * (
+                1 / (self.tau * 2 * self.mu1) * strain_total @ self.D_1
+                - 1 / self.tau * strain_visco_n
+        )
+
+        dstress = strain_increment @ (self.D_0 + self.D_1) - 2 * self.mu1 * _deps_visko
+        mandel_view += dstress
+        D = self.D_0 + (1 - 1 / (self.tau * factor)) * self.D_1
 
         tangent[:] = np.tile(D.flatten(), n_gauss)
         strain_visco_n += _deps_visko

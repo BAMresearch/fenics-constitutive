@@ -40,23 +40,27 @@ def test_relaxation_uniaxial_stress(mat: IncrSmallStrainModel):
     bc_left = df.fem.dirichletbc(df.fem.Constant(mesh, 0.0), dofs_left, V)
     bc_right = df.fem.dirichletbc(displacement, dofs_right, V)
 
+    dt = 2 # time increment
     problem = IncrSmallStrainProblem(
         law,
         u,
         [bc_left, bc_right],
         1,
+        dt,
     )
 
     solver = NewtonSolver(MPI.COMM_WORLD, problem)
 
-    time = [0]
+    time = []
     disp = []
     stress = []
     strain = []
     viscostrain = []
 
-    # elastic first step
-    problem._time = 0
+    # to get elastic first step for comparison with analytic solution use very small time increment
+    problem._del_t = 10**(-8) # first time step
+    problem.update_time()
+    time.append(problem._time)
     solver.solve(u)
     problem.update()
 
@@ -66,14 +70,14 @@ def test_relaxation_uniaxial_stress(mat: IncrSmallStrainModel):
     strain.append(problem._history_1[0]['strain'].x.array[-1])
     viscostrain.append(problem._history_1[0]['strain_visco'].x.array[-1])
 
-    # set time step and solve until total time
-    dt = 2
-    problem._time = dt
+    #set time step back and solve until total time
+    problem._del_t = dt
     total_time = 20*relaxation_time
-    while time[-1] < total_time:
-        time.append(time[-1]+dt)
+    while problem._time < total_time:
+        problem.update_time()
+        time.append(problem._time)
         niter, converged = solver.solve(u)
-        problem.update()
+        problem.update() # update time
         # print(f"time {time[-1]} Converged: {converged} in {niter} iterations.")
 
         # print(problem.stress_1.x.array)  # mandel stress at time t
@@ -83,7 +87,10 @@ def test_relaxation_uniaxial_stress(mat: IncrSmallStrainModel):
         strain.append(problem._history_1[0]['strain'].x.array[-1])
         viscostrain.append(problem._history_1[0]['strain_visco'].x.array[-1])
 
-    # print(disp, stress, strain, viscostrain)
+
+
+    print('0',time[0], disp[0], stress[0], strain[0], viscostrain[0])
+    print('end',time[-1], disp[-1], stress[-1], strain[-1], viscostrain[-1])
     # analytic solution
     if isinstance(law,SpringKelvinModel):
         #analytic solution for 1D Kelvin model
@@ -185,23 +192,27 @@ def test_relaxation(dim: int, mat: IncrSmallStrainModel):
         dirc_bcs = [fix_ux, fix_uy, fix_uz, move_ux_right]
 
     # problem and solve
+    dt = 2
     problem = IncrSmallStrainProblem(
         law,
         u,
         dirc_bcs,
         1,
+        dt,
     )
 
     solver = NewtonSolver(MPI.COMM_WORLD, problem)
 
-    time = [0]
+    time = []
     disp = []
     stress = []
     strain = []
     viscostrain = []
 
-    # elastic first step
-    problem._time = 0
+    # approximately elastic first step
+    problem._del_t = 10**(-8) # first time step
+    problem.update_time()
+    time.append(problem._time)
     solver.solve(u)
     problem.update()
 
@@ -211,12 +222,12 @@ def test_relaxation(dim: int, mat: IncrSmallStrainModel):
     stress.append(problem.stress_1.x.array.max())
 
 
-    # set time step and solve until total time
-    dt = 2
-    problem._time = dt
+    # set time step back and solve until total time
+    problem._del_t = dt
     total_time = 20 * relaxation_time
-    while time[-1] < total_time:
-        time.append(time[-1] + dt)
+    while problem._time < total_time:
+        problem.update_time()
+        time.append(problem._time)
         niter, converged = solver.solve(u)
         problem.update()
         print(f"time {time[-1]} Converged: {converged} in {niter} iterations.")
@@ -288,16 +299,19 @@ def test_kelvin_vs_maxwell():
     bc_right = df.fem.dirichletbc(displacement, dofs_right, V)
 
     # solve Kelvin problem without linear step
+    dt, q_degree = 0.1, 4
     problems = [IncrSmallStrainProblem(
         law_K,
         u,
         [bc_left, bc_right],
-        4,
+        q_degree,
+        dt
     ), IncrSmallStrainProblem(
         law_M,
         u,
         [bc_left, bc_right],
-        4,
+        q_degree,
+        dt
     )]
 
     stress_p, strain_p = [], []
@@ -306,15 +320,14 @@ def test_kelvin_vs_maxwell():
     for prob_i in problems:
         solver = NewtonSolver(MPI.COMM_WORLD, prob_i)
 
-        time = [0]
+        time = []
         stress = []
         strain = []
 
-        dt = 0.1
-        prob_i._time = dt
         total_time = 10*dt
-        while time[-1] < total_time:
-            time.append(time[-1]+dt)
+        while prob_i._time < total_time:
+            prob_i.update_time()
+            time.append(prob_i._time)
             niter, converged = solver.solve(u)
             prob_i.update()
             #print(f"time {time[-1]} Converged: {converged} in {niter} iterations.")
@@ -412,11 +425,13 @@ def test_creep(dim: int, mat: IncrSmallStrainModel):
     neumann_data = df.fem.Constant(mesh, load)
 
     # problem and solve
+    dt = 2
     problem = IncrSmallStrainProblem(
         law,
         u,
         dirc_bcs,
         1,
+        dt,
     )
     # apply load
     test_function = ufl.TestFunction(V)
@@ -426,14 +441,16 @@ def test_creep(dim: int, mat: IncrSmallStrainModel):
 
     solver = NewtonSolver(MPI.COMM_WORLD, problem)
 
-    time = [0]
+    time = []
     disp = []
     stress = []
     strain = []
     viscostrain = []
 
-    # elastic first step
-    problem._time = 0
+    # approximately elastic first step
+    problem._del_t = 10**(-8)
+    problem.update_time()
+    time.append(problem._time)
     solver.solve(u)
     problem.update()
 
@@ -443,12 +460,12 @@ def test_creep(dim: int, mat: IncrSmallStrainModel):
     stress.append(problem.stress_1.x.array.max())
 
 
-    # set time step and solve until total time
-    dt = 2
-    problem._time = dt
+    # set time step back and solve until total time
+    problem._del_t = dt
     total_time = 20 * relaxation_time
-    while time[-1] < total_time:
-        time.append(time[-1] + dt)
+    while problem._time < total_time:
+        problem.update_time()
+        time.append(problem._time)
         niter, converged = solver.solve(u)
         problem.update()
         print(f"time {time[-1]} Converged: {converged} in {niter} iterations.")
@@ -600,11 +617,13 @@ def define_problem(mat: IncrSmallStrainModel, dim: int):
         bc_list = [fix_left, fix_y0, fix_y1, fix_z0, fix_z1, move_ux_right]
 
     #problem
+    dt = 5
     problem = IncrSmallStrainProblem(
         law,
         u,
         bc_list,
         1,
+        dt
     )
     return u, problem
 
@@ -620,16 +639,16 @@ def test_plane_strain(mat: IncrSmallStrainModel):
 
 
     # set time step and solve until total time
-    time = [0]
-    dt = 5
-    problem_2D._time = dt
-    problem_3D._time = dt
+    time = []
     total_time = 20 * relaxation_time
-    while time[-1] < total_time:
-        time.append(time[-1] + dt)
+    while problem_2D._time < total_time:
+
+        problem_2D.update_time()
+        time.append(problem_2D._time)
         _ = solver_2D.solve(u_2D)
         problem_2D.update()
 
+        problem_3D.update_time()
         _ = solver_3D.solve(u_3D)
         problem_3D.update()
 
@@ -646,8 +665,8 @@ def test_plane_strain(mat: IncrSmallStrainModel):
 
 if __name__ == "__main__":
 
-    #test_relaxation_uniaxial_stress(SpringKelvinModel)
-    #test_relaxation_uniaxial_stress(SpringMaxwellModel)
+    test_relaxation_uniaxial_stress(SpringKelvinModel)
+    test_relaxation_uniaxial_stress(SpringMaxwellModel)
     #
     # test_relaxation(2, SpringMaxwellModel)
     # test_relaxation(2, SpringKelvinModel)
@@ -655,7 +674,7 @@ if __name__ == "__main__":
     # test_relaxation(3, SpringMaxwellModel)
     # test_relaxation(3, SpringKelvinModel)
     #
-    test_kelvin_vs_maxwell()
+    # test_kelvin_vs_maxwell()
 
     # test_creep(3, SpringKelvinModel)
     # test_creep(3, SpringMaxwellModel)
