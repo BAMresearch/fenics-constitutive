@@ -77,7 +77,7 @@ class IncrSmallStrainModel(ABC):
     @abstractmethod
     def evaluate(
         self,
-        time: flaot,
+        time: float,
         del_t: float,
         grad_del_u: np.ndarray,
         mandel_stress: np.ndarray,

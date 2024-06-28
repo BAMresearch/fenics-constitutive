@@ -59,10 +59,9 @@ def test_relaxation_uniaxial_stress(mat: IncrSmallStrainModel):
 
     # to get elastic first step for comparison with analytic solution use very small time increment
     problem._del_t = 10**(-8) # first time step
-    problem.update_time()
-    time.append(problem._time)
     solver.solve(u)
     problem.update()
+    time.append(problem._time)
 
     # store values last element/point
     disp.append(u.x.array[-1])
@@ -74,11 +73,11 @@ def test_relaxation_uniaxial_stress(mat: IncrSmallStrainModel):
     problem._del_t = dt
     total_time = 20*relaxation_time
     while problem._time < total_time:
-        problem.update_time()
         time.append(problem._time)
         niter, converged = solver.solve(u)
         problem.update() # update time
-        # print(f"time {time[-1]} Converged: {converged} in {niter} iterations.")
+        time.append(problem._time)
+        # print(f"time {problem._time} Converged: {converged} in {niter} iterations.")
 
         # print(problem.stress_1.x.array)  # mandel stress at time t
         # print(u.x.array)
@@ -211,10 +210,9 @@ def test_relaxation(dim: int, mat: IncrSmallStrainModel):
 
     # approximately elastic first step
     problem._del_t = 10**(-8) # first time step
-    problem.update_time()
-    time.append(problem._time)
     solver.solve(u)
     problem.update()
+    time.append(problem._time)
 
     strain.append(problem._history_1[0]['strain'].x.array.max())
     viscostrain.append(problem._history_1[0]['strain_visco'].x.array.max())
@@ -226,11 +224,10 @@ def test_relaxation(dim: int, mat: IncrSmallStrainModel):
     problem._del_t = dt
     total_time = 20 * relaxation_time
     while problem._time < total_time:
-        problem.update_time()
-        time.append(problem._time)
         niter, converged = solver.solve(u)
         problem.update()
-        print(f"time {time[-1]} Converged: {converged} in {niter} iterations.")
+        time.append(problem._time)
+        print(f"time {problem._time} Converged: {converged} in {niter} iterations.")
 
         disp.append(u.x.array.max())
         stress.append(problem.stress_1.x.array.max())
@@ -326,11 +323,10 @@ def test_kelvin_vs_maxwell():
 
         total_time = 10*dt
         while prob_i._time < total_time:
-            prob_i.update_time()
-            time.append(prob_i._time)
             niter, converged = solver.solve(u)
             prob_i.update()
-            #print(f"time {time[-1]} Converged: {converged} in {niter} iterations.")
+            time.append(prob_i._time)
+            #print(f"time {prob_i._time} Converged: {converged} in {niter} iterations.")
 
             stress.append(prob_i.stress_1.x.array[-1])
             strain.append(prob_i._history_1[0]['strain'].x.array[-1])
@@ -449,10 +445,9 @@ def test_creep(dim: int, mat: IncrSmallStrainModel):
 
     # approximately elastic first step
     problem._del_t = 10**(-8)
-    problem.update_time()
-    time.append(problem._time)
     solver.solve(u)
     problem.update()
+    time.append(problem._time)
 
     strain.append(problem._history_1[0]['strain'].x.array.max())
     viscostrain.append(problem._history_1[0]['strain_visco'].x.array.max())
@@ -464,11 +459,10 @@ def test_creep(dim: int, mat: IncrSmallStrainModel):
     problem._del_t = dt
     total_time = 20 * relaxation_time
     while problem._time < total_time:
-        problem.update_time()
-        time.append(problem._time)
         niter, converged = solver.solve(u)
         problem.update()
-        print(f"time {time[-1]} Converged: {converged} in {niter} iterations.")
+        time.append(problem._time)
+        print(f"time {problem._time} Converged: {converged} in {niter} iterations.")
 
         disp.append(u.x.array.max())
         stress.append(problem.stress_1.x.array.max())
@@ -643,12 +637,10 @@ def test_plane_strain(mat: IncrSmallStrainModel):
     total_time = 20 * relaxation_time
     while problem_2D._time < total_time:
 
-        problem_2D.update_time()
         time.append(problem_2D._time)
         _ = solver_2D.solve(u_2D)
         problem_2D.update()
 
-        problem_3D.update_time()
         _ = solver_3D.solve(u_3D)
         problem_3D.update()
 

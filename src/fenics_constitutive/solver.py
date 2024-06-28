@@ -81,7 +81,7 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
         u: df.fem.Function,
         bcs: list[df.fem.DirichletBCMetaClass],
         q_degree: int,
-        del_t: float = 0.0,
+        del_t: float = 1.0,
         form_compiler_options: dict | None = None,
         jit_options: dict | None = None,
     ):
@@ -137,7 +137,7 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
 
 
         self._del_t = del_t # time increment
-        self._time = 0 # global time will be updated in the update_time method (required before solving the problem)
+        self._time = 0 # global time will be updated in the update method
 
         # if len(laws) > 1:
         for law, cells in laws:
@@ -294,6 +294,9 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
                     self._history_0[k][key].x.array[:] = self._history_1[k][key].x.array
                     self._history_0[k][key].x.scatter_forward()
 
-    def update_time(self) -> None:
-        """ update global time """
+        # time update
         self._time += self._del_t
+
+    # def update_time(self) -> None:
+    #     """ update global time """
+    #     self._time += self._del_t
