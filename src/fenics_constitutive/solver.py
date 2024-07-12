@@ -220,6 +220,7 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
         self.q_points, _ = basix.make_quadrature(basix_celltype, q_degree)
 
         if as_3d:
+
             def grad(v):
                 return as_3d_tensor(ufl.nabla_grad(v), solver_constraint)
         else:
@@ -286,15 +287,15 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
                 for key in law.history_dim:
                     self._history_1[k][key].x.array[:] = self._history_0[k][key].x.array
                     history_input[key] = self._history_1[k][key].x.array
-
-            law.evaluate(
-                self._time,
-                self._del_t,
-                self._del_grad_u[k].x.array,
-                stress_input,
-                tangent_input,
-                history_input,
-            )
+            with df.common.Timer("constitutive-law-evaluation"):
+                law.evaluate(
+                    self._time,
+                    self._del_t,
+                    self._del_grad_u[k].x.array,
+                    stress_input,
+                    tangent_input,
+                    history_input,
+                )
             if len(self.laws) > 1:
                 self.submesh_maps[k].map_to_parent(self._stress[k], self.stress_1)
                 self.submesh_maps[k].map_to_parent(self._tangent[k], self.tangent)
