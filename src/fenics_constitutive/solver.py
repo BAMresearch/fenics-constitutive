@@ -8,7 +8,7 @@ from petsc4py import PETSc
 
 from .interfaces import Constraint, IncrSmallStrainModel
 from .maps import SubSpaceMap, build_subspace_map
-from .stress_strain import as_3d_mandel, as_3d_tensor, ufl_mandel_strain
+from .stress_strain import as_3d_tensor, ufl_mandel_strain
 
 
 def build_history(

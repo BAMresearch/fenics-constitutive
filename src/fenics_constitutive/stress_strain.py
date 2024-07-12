@@ -5,7 +5,7 @@ import ufl
 
 from .interfaces import Constraint
 
-__all__ = ["ufl_mandel_strain", "strain_from_grad_u", "as_3d_mandel", "as_3d_tensor"]
+__all__ = ["ufl_mandel_strain", "strain_from_grad_u", "as_3d_tensor"]
 
 
 def ufl_mandel_strain(
@@ -160,22 +160,6 @@ def strain_from_grad_u(grad_u: np.ndarray, constraint: Constraint) -> np.ndarray
     return strain
 
 
-def as_3d_mandel(
-    strain: ufl.core.expr.Expr, constraint: Constraint
-) -> ufl.core.expr.Expr:
-    """
-    Convert a not 3D Mandel strain to a 3D Mandel strain.
-    """
-    match constraint:
-        case Constraint.UNIAXIAL_STRAIN:
-            return ufl.as_vector([strain, 0.0, 0.0, 0.0, 0.0, 0.0])
-        case Constraint.PLANE_STRAIN:
-            return ufl.as_vector([strain[0], strain[1], strain[2], strain[3], 0.0, 0.0])
-        case _:
-            msg = f"Cannot convert {constraint} to 3D Mandel strain."
-            raise NotImplementedError(msg)
-
-
 def as_3d_tensor(
     tensor: ufl.core.expr.Expr, constraint: Constraint
 ) -> ufl.core.expr.Expr:
@@ -184,7 +168,9 @@ def as_3d_tensor(
     """
     match constraint:
         case Constraint.UNIAXIAL_STRAIN:
-            return ufl.as_matrix([[tensor, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]])
+            return ufl.as_matrix(
+                [[tensor[0], 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
+            )
         case Constraint.PLANE_STRAIN:
             return ufl.as_matrix(
                 [
