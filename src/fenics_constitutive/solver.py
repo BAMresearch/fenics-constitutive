@@ -95,37 +95,48 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
         if isinstance(laws, IncrSmallStrainModel):
             laws = [(laws, cells)]
 
-        constraint = laws[0][0].constraint
+        model_constraint = (
+            laws[0][0].constraint if solver_constraint is None else Constraint.FULL
+        )
+
         assert all(
-            law[0].constraint == constraint for law in laws
+            law[0].constraint == model_constraint for law in laws
         ), "All laws must have the same constraint"
 
-        gdim = mesh.ufl_cell().geometric_dimension() if solver_constraint is None else 3
+        solver_constraint = (
+            model_constraint if solver_constraint is None else solver_constraint
+        )
+        as_3d = solver_constraint != model_constraint
+
+        gdim = mesh.ufl_cell().geometric_dimension()
 
         assert (
-            constraint.geometric_dim() == gdim
-        ), "Geometric dimension mismatch between mesh and laws"
+            solver_constraint.geometric_dim() == gdim
+        ), "Geometric dimension mismatch between mesh and solver constraint"
 
         QVe = ufl.VectorElement(
             "Quadrature",
             mesh.ufl_cell(),
             q_degree,
             quad_scheme="default",
-            dim=constraint.stress_strain_dim(),
+            dim=model_constraint.stress_strain_dim(),
         )
         QTe = ufl.TensorElement(
             "Quadrature",
             mesh.ufl_cell(),
             q_degree,
             quad_scheme="default",
-            shape=(constraint.stress_strain_dim(), constraint.stress_strain_dim()),
+            shape=(
+                model_constraint.stress_strain_dim(),
+                model_constraint.stress_strain_dim(),
+            ),
         )
         Q_grad_u_e = ufl.TensorElement(
             "Quadrature",
             mesh.ufl_cell(),
             q_degree,
             quad_scheme="default",
-            shape=(gdim, gdim),
+            shape=(model_constraint.geometric_dim(), model_constraint.geometric_dim()),
         )
         QV = df.fem.FunctionSpace(mesh, QVe)
         QT = df.fem.FunctionSpace(mesh, QTe)
@@ -183,22 +194,18 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
 
         self.metadata = {"quadrature_degree": q_degree, "quadrature_scheme": "default"}
         self.dxm = ufl.dx(metadata=self.metadata)
-        if solver_constraint is not None:
 
-            def ufl_strain(v):
-                return as_3d_mandel(
-                    ufl_mandel_strain(v, solver_constraint), solver_constraint
-                )
-        else:
-
-            def ufl_strain(v):
-                return ufl_mandel_strain(v, constraint)
-
-        self.R_form = ufl.inner(ufl_strain(u_), self.stress_1) * self.dxm
+        self.R_form = (
+            ufl.inner(
+                ufl_mandel_strain(u_, solver_constraint, as_3d),
+                self.stress_1,
+            )
+            * self.dxm
+        )
         self.dR_form = (
             ufl.inner(
-                ufl_strain(du),
-                ufl.dot(self.tangent, ufl_strain(u_)),
+                ufl_mandel_strain(du, solver_constraint, as_3d),
+                ufl.dot(self.tangent, ufl_mandel_strain(u_, solver_constraint, as_3d)),
             )
             * self.dxm
         )
@@ -211,8 +218,8 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
 
         basix_celltype = getattr(basix.CellType, mesh.topology.cell_type.name)
         self.q_points, _ = basix.make_quadrature(basix_celltype, q_degree)
-        if solver_constraint is not None:
 
+        if as_3d:
             def grad(v):
                 return as_3d_tensor(ufl.nabla_grad(v), solver_constraint)
         else:
@@ -313,7 +320,3 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
 
         # time update
         self._time += self._del_t
-
-    # def update_time(self) -> None:
-    #     """ update global time """
-    #     self._time += self._del_t

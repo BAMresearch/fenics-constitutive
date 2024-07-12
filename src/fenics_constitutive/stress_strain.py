@@ -9,7 +9,7 @@ __all__ = ["ufl_mandel_strain", "strain_from_grad_u", "as_3d_mandel", "as_3d_ten
 
 
 def ufl_mandel_strain(
-    u: ufl.core.expr.Expr, constraint: Constraint
+    u: ufl.core.expr.Expr, constraint: Constraint, as_3d: bool = False
 ) -> ufl.core.expr.Expr:
     """
     Compute the Mandel-strain from the displacement field.
@@ -17,6 +17,8 @@ def ufl_mandel_strain(
     Args:
         u: Displacement field.
         constraint: Constraint that the model is implemented for.
+        as_3d: Convert the strain to 3D. This is currently only implemented for
+            uniaxial strain and plane strain.
 
     Returns:
         Vector-valued UFL expression of the mandel strain.
@@ -24,12 +26,15 @@ def ufl_mandel_strain(
     shape = len(u.ufl_shape)
     geometric_dim = u.ufl_shape[0] if shape > 0 else 1
     assert geometric_dim == constraint.geometric_dim()
-    match constraint:
-        case Constraint.UNIAXIAL_STRAIN:
+    match constraint, as_3d:
+        case Constraint.UNIAXIAL_STRAIN, False:
             return ufl.nabla_grad(u)
-        case Constraint.UNIAXIAL_STRESS:
+        case Constraint.UNIAXIAL_STRAIN, True:
+            grad_u = ufl.nabla_grad(u)
+            return ufl.as_vector([grad_u[0], 0.0, 0.0, 0.0, 0.0, 0.0])
+        case Constraint.UNIAXIAL_STRESS, False:
             return ufl.nabla_grad(u)
-        case Constraint.PLANE_STRAIN:
+        case Constraint.PLANE_STRAIN, False:
             grad_u = ufl.nabla_grad(u)
             return ufl.as_vector(
                 [
@@ -39,7 +44,19 @@ def ufl_mandel_strain(
                     1 / 2**0.5 * (grad_u[0, 1] + grad_u[1, 0]),
                 ]
             )
-        case Constraint.PLANE_STRESS:
+        case Constraint.PLANE_STRAIN, True:
+            grad_u = ufl.nabla_grad(u)
+            return ufl.as_vector(
+                [
+                    grad_u[0, 0],
+                    grad_u[1, 1],
+                    0.0,
+                    1 / 2**0.5 * (grad_u[0, 1] + grad_u[1, 0]),
+                    0.0,
+                    0.0,
+                ]
+            )
+        case Constraint.PLANE_STRESS, False:
             grad_u = ufl.nabla_grad(u)
             return ufl.as_vector(
                 [
@@ -49,7 +66,7 @@ def ufl_mandel_strain(
                     1 / 2**0.5 * (grad_u[0, 1] + grad_u[1, 0]),
                 ]
             )
-        case Constraint.FULL:
+        case Constraint.FULL, _:
             grad_u = ufl.nabla_grad(u)
             return ufl.as_vector(
                 [
@@ -61,6 +78,9 @@ def ufl_mandel_strain(
                     1 / 2**0.5 * (grad_u[0, 2] + grad_u[2, 0]),
                 ]
             )
+        case _, True:
+            msg = f"Cannot convert {constraint} to 3D Mandel strain."
+            raise NotImplementedError(msg)
 
 
 def strain_from_grad_u(grad_u: np.ndarray, constraint: Constraint) -> np.ndarray:
