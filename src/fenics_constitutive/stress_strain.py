@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import dolfinx as df
 import numpy as np
 import ufl
 
-from .interfaces import Constraint
+from .interfaces import Constraint, IncrSmallStrainModel
 
 __all__ = ["ufl_mandel_strain", "strain_from_grad_u"]
 
@@ -138,3 +139,151 @@ def strain_from_grad_u(grad_u: np.ndarray, constraint: Constraint) -> np.ndarray
             msg = "Constraint not supported."
             raise NotImplementedError(msg)
     return strain
+
+
+class UniaxialStrainFrom3D(IncrSmallStrainModel):
+    def __init__(self, model: IncrSmallStrainModel):
+        assert model.constraint == Constraint.FULL
+        self.model = model
+        self.stress_3d = None
+        self.tangent_3d = None
+        self.grad_del_u_3d = None
+
+    @property
+    def constraint(self) -> Constraint:
+        return Constraint.UNIAXIAL_STRAIN
+
+    def evaluate(
+        self,
+        time: float,
+        del_t: float,
+        grad_del_u: np.ndarray,
+        mandel_stress: np.ndarray,
+        tangent: np.ndarray,
+        history: np.ndarray | dict[str, np.ndarray] | None,
+    ) -> None:
+        tangent_3d = (
+            np.zeros(6 * 6 * len(grad_del_u))
+            if self.tangent_3d is None
+            else self.tangent_3d
+        )
+        stress_3d = (
+            np.zeros(6 * len(grad_del_u)) if self.stress_3d is None else self.stress_3d
+        )
+        grad_del_u_3d = (
+            np.zeros(9 * len(grad_del_u))
+            if self.grad_del_u_3d is None
+            else self.grad_del_u_3d
+        )
+
+        self._grad_del_u_into_3d(grad_del_u, grad_del_u_3d)
+        self._mandel_vector_into_3d(mandel_stress, stress_3d)
+
+        self.model.evaluate(time, del_t, grad_del_u_3d, stress_3d, tangent_3d, history)
+        self._tangent_into_1d(tangent_3d, tangent)
+        self._mandel_vector_into_1d(stress_3d, mandel_stress)
+
+    @property
+    def history_dim(self) -> dict[str, int | tuple[int, int]] | None:
+        return self.model.history_dim
+
+    @df.common.timed("model-conversion-wrapper")
+    def _grad_del_u_into_3d(
+        self, grad_del_u_1d: np.ndarray, grad_del_u_3d: np.ndarray
+    ) -> None:
+        grad_del_u_3d.reshape(-1, 6)[:, 0] = grad_del_u_1d
+
+    @df.common.timed("model-conversion-wrapper")
+    def _mandel_vector_into_3d(
+        self, mandel_vector_1d: np.ndarray, mandel_vector_3d: np.ndarray
+    ) -> np.ndarray:
+        mandel_vector_3d.reshape(-1, 6)[:, 0] = mandel_vector_1d
+
+    @df.common.timed("model-conversion-wrapper")
+    def _mandel_vector_to_1d(
+        self, mandel_vector_3d: np.ndarray, mandel_vector_1d: np.ndarray
+    ) -> None:
+        mandel_vector_1d[:] = mandel_vector_3d.reshape(-1, 6)[:, 0]
+
+    @df.common.timed("model-conversion-wrapper")
+    def _tangent_to_1d(
+        self, tangent_3d: np.ndarray, tangent_1d: np.ndarray
+    ) -> np.ndarray:
+        tangent_1d[:] = tangent_3d.reshape(-1, 36)[:, 0]
+
+
+class PlaneStrainFrom3D(IncrSmallStrainModel):
+    def __init__(self, model: IncrSmallStrainModel):
+        assert model.constraint == Constraint.FULL
+        self.model = model
+        self.stress_3d = None
+        self.tangent_3d = None
+        self.grad_del_u_3d = None
+
+    @property
+    def constraint(self) -> Constraint:
+        return Constraint.PLANE_STRAIN
+
+    def evaluate(
+        self,
+        time: float,
+        del_t: float,
+        grad_del_u: np.ndarray,
+        mandel_stress: np.ndarray,
+        tangent: np.ndarray,
+        history: np.ndarray | dict[str, np.ndarray] | None,
+    ) -> None:
+        tangent_3d = (
+            np.zeros(6 * 6 * len(grad_del_u))
+            if self.tangent_3d is None
+            else self.tangent_3d
+        )
+        stress_3d = (
+            np.zeros(6 * len(grad_del_u)) if self.stress_3d is None else self.stress_3d
+        )
+        grad_del_u_3d = (
+            np.zeros(9 * len(grad_del_u))
+            if self.grad_del_u_3d is None
+            else self.grad_del_u_3d
+        )
+
+        self._grad_del_u_to_3d(grad_del_u, grad_del_u_3d)
+        self._mandel_vector_to_3d(mandel_stress, stress_3d)
+
+        self.model.evaluate(time, del_t, grad_del_u_3d, stress_3d, tangent_3d, history)
+        self._tangent_to_2d(tangent_3d, tangent)
+        self._mandel_vector_to_2d(stress_3d, mandel_stress)
+
+    @property
+    def history_dim(self) -> dict[str, int | tuple[int, int]] | None:
+        return self.model.history_dim
+
+    @df.common.timed("model-conversion-wrapper")
+    def _grad_del_u_to_3d(
+        self, grad_del_u_2d: np.ndarray, grad_del_u_3d: np.ndarray
+    ) -> None:
+        grad_del_u_3d.reshape(-1, 6)[:, 0:2] = grad_del_u_2d.reshape(-1, 4)[:, 0:2]
+        grad_del_u_3d.reshape(-1, 6)[:, 3:5] = grad_del_u_2d.reshape(-1, 4)[:, 2:4]
+
+    @df.common.timed("model-conversion-wrapper")
+    def _mandel_vector_to_3d(
+        self, mandel_vector_2d: np.ndarray, mandel_vector_3d: np.ndarray
+    ) -> np.ndarray:
+        mandel_vector_3d.reshape(-1, 6)[:, 0:4] = mandel_vector_2d.reshape(-1, 4)
+
+    @df.common.timed("model-conversion-wrapper")
+    def _mandel_vector_to_2d(
+        self, mandel_vector_3d: np.ndarray, mandel_vector_2d: np.ndarray
+    ) -> None:
+        mandel_vector_2d.reshape(-1, 4)[:] = mandel_vector_3d.reshape(-1, 6)[:, 0:4]
+
+    @df.common.timed("model-conversion-wrapper")
+    def _tangent_to_2d(
+        self, tangent_3d: np.ndarray, tangent_2d: np.ndarray
+    ) -> np.ndarray:
+        view_2d = tangent_2d.reshape(-1, 16)
+        view_3d = tangent_3d.reshape(-1, 36)
+        view_2d[:, 0:4] = view_3d[:, 0:4]
+        view_2d[:, 4:8] = view_3d[:, 6:10]
+        view_2d[:, 8:12] = view_3d[:, 12:16]
+        view_2d[:, 12:16] = view_3d[:, 18:22]
