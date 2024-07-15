@@ -224,6 +224,7 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
 
         return self._a
 
+    @df.common.timed("constitutive-form-evaluation")
     def form(self, x: PETSc.Vec) -> None:
         """This function is called before the residual or Jacobian is
         computed. This is usually used to update ghost values, but here
@@ -262,15 +263,15 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
                 for key in law.history_dim:
                     self._history_1[k][key].x.array[:] = self._history_0[k][key].x.array
                     history_input[key] = self._history_1[k][key].x.array
-
-            law.evaluate(
-                self._time,
-                self._del_t,
-                self._del_grad_u[k].x.array,
-                stress_input,
-                tangent_input,
-                history_input,
-            )
+            with df.common.Timer("constitutive-law-evaluation"):
+                law.evaluate(
+                    self._time,
+                    self._del_t,
+                    self._del_grad_u[k].x.array,
+                    stress_input,
+                    tangent_input,
+                    history_input,
+                )
             if len(self.laws) > 1:
                 self.submesh_maps[k].map_to_parent(self._stress[k], self.stress_1)
                 self.submesh_maps[k].map_to_parent(self._tangent[k], self.tangent)
