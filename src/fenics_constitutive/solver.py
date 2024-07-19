@@ -237,7 +237,7 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
         super().form(x)
         assert (
             x.array.data == self._u.vector.array.data
-        ), "The solution vector must be the same as the one passed to the MechanicsProblem"
+        ), f"The solution vector must be the same as the one passed to the MechanicsProblem. Got {x.array.data} and {self._u.vector.array.data}"
 
         # if len(self.laws) > 1:
         for k, (law, cells) in enumerate(self.laws):
@@ -298,7 +298,3 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
 
         # time update
         self._time += self._del_t
-
-    # def update_time(self) -> None:
-    #     """ update global time """
-    #     self._time += self._del_t
