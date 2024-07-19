@@ -235,9 +235,14 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
 
         """
         super().form(x)
-        assert (
-            x.array.data == self._u.vector.array.data
-        ), f"The solution vector must be the same as the one passed to the MechanicsProblem. Got {x.array.data} and {self._u.vector.array.data}"
+        #this copies the data from the vector x to the function _u
+        x.copy(self._u.vector)
+        self._u.vector.ghostUpdate(addv=PETSc.InsertMode.INSERT, mode=PETSc.ScatterMode.FORWARD)
+        # This assertion can fail, even if everything is correct.
+        # Left here, because I would like the check to work someday again.
+        #assert (
+        #    x.array.data == self._u.vector.array.data
+        #), f"The solution vector must be the same as the one passed to the MechanicsProblem. Got {x.array.data} and {self._u.vector.array.data}"
 
         # if len(self.laws) > 1:
         for k, (law, cells) in enumerate(self.laws):
