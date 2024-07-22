@@ -63,8 +63,8 @@ def ufl_mandel_strain(
                     grad_u[1, 1],
                     grad_u[2, 2],
                     1 / 2**0.5 * (grad_u[0, 1] + grad_u[1, 0]),
-                    1 / 2**0.5 * (grad_u[1, 2] + grad_u[2, 1]),
                     1 / 2**0.5 * (grad_u[0, 2] + grad_u[2, 0]),
+                    1 / 2**0.5 * (grad_u[1, 2] + grad_u[2, 1]),
                 ]
             )
 
@@ -138,8 +138,8 @@ def strain_from_grad_u(grad_u: np.ndarray, constraint: Constraint) -> np.ndarray
             strain_view[:, 1] = grad_u_view[:, 4]
             strain_view[:, 2] = grad_u_view[:, 8]
             strain_view[:, 3] = 1 / 2**0.5 * (grad_u_view[:, 1] + grad_u_view[:, 3])
-            strain_view[:, 4] = 1 / 2**0.5 * (grad_u_view[:, 5] + grad_u_view[:, 7])
-            strain_view[:, 5] = 1 / 2**0.5 * (grad_u_view[:, 2] + grad_u_view[:, 6])
+            strain_view[:, 4] = 1 / 2**0.5 * (grad_u_view[:, 2] + grad_u_view[:, 6])
+            strain_view[:, 5] = 1 / 2**0.5 * (grad_u_view[:, 5] + grad_u_view[:, 7])
         case _:
             msg = "Constraint not supported."
             raise NotImplementedError(msg)
