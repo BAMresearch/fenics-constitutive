@@ -147,7 +147,24 @@ def strain_from_grad_u(grad_u: np.ndarray, constraint: Constraint) -> np.ndarray
 
 
 class UniaxialStrainFrom3D(IncrSmallStrainModel):
-    def __init__(self, model: IncrSmallStrainModel):
+    """
+    Convert a 3D model to a uniaxial strain model. This is achieved by copying the
+    relevant 1D components to a 3D array, calling the 3D model, and then copying the
+    3D components back to the 1D array. Since this converter creates new arrays for
+    the 3D components, it is (probably) not suitable for large-scale simulations due
+    to the memory consumption.
+
+    Args:
+        model: 3D model to convert to uniaxial strain.
+
+    Attributes:
+        model: 3D model to convert to uniaxial strain.
+        stress_3d: 3D stress array.
+        tangent_3d: 3D tangent array.
+        grad_del_u_3d: 3D array of gradient of displacement increment.
+    """
+
+    def __init__(self, model: IncrSmallStrainModel) -> None:
         assert model.constraint == Constraint.FULL
         self.model = model
         self.stress_3d = None
@@ -223,7 +240,24 @@ class UniaxialStrainFrom3D(IncrSmallStrainModel):
 
 
 class PlaneStrainFrom3D(IncrSmallStrainModel):
-    def __init__(self, model: IncrSmallStrainModel):
+    """
+    Convert a 3D model to a plane strain model. This is achieved by copying the
+    relevant 2D components to a 3D array, calling the 3D model, and then copying the
+    3D components back to the 2D array. Since this converter creates new arrays for
+    the 3D components, it is (probably) not suitable for large-scale simulations due
+    to the memory consumption.
+
+    Args:
+        model: 3D model to convert to plane strain.
+
+    Attributes:
+        model: 3D model to convert to plane strain.
+        stress_3d: 3D stress array.
+        tangent_3d: 3D tangent array.
+        grad_del_u_3d: 3D array of gradient of displacement increment.
+    """
+
+    def __init__(self, model: IncrSmallStrainModel) -> None:
         assert model.constraint == Constraint.FULL
         self.model = model
         self.stress_3d = None

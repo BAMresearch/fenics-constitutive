@@ -135,9 +135,8 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
         self._history_1 = []
         self._tangent = []
 
-
-        self._del_t = del_t # time increment
-        self._time = 0 # global time will be updated in the update method
+        self._del_t = del_t  # time increment
+        self._time = 0  # global time will be updated in the update method
 
         # if len(laws) > 1:
         for law, cells in laws:
@@ -235,14 +234,16 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
 
         """
         super().form(x)
-        #this copies the data from the vector x to the function _u
+        # this copies the data from the vector x to the function _u
         x.copy(self._u.vector)
-        self._u.vector.ghostUpdate(addv=PETSc.InsertMode.INSERT, mode=PETSc.ScatterMode.FORWARD)
+        self._u.vector.ghostUpdate(
+            addv=PETSc.InsertMode.INSERT, mode=PETSc.ScatterMode.FORWARD
+        )
         # This assertion can fail, even if everything is correct.
         # Left here, because I would like the check to work someday again.
-        #assert (
+        # assert (
         #    x.array.data == self._u.vector.array.data
-        #), f"The solution vector must be the same as the one passed to the MechanicsProblem. Got {x.array.data} and {self._u.vector.array.data}"
+        # ), f"The solution vector must be the same as the one passed to the MechanicsProblem. Got {x.array.data} and {self._u.vector.array.data}"
 
         # if len(self.laws) > 1:
         for k, (law, cells) in enumerate(self.laws):
