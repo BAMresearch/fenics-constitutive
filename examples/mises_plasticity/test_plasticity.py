@@ -5,7 +5,9 @@ import numpy as np
 from dolfinx.nls.petsc import NewtonSolver
 from mises_plasticity_isotropic_hardening import VonMises3D
 from mpi4py import MPI
+
 from fenics_constitutive import Constraint, IncrSmallStrainProblem
+
 
 def test_uniaxial_strain_3d():
     mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 1, 1, 1)
@@ -15,7 +17,7 @@ def test_uniaxial_strain_3d():
         "p_ka": 175000,
         "p_mu": 80769,
         "p_y0": 1200,
-        "p_y00":2500,
+        "p_y00": 2500,
         "p_w": 200,
     }
     law = VonMises3D(matparam)
@@ -63,7 +65,7 @@ def test_uniaxial_strain_3d():
         print("Load Increment:", inc)
 
         current_disp = time * max_disp
-        scalar_x.value = (current_disp)
+        scalar_x.value = current_disp
 
         niter, converged = solver.solve(u)
         problem.update()
@@ -88,11 +90,19 @@ def test_uniaxial_strain_3d():
 
     # if material behaves linearly under the elastic range with correct slope
     indices = load + tolerance < matparam["p_y0"]
-    v = (3 * matparam["p_ka"] - 2 * matparam["p_mu"]) / (2 * (3 * matparam["p_ka"] + matparam["p_mu"]))
+    v = (3 * matparam["p_ka"] - 2 * matparam["p_mu"]) / (
+        2 * (3 * matparam["p_ka"] + matparam["p_mu"])
+    )
     trace = displacement[indices][1] - 2 * v * displacement[indices][1]
     dev = displacement[indices][1] - trace / 3
-    slope = (matparam["p_ka"] * trace + 2 * matparam["p_mu"] * dev) / displacement[indices][1]
-    assert np.all(abs(np.ediff1d(load[indices]) / np.ediff1d(displacement[indices]) - slope) < 1e-7)
+    slope = (matparam["p_ka"] * trace + 2 * matparam["p_mu"] * dev) / displacement[
+        indices
+    ][1]
+    assert np.all(
+        abs(np.ediff1d(load[indices]) / np.ediff1d(displacement[indices]) - slope)
+        < 1e-7
+    )
+
 
 def test_uniaxial_cyclic_strain_3d():
     mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 1, 1, 1)
@@ -102,7 +112,7 @@ def test_uniaxial_cyclic_strain_3d():
         "p_ka": 175000,
         "p_mu": 80769,
         "p_y0": 1200,
-        "p_y00":2500,
+        "p_y00": 2500,
         "p_w": 200,
     }
     law = VonMises3D(matparam)
@@ -150,7 +160,7 @@ def test_uniaxial_cyclic_strain_3d():
         print("Load Increment:", inc)
 
         current_disp = np.sin(time) * max_disp
-        scalar_x.value = (current_disp)
+        scalar_x.value = current_disp
 
         niter, converged = solver.solve(u)
         problem.update()
@@ -175,28 +185,56 @@ def test_uniaxial_cyclic_strain_3d():
     assert abs(np.min(load)) - matparam["p_y00"] <= tolerance
 
     # if material behaves linearly under the elastic range in 1/4 loading phase with correct slope
-    load_interval_1 = load[:int(nTime / 4 + 2)]
-    disp_interval_1 = displacement[:int(nTime / 4 + 2)]
+    load_interval_1 = load[: int(nTime / 4 + 2)]
+    disp_interval_1 = displacement[: int(nTime / 4 + 2)]
     indices = abs(load_interval_1) + tolerance < matparam["p_y0"]
-    v = (3 * matparam["p_ka"] - 2 * matparam["p_mu"]) / (2 * (3 * matparam["p_ka"] + matparam["p_mu"]))
+    v = (3 * matparam["p_ka"] - 2 * matparam["p_mu"]) / (
+        2 * (3 * matparam["p_ka"] + matparam["p_mu"])
+    )
     trace = disp_interval_1[indices][1] - 2 * v * disp_interval_1[indices][1]
     dev = disp_interval_1[indices][1] - trace / 3
-    slope = ((matparam["p_ka"] * trace + 2 * matparam["p_mu"] * dev) / disp_interval_1[indices][1])
-    assert np.all(abs(np.ediff1d(load_interval_1[indices][1:]) / np.ediff1d(disp_interval_1[indices][1:]) - slope) < 1e-7)
+    slope = (matparam["p_ka"] * trace + 2 * matparam["p_mu"] * dev) / disp_interval_1[
+        indices
+    ][1]
+    assert np.all(
+        abs(
+            np.ediff1d(load_interval_1[indices][1:])
+            / np.ediff1d(disp_interval_1[indices][1:])
+            - slope
+        )
+        < 1e-7
+    )
 
     # if material behaves linearly under the elastic range in 2/4 and 3/4 loading phase with correct slope
     # also consider if the elastic range has been stretched
-    load_interval_2 = load[int(nTime / 4 + 2):int(3*nTime / 4 + 1)]
-    disp_interval_2 = displacement[int(nTime / 4 + 2):int(3*nTime / 4 + 1)]
-    indices = abs(load_interval_2) + tolerance < max(np.max(load_interval_1), matparam["p_y0"])
-    assert np.all(abs(np.ediff1d(load_interval_2[indices]) / np.ediff1d(disp_interval_2[indices]) - slope) < 1e-7)
+    load_interval_2 = load[int(nTime / 4 + 2) : int(3 * nTime / 4 + 1)]
+    disp_interval_2 = displacement[int(nTime / 4 + 2) : int(3 * nTime / 4 + 1)]
+    indices = abs(load_interval_2) + tolerance < max(
+        np.max(load_interval_1), matparam["p_y0"]
+    )
+    assert np.all(
+        abs(
+            np.ediff1d(load_interval_2[indices]) / np.ediff1d(disp_interval_2[indices])
+            - slope
+        )
+        < 1e-7
+    )
 
     # if material behaves linearly under the elastic range in 4/4 loading phase with correct slope
     # also consider if the elastic range has been stretched
-    load_interval_3 = load[int(3 * nTime / 4 + 1):]
-    disp_interval_3 = displacement[int(3 * nTime / 4 + 1):]
-    indices = abs(load_interval_3) + tolerance < max(np.max(load_interval_1),abs(np.min(load_interval_2)), matparam["p_y0"])
-    assert np.all(abs(np.ediff1d(load_interval_3[indices]) / np.ediff1d(disp_interval_3[indices]) - slope) < 1e-7)
+    load_interval_3 = load[int(3 * nTime / 4 + 1) :]
+    disp_interval_3 = displacement[int(3 * nTime / 4 + 1) :]
+    indices = abs(load_interval_3) + tolerance < max(
+        np.max(load_interval_1), abs(np.min(load_interval_2)), matparam["p_y0"]
+    )
+    assert np.all(
+        abs(
+            np.ediff1d(load_interval_3[indices]) / np.ediff1d(disp_interval_3[indices])
+            - slope
+        )
+        < 1e-7
+    )
+
 
 if __name__ == "__main__":
     test_uniaxial_strain_3d()

@@ -1,24 +1,27 @@
 from __future__ import annotations
 
+from typing import Callable
+
 import dolfinx as df
 import numpy as np
 import pytest
 import ufl
 from dolfinx.nls.petsc import NewtonSolver
+from mpi4py import MPI
 from spring_kelvin_model import SpringKelvinModel
 from spring_maxwell_model import SpringMaxwellModel
-from mpi4py import MPI
 
-from fenics_constitutive import Constraint, IncrSmallStrainProblem, IncrSmallStrainModel
+from fenics_constitutive import Constraint, IncrSmallStrainModel, IncrSmallStrainProblem
 
 youngs_modulus = 42.0
 poissons_ratio = 0.2
 visco_modulus = 10.0
 relaxation_time = 10.0
 
+
 @pytest.mark.parametrize("mat", [SpringKelvinModel, SpringMaxwellModel])
 def test_relaxation_uniaxial_stress(mat: IncrSmallStrainModel):
-    '''stress relaxation under uniaxial tension test for 1D, displacement controlled'''
+    """stress relaxation under uniaxial tension test for 1D, displacement controlled"""
 
     mesh = df.mesh.create_unit_interval(MPI.COMM_WORLD, 2)
     V = df.fem.FunctionSpace(mesh, ("CG", 1))
@@ -40,7 +43,7 @@ def test_relaxation_uniaxial_stress(mat: IncrSmallStrainModel):
     bc_left = df.fem.dirichletbc(df.fem.Constant(mesh, 0.0), dofs_left, V)
     bc_right = df.fem.dirichletbc(displacement, dofs_right, V)
 
-    dt = 2 # time increment
+    dt = 2  # time increment
     problem = IncrSmallStrainProblem(
         law,
         u,
@@ -58,7 +61,7 @@ def test_relaxation_uniaxial_stress(mat: IncrSmallStrainModel):
     viscostrain = []
 
     # to get elastic first step for comparison with analytic solution use very small time increment
-    problem._del_t = 10**(-8) # first time step
+    problem._del_t = 10 ** (-8)  # first time step
     solver.solve(u)
     problem.update()
     time.append(problem._time)
@@ -66,16 +69,16 @@ def test_relaxation_uniaxial_stress(mat: IncrSmallStrainModel):
     # store values last element/point
     disp.append(u.x.array[-1])
     stress.append(problem.stress_1.x.array[-1])
-    strain.append(problem._history_1[0]['strain'].x.array[-1])
-    viscostrain.append(problem._history_1[0]['strain_visco'].x.array[-1])
+    strain.append(problem._history_1[0]["strain"].x.array[-1])
+    viscostrain.append(problem._history_1[0]["strain_visco"].x.array[-1])
 
-    #set time step back and solve until total time
+    # set time step back and solve until total time
     problem._del_t = dt
-    total_time = 20*relaxation_time
+    total_time = 20 * relaxation_time
     while problem._time < total_time:
         time.append(problem._time)
         niter, converged = solver.solve(u)
-        problem.update() # update time
+        problem.update()  # update time
         time.append(problem._time)
         # print(f"time {problem._time} Converged: {converged} in {niter} iterations.")
 
@@ -83,22 +86,26 @@ def test_relaxation_uniaxial_stress(mat: IncrSmallStrainModel):
         # print(u.x.array)
         disp.append(u.x.array[-1])
         stress.append(problem.stress_1.x.array[-1])
-        strain.append(problem._history_1[0]['strain'].x.array[-1])
-        viscostrain.append(problem._history_1[0]['strain_visco'].x.array[-1])
+        strain.append(problem._history_1[0]["strain"].x.array[-1])
+        viscostrain.append(problem._history_1[0]["strain_visco"].x.array[-1])
 
-
-
-    print('0',time[0], disp[0], stress[0], strain[0], viscostrain[0])
-    print('end',time[-1], disp[-1], stress[-1], strain[-1], viscostrain[-1])
+    print("0", time[0], disp[0], stress[0], strain[0], viscostrain[0])
+    print("end", time[-1], disp[-1], stress[-1], strain[-1], viscostrain[-1])
     # analytic solution
-    if isinstance(law,SpringKelvinModel):
-        #analytic solution for 1D Kelvin model
-        stress_0_ana = youngs_modulus * displacement.value/1.
-        stress_final_ana = youngs_modulus * visco_modulus / (youngs_modulus + visco_modulus) * displacement.value/1.
+    if isinstance(law, SpringKelvinModel):
+        # analytic solution for 1D Kelvin model
+        stress_0_ana = youngs_modulus * displacement.value / 1.0
+        stress_final_ana = (
+            youngs_modulus
+            * visco_modulus
+            / (youngs_modulus + visco_modulus)
+            * displacement.value
+            / 1.0
+        )
     elif isinstance(law, SpringMaxwellModel):
-        #analytic solution for 1D Maxwell model
-        stress_0_ana = (youngs_modulus + visco_modulus) * displacement.value/1.
-        stress_final_ana = youngs_modulus * displacement.value/1.
+        # analytic solution for 1D Maxwell model
+        stress_0_ana = (youngs_modulus + visco_modulus) * displacement.value / 1.0
+        stress_final_ana = youngs_modulus * displacement.value / 1.0
 
     else:
         assert False, "Model not implemented"
@@ -106,23 +113,29 @@ def test_relaxation_uniaxial_stress(mat: IncrSmallStrainModel):
     # print(stress_0_ana, stress_final_ana)
     assert abs(stress[0] - stress_0_ana) < 1e-8
     assert abs(stress[-1] - stress_final_ana) < 1e-8
-    assert abs(strain[0] - displacement.value/1) < 1e-8
+    assert abs(strain[0] - displacement.value / 1) < 1e-8
 
     # sanity checks
     assert np.sum(np.diff(strain)) < 1e-8
     assert abs(viscostrain[0] - 0) < 1e-8
     assert viscostrain[-1] > 0
 
+
 @pytest.mark.parametrize("mat", [SpringKelvinModel, SpringMaxwellModel])
 @pytest.mark.parametrize("dim", [2, 3])
 def test_relaxation(dim: int, mat: IncrSmallStrainModel):
-    '''stress relaxation under uniaxial tension test for 2D and 3D, displacement controlled, symmetric boundaries'''
+    """stress relaxation under uniaxial tension test for 2D and 3D, displacement controlled, symmetric boundaries"""
 
     if dim == 2:
         mesh = df.mesh.create_unit_square(MPI.COMM_WORLD, 2, 2)
         # only plane_stress otherwise pure uniaxial bc not possible
         law = mat(
-            parameters={"E0": youngs_modulus, "E1": visco_modulus, "tau": relaxation_time, "nu": poissons_ratio},
+            parameters={
+                "E0": youngs_modulus,
+                "E1": visco_modulus,
+                "tau": relaxation_time,
+                "nu": poissons_ratio,
+            },
             constraint=Constraint.PLANE_STRESS,
         )
 
@@ -130,7 +143,12 @@ def test_relaxation(dim: int, mat: IncrSmallStrainModel):
         mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 2, 2, 2)
 
         law = mat(
-            parameters={"E0": youngs_modulus, "E1": visco_modulus, "tau": relaxation_time, "nu": poissons_ratio},
+            parameters={
+                "E0": youngs_modulus,
+                "E1": visco_modulus,
+                "tau": relaxation_time,
+                "nu": poissons_ratio,
+            },
             constraint=Constraint.FULL,
         )
 
@@ -138,7 +156,7 @@ def test_relaxation(dim: int, mat: IncrSmallStrainModel):
             return np.isclose(x[2], 0.0)
 
     else:
-        raise ValueError(f"Dimension {case['dim']} not supported")
+        raise ValueError(f"Dimension {dim} not supported")
 
     V = df.fem.VectorFunctionSpace(mesh, ("CG", 1))
     u = df.fem.Function(V)
@@ -209,16 +227,15 @@ def test_relaxation(dim: int, mat: IncrSmallStrainModel):
     viscostrain = []
 
     # approximately elastic first step
-    problem._del_t = 10**(-8) # first time step
+    problem._del_t = 10 ** (-8)  # first time step
     solver.solve(u)
     problem.update()
     time.append(problem._time)
 
-    strain.append(problem._history_1[0]['strain'].x.array.max())
-    viscostrain.append(problem._history_1[0]['strain_visco'].x.array.max())
+    strain.append(problem._history_1[0]["strain"].x.array.max())
+    viscostrain.append(problem._history_1[0]["strain_visco"].x.array.max())
     disp.append(u.x.array.max())
     stress.append(problem.stress_1.x.array.max())
-
 
     # set time step back and solve until total time
     problem._del_t = dt
@@ -231,34 +248,41 @@ def test_relaxation(dim: int, mat: IncrSmallStrainModel):
 
         disp.append(u.x.array.max())
         stress.append(problem.stress_1.x.array.max())
-        strain.append(problem._history_1[0]['strain'].x.array.max())
-        viscostrain.append(problem._history_1[0]['strain_visco'].x.array.max())
+        strain.append(problem._history_1[0]["strain"].x.array.max())
+        viscostrain.append(problem._history_1[0]["strain_visco"].x.array.max())
 
     print(disp[-1], stress[0], stress[-1], strain[0], viscostrain[0], viscostrain[-1])
 
     # analytic solution
-    if isinstance(law,SpringKelvinModel):
-        #analytic solution for 1D Kelvin model
-        stress_0_ana = youngs_modulus * displacement/1.
-        stress_final_ana = youngs_modulus * visco_modulus / (youngs_modulus + visco_modulus) * displacement/1.
+    if isinstance(law, SpringKelvinModel):
+        # analytic solution for 1D Kelvin model
+        stress_0_ana = youngs_modulus * displacement / 1.0
+        stress_final_ana = (
+            youngs_modulus
+            * visco_modulus
+            / (youngs_modulus + visco_modulus)
+            * displacement
+            / 1.0
+        )
     elif isinstance(law, SpringMaxwellModel):
-        #analytic solution for 1D Maxwell model
-        stress_0_ana = (youngs_modulus + visco_modulus) * displacement/1.
-        stress_final_ana = youngs_modulus * displacement/1.
+        # analytic solution for 1D Maxwell model
+        stress_0_ana = (youngs_modulus + visco_modulus) * displacement / 1.0
+        stress_final_ana = youngs_modulus * displacement / 1.0
 
     else:
         assert False, "Model not implemented"
 
-    print('ana', stress_0_ana, stress_final_ana)
+    print("ana", stress_0_ana, stress_final_ana)
 
     assert abs(stress[0] - stress_0_ana) < 1e-8
     assert abs(stress[-1] - stress_final_ana) < 1e-8
-    assert abs(strain[0] - displacement/1) < 1e-8
+    assert abs(strain[0] - displacement / 1) < 1e-8
 
     # sanity checks
     assert np.sum(np.diff(strain)) < 1e-8
     assert abs(viscostrain[0] - 0) < 1e-8
     assert viscostrain[-1] > 0
+
 
 def test_kelvin_vs_maxwell():
     """1D test with uniaxial stress, compare Kelvin and Maxwell model."""
@@ -267,17 +291,22 @@ def test_kelvin_vs_maxwell():
     V = df.fem.FunctionSpace(mesh, ("CG", 1))
     u = df.fem.Function(V)
 
-    #Kelvin material
+    # Kelvin material
     law_K = SpringKelvinModel(
-        parameters={"E0": youngs_modulus, "E1": visco_modulus, "tau": relaxation_time, "nu": poissons_ratio},
+        parameters={
+            "E0": youngs_modulus,
+            "E1": visco_modulus,
+            "tau": relaxation_time,
+            "nu": poissons_ratio,
+        },
         constraint=Constraint.UNIAXIAL_STRESS,
     )
     # transfer Kelvin parameters to Maxwell (see Technische Mechanik 4)
     E0_M = (youngs_modulus * visco_modulus) / (youngs_modulus + visco_modulus)
-    E1_M = youngs_modulus ** 2 / (youngs_modulus + visco_modulus)
+    E1_M = youngs_modulus**2 / (youngs_modulus + visco_modulus)
     tau_M = visco_modulus / (youngs_modulus + visco_modulus) * relaxation_time
 
-    #Maxwell material
+    # Maxwell material
     law_M = SpringMaxwellModel(
         parameters={"E0": E0_M, "E1": E1_M, "tau": tau_M, "nu": poissons_ratio},
         constraint=Constraint.UNIAXIAL_STRESS,
@@ -297,19 +326,10 @@ def test_kelvin_vs_maxwell():
 
     # solve Kelvin problem without linear step
     dt, q_degree = 0.1, 4
-    problems = [IncrSmallStrainProblem(
-        law_K,
-        u,
-        [bc_left, bc_right],
-        q_degree,
-        dt
-    ), IncrSmallStrainProblem(
-        law_M,
-        u,
-        [bc_left, bc_right],
-        q_degree,
-        dt
-    )]
+    problems = [
+        IncrSmallStrainProblem(law_K, u, [bc_left, bc_right], q_degree, dt),
+        IncrSmallStrainProblem(law_M, u, [bc_left, bc_right], q_degree, dt),
+    ]
 
     stress_p, strain_p = [], []
 
@@ -321,15 +341,15 @@ def test_kelvin_vs_maxwell():
         stress = []
         strain = []
 
-        total_time = 10*dt
+        total_time = 10 * dt
         while prob_i._time < total_time:
             niter, converged = solver.solve(u)
             prob_i.update()
             time.append(prob_i._time)
-            #print(f"time {prob_i._time} Converged: {converged} in {niter} iterations.")
+            # print(f"time {prob_i._time} Converged: {converged} in {niter} iterations.")
 
             stress.append(prob_i.stress_1.x.array[-1])
-            strain.append(prob_i._history_1[0]['strain'].x.array[-1])
+            strain.append(prob_i._history_1[0]["strain"].x.array[-1])
 
         stress_p.append(stress)
         strain_p.append(strain)
@@ -339,13 +359,13 @@ def test_kelvin_vs_maxwell():
     #
     # print(np.linalg.norm(np.array(stress_p[0])-np.array(stress_p[1])))
     # accuracy depends on time step size!
-    assert abs(np.linalg.norm(np.array(stress_p[0])-np.array(stress_p[1]))) < 1e-8
+    assert abs(np.linalg.norm(np.array(stress_p[0]) - np.array(stress_p[1]))) < 1e-8
 
 
 @pytest.mark.parametrize("mat", [SpringKelvinModel, SpringMaxwellModel])
 @pytest.mark.parametrize("dim", [2, 3])
 def test_creep(dim: int, mat: IncrSmallStrainModel):
-    '''creep under uniaxial tension test for 2D and 3D, stress controlled, symmetric boundaries'''
+    """creep under uniaxial tension test for 2D and 3D, stress controlled, symmetric boundaries"""
 
     f_max = 0.1
     if dim == 2:
@@ -353,7 +373,12 @@ def test_creep(dim: int, mat: IncrSmallStrainModel):
         load = (f_max, 0.0)
         # only plane stress otherwise pure uniaxial bc not possible
         law = mat(
-            parameters={"E0": youngs_modulus, "E1": visco_modulus, "tau": relaxation_time, "nu": poissons_ratio},
+            parameters={
+                "E0": youngs_modulus,
+                "E1": visco_modulus,
+                "tau": relaxation_time,
+                "nu": poissons_ratio,
+            },
             constraint=Constraint.PLANE_STRESS,
         )
 
@@ -362,7 +387,12 @@ def test_creep(dim: int, mat: IncrSmallStrainModel):
         load = (f_max, 0.0, 0.0)
 
         law = mat(
-            parameters={"E0": youngs_modulus, "E1": visco_modulus, "tau": relaxation_time, "nu": poissons_ratio},
+            parameters={
+                "E0": youngs_modulus,
+                "E1": visco_modulus,
+                "tau": relaxation_time,
+                "nu": poissons_ratio,
+            },
             constraint=Constraint.FULL,
         )
 
@@ -370,7 +400,7 @@ def test_creep(dim: int, mat: IncrSmallStrainModel):
             return np.isclose(x[2], 0.0)
 
     else:
-        raise ValueError(f"Dimension {case['dim']} not supported")
+        raise ValueError(f"Dimension {dim} not supported")
 
     V = df.fem.VectorFunctionSpace(mesh, ("CG", 1))
     u = df.fem.Function(V)
@@ -383,7 +413,6 @@ def test_creep(dim: int, mat: IncrSmallStrainModel):
 
     def y_boundary(x):
         return np.isclose(x[1], 0.0)
-
 
     # boundaries
     fdim = mesh.topology.dim - 1
@@ -434,7 +463,6 @@ def test_creep(dim: int, mat: IncrSmallStrainModel):
     fext = ufl.inner(neumann_data, test_function) * dA(neumann_tag)
     problem.R_form -= fext
 
-
     solver = NewtonSolver(MPI.COMM_WORLD, problem)
 
     time = []
@@ -444,16 +472,15 @@ def test_creep(dim: int, mat: IncrSmallStrainModel):
     viscostrain = []
 
     # approximately elastic first step
-    problem._del_t = 10**(-8)
+    problem._del_t = 10 ** (-8)
     solver.solve(u)
     problem.update()
     time.append(problem._time)
 
-    strain.append(problem._history_1[0]['strain'].x.array.max())
-    viscostrain.append(problem._history_1[0]['strain_visco'].x.array.max())
+    strain.append(problem._history_1[0]["strain"].x.array.max())
+    viscostrain.append(problem._history_1[0]["strain_visco"].x.array.max())
     disp.append(u.x.array.max())
     stress.append(problem.stress_1.x.array.max())
-
 
     # set time step back and solve until total time
     problem._del_t = dt
@@ -466,37 +493,38 @@ def test_creep(dim: int, mat: IncrSmallStrainModel):
 
         disp.append(u.x.array.max())
         stress.append(problem.stress_1.x.array.max())
-        strain.append(problem._history_1[0]['strain'].x.array.max())
-        viscostrain.append(problem._history_1[0]['strain_visco'].x.array.max())
+        strain.append(problem._history_1[0]["strain"].x.array.max())
+        viscostrain.append(problem._history_1[0]["strain_visco"].x.array.max())
 
     print(disp[-1], stress[0], stress[-1], strain[0], viscostrain[0], viscostrain[-1])
 
     # analytic solution
-    if isinstance(law,SpringKelvinModel):
-        #analytic solution for 1D Kelvin model
-        strain_0_ana = (f_max/ 1) / youngs_modulus
-        strain_final_ana = (f_max/ 1) / youngs_modulus + (f_max/ 1) / visco_modulus
+    if isinstance(law, SpringKelvinModel):
+        # analytic solution for 1D Kelvin model
+        strain_0_ana = (f_max / 1) / youngs_modulus
+        strain_final_ana = (f_max / 1) / youngs_modulus + (f_max / 1) / visco_modulus
     elif isinstance(law, SpringMaxwellModel):
-        #analytic solution for 1D Maxwell model
-        strain_0_ana = (f_max/ 1) / (youngs_modulus + visco_modulus)
-        strain_final_ana = (f_max/ 1) / youngs_modulus
+        # analytic solution for 1D Maxwell model
+        strain_0_ana = (f_max / 1) / (youngs_modulus + visco_modulus)
+        strain_final_ana = (f_max / 1) / youngs_modulus
 
     else:
         assert False, "Model not implemented"
 
-    print('ana', strain_0_ana, strain_final_ana)
+    print("ana", strain_0_ana, strain_final_ana)
 
     assert abs(strain[0] - strain_0_ana) < 1e-8
     assert abs(strain[-1] - strain_final_ana) < 1e-8
-    assert abs(stress[0] - f_max/1) < 1e-8
+    assert abs(stress[0] - f_max / 1) < 1e-8
 
     # sanity checks
     assert np.sum(np.diff(stress)) < 1e-8
     assert abs(viscostrain[0] - 0) < 1e-8
     assert viscostrain[-1] > 0
 
+
 def create_meshtags(
-        domain: df.mesh.Mesh, entity_dim: int, markers: dict[str, tuple[int, Callable]]
+    domain: df.mesh.Mesh, entity_dim: int, markers: dict[str, tuple[int, Callable]]
 ) -> tuple[df.mesh.MeshTagsMetaClass, dict[str, int]]:
     """Creates meshtags for the given markers.
     This code is part of the FEniCSx tutorial
@@ -528,6 +556,7 @@ def create_meshtags(
     )
     return mesh_tags, marked
 
+
 def define_problem(mat: IncrSmallStrainModel, dim: int):
     """define problem set up for test_plane_strain"""
 
@@ -554,14 +583,24 @@ def define_problem(mat: IncrSmallStrainModel, dim: int):
     if dim == 2:
         mesh = df.mesh.create_unit_square(MPI.COMM_WORLD, 1, 1)
         law = mat(
-            parameters={"E0": youngs_modulus, "E1": visco_modulus, "tau": relaxation_time, "nu": poissons_ratio},
+            parameters={
+                "E0": youngs_modulus,
+                "E1": visco_modulus,
+                "tau": relaxation_time,
+                "nu": poissons_ratio,
+            },
             constraint=Constraint.PLANE_STRAIN,
         )
         fixed_vector = np.array([0.0, 0.0])
     elif dim == 3:
         mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 1, 1, 1)
         law = mat(
-            parameters={"E0": youngs_modulus, "E1": visco_modulus, "tau": relaxation_time, "nu": poissons_ratio},
+            parameters={
+                "E0": youngs_modulus,
+                "E1": visco_modulus,
+                "tau": relaxation_time,
+                "nu": poissons_ratio,
+            },
             constraint=Constraint.FULL,
         )
         fixed_vector = np.array([0.0, 0.0, 0.0])
@@ -576,7 +615,9 @@ def define_problem(mat: IncrSmallStrainModel, dim: int):
     y1_f = df.mesh.locate_entities_boundary(mesh, fdim, y1_boundary)
     y0_f = df.mesh.locate_entities_boundary(mesh, fdim, y0_boundary)
 
-    fix_left = df.fem.dirichletbc(fixed_vector, df.fem.locate_dofs_topological(V, fdim, left_f), V)
+    fix_left = df.fem.dirichletbc(
+        fixed_vector, df.fem.locate_dofs_topological(V, fdim, left_f), V
+    )
     fix_y1 = df.fem.dirichletbc(
         df.fem.Constant(mesh, 0.0),
         df.fem.locate_dofs_topological(V.sub(1), fdim, y1_f),
@@ -610,20 +651,15 @@ def define_problem(mat: IncrSmallStrainModel, dim: int):
         )
         bc_list = [fix_left, fix_y0, fix_y1, fix_z0, fix_z1, move_ux_right]
 
-    #problem
+    # problem
     dt = 5
-    problem = IncrSmallStrainProblem(
-        law,
-        u,
-        bc_list,
-        1,
-        dt
-    )
+    problem = IncrSmallStrainProblem(law, u, bc_list, 1, dt)
     return u, problem
+
 
 @pytest.mark.parametrize("mat", [SpringKelvinModel, SpringMaxwellModel])
 def test_plane_strain(mat: IncrSmallStrainModel):
-    '''compare 3D with fixed z direction with 2D plane strain'''
+    """compare 3D with fixed z direction with 2D plane strain"""
 
     u_2D, problem_2D = define_problem(mat, 2)
     solver_2D = NewtonSolver(MPI.COMM_WORLD, problem_2D)
@@ -631,12 +667,10 @@ def test_plane_strain(mat: IncrSmallStrainModel):
     u_3D, problem_3D = define_problem(mat, 3)
     solver_3D = NewtonSolver(MPI.COMM_WORLD, problem_3D)
 
-
     # set time step and solve until total time
     time = []
     total_time = 20 * relaxation_time
     while problem_2D._time < total_time:
-
         time.append(problem_2D._time)
         _ = solver_2D.solve(u_2D)
         problem_2D.update()
@@ -644,19 +678,19 @@ def test_plane_strain(mat: IncrSmallStrainModel):
         _ = solver_3D.solve(u_3D)
         problem_3D.update()
 
-
         # print('2D',problem_2D.stress_1.x.array[0], problem_2D.stress_1.x.array[1], u_2D.x.array.max())
         # print('3D',problem_3D.stress_1.x.array[0], problem_2D.stress_1.x.array[1], u_3D.x.array.max())
 
-        assert abs(problem_2D.stress_1.x.array[0] - problem_3D.stress_1.x.array[0]) < 1e-8
-        assert abs(problem_2D.stress_1.x.array[1] - problem_3D.stress_1.x.array[1]) < 1e-8
+        assert (
+            abs(problem_2D.stress_1.x.array[0] - problem_3D.stress_1.x.array[0]) < 1e-8
+        )
+        assert (
+            abs(problem_2D.stress_1.x.array[1] - problem_3D.stress_1.x.array[1]) < 1e-8
+        )
         assert abs(u_2D.x.array.max() - u_3D.x.array.max()) < 1e-8
 
 
-
-
 if __name__ == "__main__":
-
     test_relaxation_uniaxial_stress(SpringKelvinModel)
     test_relaxation_uniaxial_stress(SpringMaxwellModel)
     #
