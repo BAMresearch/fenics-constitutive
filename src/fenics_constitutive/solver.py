@@ -6,9 +6,9 @@ import numpy as np
 import ufl
 from petsc4py import PETSc
 
-from .interfaces import IncrSmallStrainModel
+from .interfaces import Constraint, IncrSmallStrainModel
 from .maps import SubSpaceMap, build_subspace_map
-from .stress_strain import ufl_mandel_strain
+from .stress_strain import as_3d_tensor, ufl_mandel_strain
 
 
 def build_history(
@@ -64,6 +64,8 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
         u: The displacement field. This is the unknown in the nonlinear problem.
         bcs: The Dirichlet boundary conditions.
         q_degree: The quadrature degree (Polynomial degree which the quadrature rule needs to integrate exactly).
+        solver_constraint: The constraint for the solver. This should be set if you want to solve under a different constraint
+            with a 3D constitutive model. The conversion currently works for uniaxial strian and plane strain.
         form_compiler_options: The options for the form compiler.
         jit_options: The options for the JIT compiler.
 
@@ -82,6 +84,7 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
         bcs: list[df.fem.DirichletBCMetaClass],
         q_degree: int,
         del_t: float = 1.0,
+        solver_constraint: Constraint | None = None,
         form_compiler_options: dict | None = None,
         jit_options: dict | None = None,
     ):
@@ -92,36 +95,48 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
         if isinstance(laws, IncrSmallStrainModel):
             laws = [(laws, cells)]
 
-        constraint = laws[0][0].constraint
+        model_constraint = (
+            laws[0][0].constraint if solver_constraint is None else Constraint.FULL
+        )
+
         assert all(
-            law[0].constraint == constraint for law in laws
+            law[0].constraint == model_constraint for law in laws
         ), "All laws must have the same constraint"
 
+        solver_constraint = (
+            model_constraint if solver_constraint is None else solver_constraint
+        )
+        as_3d = solver_constraint != model_constraint
+
         gdim = mesh.ufl_cell().geometric_dimension()
+
         assert (
-            constraint.geometric_dim() == gdim
-        ), "Geometric dimension mismatch between mesh and laws"
+            solver_constraint.geometric_dim() == gdim
+        ), "Geometric dimension mismatch between mesh and solver constraint"
 
         QVe = ufl.VectorElement(
             "Quadrature",
             mesh.ufl_cell(),
             q_degree,
             quad_scheme="default",
-            dim=constraint.stress_strain_dim(),
+            dim=model_constraint.stress_strain_dim(),
         )
         QTe = ufl.TensorElement(
             "Quadrature",
             mesh.ufl_cell(),
             q_degree,
             quad_scheme="default",
-            shape=(constraint.stress_strain_dim(), constraint.stress_strain_dim()),
+            shape=(
+                model_constraint.stress_strain_dim(),
+                model_constraint.stress_strain_dim(),
+            ),
         )
         Q_grad_u_e = ufl.TensorElement(
             "Quadrature",
             mesh.ufl_cell(),
             q_degree,
             quad_scheme="default",
-            shape=(gdim, gdim),
+            shape=(model_constraint.geometric_dim(), model_constraint.geometric_dim()),
         )
         QV = df.fem.FunctionSpace(mesh, QVe)
         QT = df.fem.FunctionSpace(mesh, QTe)
@@ -135,9 +150,8 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
         self._history_1 = []
         self._tangent = []
 
-
-        self._del_t = del_t # time increment
-        self._time = 0 # global time will be updated in the update method
+        self._del_t = del_t  # time increment
+        self._time = 0  # global time will be updated in the update method
 
         # if len(laws) > 1:
         for law, cells in laws:
@@ -182,12 +196,16 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
         self.dxm = ufl.dx(metadata=self.metadata)
 
         self.R_form = (
-            ufl.inner(ufl_mandel_strain(u_, constraint), self.stress_1) * self.dxm
+            ufl.inner(
+                ufl_mandel_strain(u_, solver_constraint, as_3d),
+                self.stress_1,
+            )
+            * self.dxm
         )
         self.dR_form = (
             ufl.inner(
-                ufl_mandel_strain(du, constraint),
-                ufl.dot(self.tangent, ufl_mandel_strain(u_, constraint)),
+                ufl_mandel_strain(du, solver_constraint, as_3d),
+                ufl.dot(self.tangent, ufl_mandel_strain(u_, solver_constraint, as_3d)),
             )
             * self.dxm
         )
@@ -201,8 +219,15 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
         basix_celltype = getattr(basix.CellType, mesh.topology.cell_type.name)
         self.q_points, _ = basix.make_quadrature(basix_celltype, q_degree)
 
+        if as_3d:
+
+            def grad(v):
+                return as_3d_tensor(ufl.nabla_grad(v), solver_constraint)
+        else:
+            grad = ufl.nabla_grad
+
         self.del_grad_u_expr = df.fem.Expression(
-            ufl.nabla_grad(self._u - self._u0), self.q_points
+            grad(self._u - self._u0), self.q_points
         )
 
     @property
@@ -262,15 +287,15 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
                 for key in law.history_dim:
                     self._history_1[k][key].x.array[:] = self._history_0[k][key].x.array
                     history_input[key] = self._history_1[k][key].x.array
-
-            law.evaluate(
-                self._time,
-                self._del_t,
-                self._del_grad_u[k].x.array,
-                stress_input,
-                tangent_input,
-                history_input,
-            )
+            with df.common.Timer("constitutive-law-evaluation"):
+                law.evaluate(
+                    self._time,
+                    self._del_t,
+                    self._del_grad_u[k].x.array,
+                    stress_input,
+                    tangent_input,
+                    history_input,
+                )
             if len(self.laws) > 1:
                 self.submesh_maps[k].map_to_parent(self._stress[k], self.stress_1)
                 self.submesh_maps[k].map_to_parent(self._tangent[k], self.tangent)
@@ -296,7 +321,3 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
 
         # time update
         self._time += self._del_t
-
-    # def update_time(self) -> None:
-    #     """ update global time """
-    #     self._time += self._del_t
