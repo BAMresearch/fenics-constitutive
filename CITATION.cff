@@ -1,0 +1,27 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: fenics-constitutive
+message: Please cite this software using these metadata.
+type: software
+authors:
+  - given-names: Philipp
+    family-names: Diercks
+    orcid: 'https://orcid.org/0000-0003-4495-4423'
+  - given-names: Annika
+    family-names: Robens-Radermacher
+    orcid: 'https://orcid.org/0000-0001-9653-6085'
+  - given-names: Sjard Mathis
+    family-names: Rosenbusch
+    orcid: 'https://orcid.org/0009-0006-4444-2494'
+  - given-names: Jörg F.
+    family-names: Unger
+    orcid: 'https://orcid.org/0000-0003-0035-0951'
+  - given-names: Saif-Ur-Rehman
+    orcid: 'https://orcid.org/0009-0007-6609-8601'
+repository-code: 'https://github.com/BAMresearch/fenics-constitutive'
+abstract: >-
+  This software enables the use of nonlinear constitutive
+  models with FEniCSx.
+license: MIT
