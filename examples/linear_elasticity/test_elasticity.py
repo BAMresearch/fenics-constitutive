@@ -8,7 +8,12 @@ from dolfinx.nls.petsc import NewtonSolver
 from linear_elasticity_model import LinearElasticityModel
 from mpi4py import MPI
 
-from fenics_constitutive import Constraint, IncrSmallStrainProblem
+from fenics_constitutive import (
+    Constraint,
+    IncrSmallStrainProblem,
+    PlaneStrainFrom3D,
+    UniaxialStrainFrom3D,
+)
 
 youngs_modulus = 42.0
 poissons_ratio = 0.3
@@ -173,6 +178,45 @@ def test_uniaxial_strain():
         analytical_stress
     )
 
+    # test the converter from 3D model to uniaxial strain model
+    law_3d = LinearElasticityModel(
+        parameters={"E": youngs_modulus, "nu": poissons_ratio},
+        constraint=Constraint.FULL,
+    )
+    wrapped_1d_law = UniaxialStrainFrom3D(law_3d)
+    u_3d = df.fem.Function(V)
+    problem_3d = IncrSmallStrainProblem(
+        wrapped_1d_law,
+        u_3d,
+        [bc_left, bc_right],
+        1,
+    )
+    solver_3d = NewtonSolver(MPI.COMM_WORLD, problem_3d)
+    n, converged = solver_3d.solve(u_3d)
+    problem_3d.update()
+
+    # test that sigma_11 is the same as the analytical solution
+    assert abs(problem_3d.stress_0.x.array[0] - analytical_stress) < 1e-10 / (
+        analytical_stress
+    )
+    # test that the stresses of the problem with uniaxial strain model
+    # are the same as the stresses of the problem with the converted 3D model
+    assert (
+        np.linalg.norm(problem_3d.stress_0.x.array - problem.stress_0.x.array)
+        / np.linalg.norm(problem.stress_0.x.array)
+        < 1e-14
+    )
+
+    # test that the shear stresses are zero. Since this is uniaxial strain, the
+    # stress can have nonzero \sigma_22 and \sigma_33 components
+    assert np.linalg.norm(wrapped_1d_law.stress_3d[3:6]) < 1e-14
+    # test that the displacement is the same in both versions
+    assert (
+        np.linalg.norm(problem_3d._u.x.array - problem._u.x.array)
+        / np.linalg.norm(problem._u.x.array)
+        < 1e-14
+    )
+
 
 def test_plane_strain():
     # sanity check if out of plane stress is NOT zero
@@ -212,6 +256,43 @@ def test_plane_strain():
             ]
         )
         > 1e-2
+    )
+    # test the model conversion from 3D to plane strain
+    law_3d = LinearElasticityModel(
+        parameters={"E": youngs_modulus, "nu": poissons_ratio},
+        constraint=Constraint.FULL,
+    )
+    wrapped_2d_law = PlaneStrainFrom3D(law_3d)
+    u_3d = df.fem.Function(V)
+    problem_3d = IncrSmallStrainProblem(
+        wrapped_2d_law,
+        u_3d,
+        [bc_left, bc_right],
+        1,
+    )
+    solver_3d = NewtonSolver(MPI.COMM_WORLD, problem_3d)
+    n, converged = solver_3d.solve(u_3d)
+    problem_3d.update()
+    # test that the stress is nonzero in 33 direction
+    assert (
+        np.linalg.norm(
+            problem_3d.stress_0.x.array.reshape(-1, law.constraint.stress_strain_dim())[
+                :, 2
+            ]
+        )
+        > 1e-2
+    )
+    # test that the displacement is the same in both versions
+    assert (
+        np.linalg.norm(problem_3d._u.x.array - problem._u.x.array)
+        / np.linalg.norm(problem._u.x.array)
+        < 1e-14
+    )
+    # test that the stresses are the same in both versions
+    assert (
+        np.linalg.norm(problem_3d.stress_0.x.array - problem.stress_0.x.array)
+        / np.linalg.norm(problem.stress_0.x.array)
+        < 1e-14
     )
 
 
