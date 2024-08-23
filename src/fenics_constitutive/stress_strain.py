@@ -201,42 +201,38 @@ class UniaxialStrainFrom3D(IncrSmallStrainModel):
             else self.grad_del_u_3d
         )
 
-        self._grad_del_u_to_3d(grad_del_u, self.grad_del_u_3d)
-        self._mandel_vector_to_3d(mandel_stress, self.stress_3d)
+        self._grad_del_u_to_3d(grad_del_u)
+        self._stress_to_3d(mandel_stress)
 
         self.model.evaluate(
             time, del_t, self.grad_del_u_3d, self.stress_3d, self.tangent_3d, history
         )
-        self._tangent_to_1d(self.tangent_3d, tangent)
-        self._mandel_vector_to_1d(self.stress_3d, mandel_stress)
+        self._tangent_to_1d(tangent)
+        self._stress_to_1d(mandel_stress)
 
     @property
     def history_dim(self) -> dict[str, int | tuple[int, int]] | None:
         return self.model.history_dim
 
     @df.common.timed("model-conversion-wrapper")
-    def _grad_del_u_to_3d(
-        self, grad_del_u_1d: np.ndarray, grad_del_u_3d: np.ndarray
-    ) -> None:
-        grad_del_u_3d.reshape(-1, 9)[:, 0] = grad_del_u_1d
+    def _grad_del_u_to_3d(self, grad_del_u_1d: np.ndarray) -> None:
+        # Copy the 11 component of the 1D grad_del_u to the 3D grad_del_u
+        self.grad_del_u_3d.reshape(-1, 9)[:, 0] = grad_del_u_1d
 
     @df.common.timed("constitutive-model-conversion-wrapper")
-    def _mandel_vector_to_3d(
-        self, mandel_vector_1d: np.ndarray, mandel_vector_3d: np.ndarray
-    ) -> np.ndarray:
-        mandel_vector_3d.reshape(-1, 6)[:, 0] = mandel_vector_1d
+    def _stress_to_3d(self, stress_1d: np.ndarray) -> None:
+        # Copy the 11 component of the 1D stress to the 3D stress
+        self.stress_3d.reshape(-1, 6)[:, 0] = stress_1d
 
     @df.common.timed("model-conversion-wrapper")
-    def _mandel_vector_to_1d(
-        self, mandel_vector_3d: np.ndarray, mandel_vector_1d: np.ndarray
-    ) -> None:
-        mandel_vector_1d[:] = mandel_vector_3d.reshape(-1, 6)[:, 0]
+    def _stress_to_1d(self, stress_1d: np.ndarray) -> None:
+        # Copy the 11 component of the 3D stress to the 1D stress
+        stress_1d[:] = self.stress_3d.reshape(-1, 6)[:, 0]
 
     @df.common.timed("model-conversion-wrapper")
-    def _tangent_to_1d(
-        self, tangent_3d: np.ndarray, tangent_1d: np.ndarray
-    ) -> np.ndarray:
-        tangent_1d[:] = tangent_3d.reshape(-1, 36)[:, 0]
+    def _tangent_to_1d(self, tangent_1d: np.ndarray) -> None:
+        # Copy the 11 component of the 3D tangent to the 1D tangent
+        tangent_1d[:] = self.tangent_3d.reshape(-1, 36)[:, 0]
 
 
 class PlaneStrainFrom3D(IncrSmallStrainModel):
@@ -291,14 +287,14 @@ class PlaneStrainFrom3D(IncrSmallStrainModel):
             np.zeros(9 * n_gauss) if self.grad_del_u_3d is None else self.grad_del_u_3d
         )
 
-        self._grad_del_u_to_3d(grad_del_u, self.grad_del_u_3d)
-        self._mandel_vector_to_3d(mandel_stress, self.stress_3d)
+        self._grad_del_u_to_3d(grad_del_u)
+        self._stress_to_3d(mandel_stress)
 
         self.model.evaluate(
             time, del_t, self.grad_del_u_3d, self.stress_3d, self.tangent_3d, history
         )
-        self._tangent_to_2d(self.tangent_3d, tangent)
-        self._mandel_vector_to_2d(self.stress_3d, mandel_stress)
+        self._tangent_to_2d(tangent)
+        self._stress_to_2d(mandel_stress)
 
     @property
     def history_dim(self) -> dict[str, int | tuple[int, int]] | None:
@@ -306,29 +302,48 @@ class PlaneStrainFrom3D(IncrSmallStrainModel):
 
     @df.common.timed("model-conversion-wrapper")
     def _grad_del_u_to_3d(
-        self, grad_del_u_2d: np.ndarray, grad_del_u_3d: np.ndarray
+        self,
+        grad_del_u_2d: np.ndarray,
     ) -> None:
-        grad_del_u_3d.reshape(-1, 9)[:, 0:2] = grad_del_u_2d.reshape(-1, 4)[:, 0:2]
-        grad_del_u_3d.reshape(-1, 9)[:, 3:5] = grad_del_u_2d.reshape(-1, 4)[:, 2:4]
+        # grad_del_u_2d: 0 1
+        #                2 3
+        # grad_del_u_3d: 0 1 2
+        #                3 4 5
+        #                6 7 8
+        # We map the 0, 1, 2,3 components of the 2D grad_del_u to the 3D grad_del_u
+        # components 0, 1, 3, 4
+        self.grad_del_u_3d.reshape(-1, 9)[:, 0:2] = grad_del_u_2d.reshape(-1, 4)[:, 0:2]
+        self.grad_del_u_3d.reshape(-1, 9)[:, 3:5] = grad_del_u_2d.reshape(-1, 4)[:, 2:4]
 
     @df.common.timed("model-conversion-wrapper")
-    def _mandel_vector_to_3d(
-        self, mandel_vector_2d: np.ndarray, mandel_vector_3d: np.ndarray
-    ) -> np.ndarray:
-        mandel_vector_3d.reshape(-1, 6)[:, 0:4] = mandel_vector_2d.reshape(-1, 4)
-
-    @df.common.timed("model-conversion-wrapper")
-    def _mandel_vector_to_2d(
-        self, mandel_vector_3d: np.ndarray, mandel_vector_2d: np.ndarray
+    def _stress_to_3d(
+        self,
+        stress_2d: np.ndarray,
     ) -> None:
-        mandel_vector_2d.reshape(-1, 4)[:] = mandel_vector_3d.reshape(-1, 6)[:, 0:4]
+        # Copy the 0, 1, 2, 3 components of the 2D stress to the 3D stress
+        self.stress_3d.reshape(-1, 6)[:, 0:4] = stress_2d.reshape(-1, 4)
 
     @df.common.timed("model-conversion-wrapper")
-    def _tangent_to_2d(
-        self, tangent_3d: np.ndarray, tangent_2d: np.ndarray
-    ) -> np.ndarray:
+    def _stress_to_2d(self, stress_2d: np.ndarray) -> None:
+        # Copy the 0, 1, 2, 3 components of the 3D stress to the 2D stress
+        stress_2d.reshape(-1, 4)[:] = self.stress_3d.reshape(-1, 6)[:, 0:4]
+
+    @df.common.timed("model-conversion-wrapper")
+    def _tangent_to_2d(self, tangent_2d: np.ndarray) -> None:
+        # tangent_2d: 0 1 2 3
+        #             4 5 6 7
+        #             8 9 10 11
+        #             12 13 14 15
+        # tangent_3d: 0 1 2 3 4 5
+        #             6 7 8 9 10 11
+        #             12 13 14 15 16 17
+        #             18 19 20 21 22 23
+        #             24 25 26 27 28 29
+        #             30 31 32 33 34 35
+        # We map the first 4x4 block of the 3D tangent to the 2D tangent
         view_2d = tangent_2d.reshape(-1, 16)
-        view_3d = tangent_3d.reshape(-1, 36)
+        view_3d = self.tangent_3d.reshape(-1, 36)
+
         view_2d[:, 0:4] = view_3d[:, 0:4]
         view_2d[:, 4:8] = view_3d[:, 6:10]
         view_2d[:, 8:12] = view_3d[:, 12:16]

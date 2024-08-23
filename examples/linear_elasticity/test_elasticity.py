@@ -194,7 +194,7 @@ def test_uniaxial_strain():
     solver_3d = NewtonSolver(MPI.COMM_WORLD, problem_3d)
     n, converged = solver_3d.solve(u_3d)
     problem_3d.update()
-    
+
     # test that sigma_11 is the same as the analytical solution
     assert abs(problem_3d.stress_0.x.array[0] - analytical_stress) < 1e-10 / (
         analytical_stress
