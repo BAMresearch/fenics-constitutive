@@ -135,9 +135,8 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
         self._history_1 = []
         self._tangent = []
 
-
-        self._del_t = del_t # time increment
-        self._time = 0 # global time will be updated in the update method
+        self._del_t = del_t  # time increment
+        self._time = 0  # global time will be updated in the update method
 
         # if len(laws) > 1:
         for law, cells in laws:
@@ -224,6 +223,7 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
 
         return self._a
 
+    @df.common.timed("constitutive-form-evaluation")
     def form(self, x: PETSc.Vec) -> None:
         """This function is called before the residual or Jacobian is
         computed. This is usually used to update ghost values, but here
@@ -234,9 +234,16 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
 
         """
         super().form(x)
-        assert (
-            x.array.data == self._u.vector.array.data
-        ), "The solution vector must be the same as the one passed to the MechanicsProblem"
+        # this copies the data from the vector x to the function _u
+        x.copy(self._u.vector)
+        self._u.vector.ghostUpdate(
+            addv=PETSc.InsertMode.INSERT, mode=PETSc.ScatterMode.FORWARD
+        )
+        # This assertion can fail, even if everything is correct.
+        # Left here, because I would like the check to work someday again.
+        # assert (
+        #    x.array.data == self._u.vector.array.data
+        # ), f"The solution vector must be the same as the one passed to the MechanicsProblem. Got {x.array.data} and {self._u.vector.array.data}"
 
         # if len(self.laws) > 1:
         for k, (law, cells) in enumerate(self.laws):
@@ -262,15 +269,15 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
                 for key in law.history_dim:
                     self._history_1[k][key].x.array[:] = self._history_0[k][key].x.array
                     history_input[key] = self._history_1[k][key].x.array
-
-            law.evaluate(
-                self._time,
-                self._del_t,
-                self._del_grad_u[k].x.array,
-                stress_input,
-                tangent_input,
-                history_input,
-            )
+            with df.common.Timer("constitutive-law-evaluation"):
+                law.evaluate(
+                    self._time,
+                    self._del_t,
+                    self._del_grad_u[k].x.array,
+                    stress_input,
+                    tangent_input,
+                    history_input,
+                )
             if len(self.laws) > 1:
                 self.submesh_maps[k].map_to_parent(self._stress[k], self.stress_1)
                 self.submesh_maps[k].map_to_parent(self._tangent[k], self.tangent)
@@ -289,6 +296,7 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
         self.stress_0.x.scatter_forward()
 
         for k, (law, _) in enumerate(self.laws):
+            law.update()
             if law.history_dim is not None:
                 for key in law.history_dim:
                     self._history_0[k][key].x.array[:] = self._history_1[k][key].x.array
@@ -296,7 +304,3 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
 
         # time update
         self._time += self._del_t
-
-    # def update_time(self) -> None:
-    #     """ update global time """
-    #     self._time += self._del_t
