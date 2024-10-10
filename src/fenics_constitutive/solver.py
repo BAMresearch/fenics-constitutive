@@ -9,6 +9,7 @@ from petsc4py import PETSc
 from .interfaces import IncrSmallStrainModel
 from .maps import SubSpaceMap, build_subspace_map
 from .stress_strain import ufl_mandel_strain
+from scipy.linalg import logm, expm
 
 
 def build_history(
@@ -396,7 +397,7 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
         self._u0.x.scatter_forward()
 
         self.stress_0.x.array[:] = self.stress_1.x.array
-        # print(self.stress_0.x.array)
+        print(self.stress_0.x.array)
         self.stress_0.x.scatter_forward()
 
         for k, (law, _) in enumerate(self.laws):
@@ -449,6 +450,60 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
             # print('rotation increment', rotation_increment)
             Q_matrix = I2 + (np.linalg.inv(I2 - 0.5*rotation_increment)) @ rotation_increment
 
+            # ########################################################################
+            #
+            # def skew_symmetric_to_vector(skew_sym_matrix):
+            #     # Extract the vector from the skew-symmetric matrix
+            #     return np.array([skew_sym_matrix[2, 1], skew_sym_matrix[0, 2], skew_sym_matrix[1, 0]])
+            #
+            # def vector_to_skew_symmetric(vector):
+            #     # Convert a vector to a skew-symmetric matrix
+            #     return np.array([[0, -vector[2], vector[1]],
+            #                      [vector[2], 0, -vector[0]],
+            #                      [-vector[1], vector[0], 0]])
+            #
+            # def rotation_matrix_from_axis_angle(axis, angle):
+            #     # Compute the rotation matrix from axis and angle using Rodrigues' formula
+            #     K = vector_to_skew_symmetric(axis)
+            #     I = np.eye(3)
+            #     return I + np.sin(angle) * K + (1 - np.cos(angle)) * K @ K
+            #
+            # # Step 1: Extract the rotation axis and angle from the skew-symmetric matrix
+            # rotation_vector = skew_symmetric_to_vector(rotation_increment)
+            #
+            # # The angle of rotation is the magnitude of the rotation vector
+            # rotation_angle = np.linalg.norm(rotation_vector)
+            #
+            #
+            # if rotation_angle != 0:
+            #     # Step 2: Normalize the rotation vector to get the axis of rotation
+            #     rotation_axis = rotation_vector / rotation_angle
+            #
+            #     # Step 3: Halve the rotation angle
+            #     half_rotation_angle = rotation_angle / 2
+            #
+            #     # Step 4: Compute the rotation matrix for half the angle
+            #     Q_matrix_half_angle = rotation_matrix_from_axis_angle(rotation_axis, half_rotation_angle)
+            #
+            #     print("rotation angle is ", rotation_increment)
+            #
+            # else:
+            #     # If there's no rotation, the matrix is just the identity
+            #     Q_matrix_half_angle = np.eye(3)
+            #
+            # # Q_matrix_half_angle now contains the rotation matrix for half the angle
+            #
+            # ##########################################################################
+
+            # Logarithm of the rotation matrix
+            log_Q = logm(Q_matrix)
+
+            # Halve the rotation
+            log_Q_half = 0.5 * log_Q
+
+            # Exponentiate to get the half-angle rotation matrix
+            Q_half = expm(log_Q_half)
+
             theta = np.arctan2(Q_matrix[1, 0], Q_matrix[0, 0])
 
             # Calculate half angle rotation matrix
@@ -457,7 +512,7 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
                 [np.sin(theta / 2), np.cos(theta / 2), 0],
                 [0, 0, 1]
             ])
-            rot_stress = Q_matrix_half_angle.T @ stress[n,:,:] @ Q_matrix_half_angle
+            rot_stress = Q_half.T @ stress[n,:,:] @ Q_half
             # strains_rotated = Q_matrix @ strains[n,:,:] @ Q_matrix.T
             # print(strains_rotated-eps)
             # print(rotation_increment)
