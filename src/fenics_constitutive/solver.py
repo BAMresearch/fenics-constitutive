@@ -397,7 +397,7 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
         self._u0.x.scatter_forward()
 
         self.stress_0.x.array[:] = self.stress_1.x.array
-        print(self.stress_0.x.array)
+        #print(self.stress_0.x.array)
         self.stress_0.x.scatter_forward()
 
         for k, (law, _) in enumerate(self.laws):
