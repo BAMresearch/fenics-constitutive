@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.13364955.svg)](https://doi.org/10.5281/zenodo.13364955)
+
 # fenics-constitutive
 
 _For some examples which are using legacy-FEniCS you may look on the old `master` branch [legacy code](https://github.com/BAMresearch/fenics-constitutive/tree/master)_
