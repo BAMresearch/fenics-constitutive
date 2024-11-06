@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import basix
+import basix.ufl
 import dolfinx as df
 import numpy as np
 import ufl
 from petsc4py import PETSc
+from dolfinx.fem.petsc import NonlinearProblem
 
 from .interfaces import IncrSmallStrainModel
 from .maps import SubSpaceMap, build_subspace_map
@@ -30,29 +32,16 @@ def build_history(
 
     history = {}
     for key, value in law.history_dim.items():
-        match value:
-            case int():
-                Qh = ufl.VectorElement(
-                    "Quadrature",
-                    mesh.ufl_cell(),
-                    q_degree,
-                    quad_scheme="default",
-                    dim=value,
-                )
-            case tuple():
-                Qh = ufl.TensorElement(
-                    "Quadrature",
-                    mesh.ufl_cell(),
-                    q_degree,
-                    quad_scheme="default",
-                    shape=value,
-                )
-        history_space = df.fem.FunctionSpace(mesh, Qh)
+        value_shape = (value,) if isinstance(value, int) else value
+        Q = basix.ufl.quadrature_element(
+            mesh.topology.cell_name(), value_shape=value_shape, degree=q_degree
+        )
+        history_space = df.fem.functionspace(mesh, Q)
         history[key] = df.fem.Function(history_space)
     return history
 
 
-class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
+class IncrSmallStrainProblem(NonlinearProblem):
     """
     A nonlinear problem for incremental small strain models. To be used with
     the dolfinx NewtonSolver.
@@ -79,7 +68,7 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
         self,
         laws: list[tuple[IncrSmallStrainModel, np.ndarray]] | IncrSmallStrainModel,
         u: df.fem.Function,
-        bcs: list[df.fem.DirichletBCMetaClass],
+        bcs: list[df.fem.DirichletBC],
         q_degree: int,
         del_t: float = 1.0,
         form_compiler_options: dict | None = None,
@@ -97,34 +86,29 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
             law[0].constraint == constraint for law in laws
         ), "All laws must have the same constraint"
 
-        gdim = mesh.ufl_cell().geometric_dimension()
+        gdim = mesh.geometry.dim
         assert (
             constraint.geometric_dim() == gdim
         ), "Geometric dimension mismatch between mesh and laws"
 
-        QVe = ufl.VectorElement(
-            "Quadrature",
-            mesh.ufl_cell(),
-            q_degree,
-            quad_scheme="default",
-            dim=constraint.stress_strain_dim(),
+        QVe = basix.ufl.quadrature_element(
+            mesh.topology.cell_name(),
+            value_shape=(constraint.stress_strain_dim(),),
+            degree=q_degree,
         )
-        QTe = ufl.TensorElement(
-            "Quadrature",
-            mesh.ufl_cell(),
-            q_degree,
-            quad_scheme="default",
-            shape=(constraint.stress_strain_dim(), constraint.stress_strain_dim()),
+        QTe = basix.ufl.quadrature_element(
+            mesh.topology.cell_name(),
+            value_shape=(
+                constraint.stress_strain_dim(),
+                constraint.stress_strain_dim(),
+            ),
+            degree=q_degree,
         )
-        Q_grad_u_e = ufl.TensorElement(
-            "Quadrature",
-            mesh.ufl_cell(),
-            q_degree,
-            quad_scheme="default",
-            shape=(gdim, gdim),
+        Q_grad_u_e = basix.ufl.quadrature_element(
+            mesh.topology.cell_name(), value_shape=(gdim, gdim), degree=q_degree
         )
-        QV = df.fem.FunctionSpace(mesh, QVe)
-        QT = df.fem.FunctionSpace(mesh, QTe)
+        QV = df.fem.functionspace(mesh, QVe)
+        QT = df.fem.functionspace(mesh, QTe)
 
         self.laws: list[tuple[IncrSmallStrainModel, np.ndarray]] = []
         self.submesh_maps: list[SubSpaceMap] = []
@@ -154,11 +138,11 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
                 self._stress.append(df.fem.Function(QV_subspace))
 
             # subspace for grad u
-            Q_grad_u_subspace = df.fem.FunctionSpace(submesh, Q_grad_u_e)
+            Q_grad_u_subspace = df.fem.functionspace(submesh, Q_grad_u_e)
             self._del_grad_u.append(df.fem.Function(Q_grad_u_subspace))
 
             # subspace for tanget
-            QT_subspace = df.fem.FunctionSpace(submesh, QTe)
+            QT_subspace = df.fem.functionspace(submesh, QTe)
             self._tangent.append(df.fem.Function(QT_subspace))
 
             # subspaces for history
@@ -235,8 +219,8 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
         """
         super().form(x)
         # this copies the data from the vector x to the function _u
-        x.copy(self._u.vector)
-        self._u.vector.ghostUpdate(
+        x.copy(self._u.x.petsc_vec)
+        self._u.x.petsc_vec.ghostUpdate(
             addv=PETSc.InsertMode.INSERT, mode=PETSc.ScatterMode.FORWARD
         )
         # This assertion can fail, even if everything is correct.
@@ -247,11 +231,16 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
 
         # if len(self.laws) > 1:
         for k, (law, cells) in enumerate(self.laws):
-            # TODO: test this!
-            # Replace with `self._del_grad_u[k].interpolate(...)` in 0.8.0
-            self.del_grad_u_expr.eval(
-                cells, self._del_grad_u[k].x.array.reshape(cells.size, -1)
+            self._del_grad_u[k].interpolate(
+                self.del_grad_u_expr,
+                cells0=cells,
+                cells1=np.arange(cells.size, dtype=np.int32),
             )
+            #self.del_grad_u_expr.eval(
+            #    self._del_grad_u[k].function_space.mesh,
+            #    cells,
+            #    self._del_grad_u[k].x.array.reshape(cells.size, -1),
+            #)
             self._del_grad_u[k].x.scatter_forward()
             if len(self.laws) > 1:
                 self.submesh_maps[k].map_to_child(self.stress_0, self._stress[k])

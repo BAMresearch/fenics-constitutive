@@ -5,6 +5,9 @@ from dataclasses import dataclass
 import dolfinx as df
 import numpy as np
 
+from functools import reduce
+import operator
+
 __all__ = ["SubSpaceMap", "build_subspace_map"]
 
 
@@ -41,7 +44,7 @@ class SubSpaceMap:
         ), "Parent mesh does not match"
         assert sub.ufl_shape == parent.ufl_shape, "Shapes do not match"
 
-        size = sub.ufl_element().value_size()
+        size = reduce(operator.mul, sub.ufl_shape, 1)
 
         parent_array = parent.x.array.reshape(-1, size)
         sub_array = sub.x.array.reshape(-1, size)
@@ -63,7 +66,7 @@ class SubSpaceMap:
         ), "Parent mesh does not match"
         assert sub.ufl_shape == parent.ufl_shape, "Shapes do not match"
 
-        size = sub.ufl_element().value_size()
+        size = reduce(operator.mul, sub.ufl_shape, 1)
 
         parent_array = parent.x.array.reshape(-1, size)
         sub_array = sub.x.array.reshape(-1, size)
@@ -93,13 +96,14 @@ def build_subspace_map(
     mesh = V.mesh
     submesh, cell_map, _, _ = df.mesh.create_submesh(mesh, mesh.topology.dim, cells)
     fe = V.ufl_element()
-    V_sub = df.fem.FunctionSpace(submesh, fe)
+    V_sub = df.fem.functionspace(submesh, fe)
 
     submesh = V_sub.mesh
     view_parent = []
     view_child = []
 
-    num_sub_cells = submesh.topology.index_map(submesh.topology.dim).size_local
+    map_c = submesh.topology.index_map(mesh.topology.dim)
+    num_sub_cells = map_c.size_local + map_c.num_ghosts
     for cell in range(num_sub_cells):
         view_child.append(V_sub.dofmap.cell_dofs(cell))
         view_parent.append(V.dofmap.cell_dofs(cell_map[cell]))

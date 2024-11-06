@@ -13,6 +13,7 @@ from fenics_constitutive import (
     IncrSmallStrainProblem,
     PlaneStrainFrom3D,
     UniaxialStrainFrom3D,
+    norm,
 )
 
 youngs_modulus = 42.0
@@ -21,7 +22,7 @@ poissons_ratio = 0.3
 
 def test_uniaxial_stress():
     mesh = df.mesh.create_unit_interval(MPI.COMM_WORLD, 4)
-    V = df.fem.FunctionSpace(mesh, ("CG", 1))
+    V = df.fem.functionspace(mesh, ("CG", 1))
     u = df.fem.Function(V)
     law = LinearElasticityModel(
         parameters={"E": youngs_modulus, "nu": poissons_ratio},
@@ -51,25 +52,25 @@ def test_uniaxial_stress():
     n, converged = solver.solve(u)
 
     # Compare the result with the analytical solution
-    assert abs(problem.stress_1.x.array[0] - youngs_modulus * 0.01) < 1e-10 / (
-        youngs_modulus * 0.01
-    )
+    diff = problem.stress_1 - ufl.as_vector([youngs_modulus * 0.01,])
+    assert norm(diff, problem.dxm) < 1e-10 / youngs_modulus * 0.01
 
     problem.update()
     # Check that the stress is updated correctly
-    assert abs(problem.stress_0.x.array[0] - youngs_modulus * 0.01) < 1e-10 / (
-        youngs_modulus * 0.01
-    )
+    diff = problem.stress_0 - ufl.as_vector([youngs_modulus * 0.01,])
+    assert norm(diff, problem.dxm) < 1e-10 / youngs_modulus * 0.01
+    
     # Check that the displacement is updated correctly
-    assert np.max(problem._u0.x.array) == displacement.value
+    max_u = MPI.COMM_WORLD.allreduce(np.max(problem._u0.x.array), MPI.MAX)
+    assert max_u == displacement.value
 
     displacement.value = 0.02
     n, converged = solver.solve(u)
 
     # Compare the result of the updated problem with new BC with the analytical solution
-    assert abs(problem.stress_1.x.array[0] - youngs_modulus * 0.02) < 1e-10 / (
-        youngs_modulus * 0.02
-    )
+    diff = problem.stress_1 - ufl.as_vector([youngs_modulus * 0.02,])
+    assert norm(diff, problem.dxm) < 1e-10 / youngs_modulus * 0.02
+    
 
 
 @pytest.mark.parametrize(
@@ -83,22 +84,23 @@ def test_uniaxial_stress():
 )
 def test_uniaxial_stress_two_laws(factor: float):
     mesh = df.mesh.create_unit_interval(MPI.COMM_WORLD, 2)
-    V = df.fem.FunctionSpace(mesh, ("CG", 1))
+    V = df.fem.functionspace(mesh, ("CG", 1))
     u = df.fem.Function(V)
+    cells_local = mesh.topology.index_map(mesh.topology.dim).global_to_local(np.arange(2, dtype=np.int32))
     laws = [
         (
             LinearElasticityModel(
                 parameters={"E": youngs_modulus, "nu": poissons_ratio},
                 constraint=Constraint.UNIAXIAL_STRESS,
             ),
-            np.array([0], dtype=np.int32),
+            cells_local[0],
         ),
         (
             LinearElasticityModel(
                 parameters={"E": factor * youngs_modulus, "nu": poissons_ratio},
                 constraint=Constraint.UNIAXIAL_STRESS,
             ),
-            np.array([1], dtype=np.int32),
+            cells_local[1],
         ),
     ]
 
@@ -138,7 +140,7 @@ def test_uniaxial_stress_two_laws(factor: float):
 
 def test_uniaxial_strain():
     mesh = df.mesh.create_unit_interval(MPI.COMM_WORLD, 2)
-    V = df.fem.FunctionSpace(mesh, ("CG", 1))
+    V = df.fem.functionspace(mesh, ("CG", 1))
     u = df.fem.Function(V)
     law = LinearElasticityModel(
         parameters={"E": youngs_modulus, "nu": poissons_ratio},
@@ -173,10 +175,8 @@ def test_uniaxial_strain():
         * (1.0 - poissons_ratio)
         / ((1.0 + poissons_ratio) * (1.0 - 2.0 * poissons_ratio))
     ) * displacement.value
-
-    assert abs(problem.stress_0.x.array[0] - analytical_stress) < 1e-10 / (
-        analytical_stress
-    )
+    diff = problem.stress_0 - ufl.as_vector([analytical_stress,])
+    assert norm(diff, problem.dxm) < 1e-10 / analytical_stress
 
     # test the converter from 3D model to uniaxial strain model
     law_3d = LinearElasticityModel(
@@ -196,32 +196,28 @@ def test_uniaxial_strain():
     problem_3d.update()
 
     # test that sigma_11 is the same as the analytical solution
-    assert abs(problem_3d.stress_0.x.array[0] - analytical_stress) < 1e-10 / (
-        analytical_stress
-    )
+    diff = problem_3d.stress_0 - ufl.as_vector([analytical_stress,])
+    assert norm(diff, problem_3d.dxm) < 1e-10 / analytical_stress
+
     # test that the stresses of the problem with uniaxial strain model
     # are the same as the stresses of the problem with the converted 3D model
-    assert (
-        np.linalg.norm(problem_3d.stress_0.x.array - problem.stress_0.x.array)
-        / np.linalg.norm(problem.stress_0.x.array)
-        < 1e-14
-    )
+    diff =  problem_3d.stress_0 - problem.stress_0
+    assert norm(diff, problem_3d.dxm) < 1e-10 / norm(problem.stress_0, problem.dxm)
 
     # test that the shear stresses are zero. Since this is uniaxial strain, the
     # stress can have nonzero \sigma_22 and \sigma_33 components
     assert np.linalg.norm(wrapped_1d_law.stress_3d[3:6]) < 1e-14
     # test that the displacement is the same in both versions
+    diff = problem_3d._u - problem._u
     assert (
-        np.linalg.norm(problem_3d._u.x.array - problem._u.x.array)
-        / np.linalg.norm(problem._u.x.array)
-        < 1e-14
+        norm(diff, problem_3d.dxm) < 1e-14 / norm(problem._u, problem.dxm)
     )
 
 
 def test_plane_strain():
     # sanity check if out of plane stress is NOT zero
     mesh = df.mesh.create_unit_square(MPI.COMM_WORLD, 2, 2)
-    V = df.fem.VectorFunctionSpace(mesh, ("CG", 1))
+    V = df.fem.functionspace(mesh, ("CG", 1,(2,)))
     u = df.fem.Function(V)
     law = LinearElasticityModel(
         parameters={"E": youngs_modulus, "nu": poissons_ratio},
@@ -299,7 +295,7 @@ def test_plane_strain():
 def test_plane_stress():
     # just a sanity check if out of plane stress is really zero
     mesh = df.mesh.create_unit_square(MPI.COMM_WORLD, 2, 2)
-    V = df.fem.VectorFunctionSpace(mesh, ("CG", 1))
+    V = df.fem.functionspace(mesh, ("CG", 1,(2,)))
     u = df.fem.Function(V)
     law = LinearElasticityModel(
         parameters={"E": youngs_modulus, "nu": poissons_ratio},
@@ -341,7 +337,7 @@ def test_plane_stress():
 def test_3d():
     # test the 3d case against a pure fenics implementation
     mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 2, 2, 2)
-    V = df.fem.VectorFunctionSpace(mesh, ("CG", 1))
+    V = df.fem.functionspace(mesh, ("CG", 1,(3,)))
     u = df.fem.Function(V)
     law = LinearElasticityModel(
         parameters={"E": youngs_modulus, "nu": poissons_ratio},
@@ -402,3 +398,7 @@ def test_3d():
 
 if __name__ == "__main__":
     test_uniaxial_stress()
+    test_uniaxial_strain()
+    test_plane_stress()
+    test_plane_strain()
+    test_3d()

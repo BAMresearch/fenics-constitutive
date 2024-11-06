@@ -11,5 +11,6 @@ from .interfaces import *
 from .maps import *
 from .solver import *
 from .stress_strain import *
+from .error_estimation import *
 
 __all__ = ["__version__"]
