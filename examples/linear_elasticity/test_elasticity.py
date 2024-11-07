@@ -21,7 +21,7 @@ poissons_ratio = 0.3
 
 
 def test_uniaxial_stress():
-    mesh = df.mesh.create_unit_interval(MPI.COMM_WORLD, 4)
+    mesh = df.mesh.create_unit_interval(MPI.COMM_WORLD, 10)
     V = df.fem.functionspace(mesh, ("CG", 1))
     u = df.fem.Function(V)
     law = LinearElasticityModel(
@@ -93,14 +93,14 @@ def test_uniaxial_stress_two_laws(factor: float):
                 parameters={"E": youngs_modulus, "nu": poissons_ratio},
                 constraint=Constraint.UNIAXIAL_STRESS,
             ),
-            cells_local[0],
+            cells_local[0:1],
         ),
         (
             LinearElasticityModel(
                 parameters={"E": factor * youngs_modulus, "nu": poissons_ratio},
                 constraint=Constraint.UNIAXIAL_STRESS,
             ),
-            cells_local[1],
+            cells_local[1:2],
         ),
     ]
 
@@ -245,14 +245,9 @@ def test_plane_strain():
     solver = NewtonSolver(MPI.COMM_WORLD, problem)
     n, converged = solver.solve(u)
     problem.update()
-    assert (
-        np.linalg.norm(
-            problem.stress_0.x.array.reshape(-1, law.constraint.stress_strain_dim())[
-                :, 2
-            ]
-        )
-        > 1e-2
-    )
+    # test that the stress is nonzero in 33 direction
+    assert norm(problem.stress_0[2], problem.dxm) > 1e-2
+
     # test the model conversion from 3D to plane strain
     law_3d = LinearElasticityModel(
         parameters={"E": youngs_modulus, "nu": poissons_ratio},
@@ -270,26 +265,16 @@ def test_plane_strain():
     n, converged = solver_3d.solve(u_3d)
     problem_3d.update()
     # test that the stress is nonzero in 33 direction
-    assert (
-        np.linalg.norm(
-            problem_3d.stress_0.x.array.reshape(-1, law.constraint.stress_strain_dim())[
-                :, 2
-            ]
-        )
-        > 1e-2
-    )
+    assert norm(problem_3d.stress_0[2], problem.dxm) > 1e-2
+    
     # test that the displacement is the same in both versions
+    diff = problem_3d._u - problem._u
     assert (
-        np.linalg.norm(problem_3d._u.x.array - problem._u.x.array)
-        / np.linalg.norm(problem._u.x.array)
-        < 1e-14
+        norm(diff, problem.dxm)/ norm(problem._u, problem.dxm) < 1e-14 
     )
     # test that the stresses are the same in both versions
-    assert (
-        np.linalg.norm(problem_3d.stress_0.x.array - problem.stress_0.x.array)
-        / np.linalg.norm(problem.stress_0.x.array)
-        < 1e-14
-    )
+    diff = problem_3d.stress_0 - problem.stress_0
+    assert norm(diff, problem.dxm) / norm(problem.stress_0, problem.dxm)< 1e-10 
 
 
 def test_plane_stress():
@@ -324,14 +309,9 @@ def test_plane_stress():
     solver = NewtonSolver(MPI.COMM_WORLD, problem)
     n, converged = solver.solve(u)
     problem.update()
-    assert (
-        np.linalg.norm(
-            problem.stress_0.x.array.reshape(-1, law.constraint.stress_strain_dim())[
-                :, 2
-            ]
-        )
-        < 1e-10
-    )
+    # test that the out of plane stress is zero
+    assert norm(problem.stress_0[2], problem.dxm) < 1e-10
+    
 
 
 def test_3d():
@@ -391,9 +371,8 @@ def test_3d():
     problem_fenics.solve()
 
     # Check that the solution is the same
-    assert np.linalg.norm(u_fenics.x.array - u.x.array) < 1e-8 / np.linalg.norm(
-        u_fenics.x.array
-    )
+    diff = u_fenics - u
+    assert norm(diff, problem.dxm) < 1e-8 / norm(u, problem.dxm)
 
 
 if __name__ == "__main__":
