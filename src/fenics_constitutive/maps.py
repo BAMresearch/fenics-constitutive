@@ -108,7 +108,7 @@ def build_subspace_map(
         view_child.append(V_sub.dofmap.cell_dofs(cell))
         view_parent.append(V.dofmap.cell_dofs(cell_map[cell]))
 
-    if view_child:
+    if len(view_child) > 0:
         map = SubSpaceMap(
             parent=np.hstack(view_parent),
             child=np.hstack(view_child),

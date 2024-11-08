@@ -14,7 +14,9 @@ def test_subspace_vector_map_vector_equals_tensor_map():
 
     map_c = mesh.topology.index_map(mesh.topology.dim)
     num_cells = map_c.size_local
-    cells = np.arange(0, num_cells, dtype=np.int32)
+    size_global = map_c.size_global
+    cells_global = np.arange(0, size_global, dtype=np.int32)
+    #cells = np.arange(0, num_cells, dtype=np.int32)
 
     Q = basix.ufl.quadrature_element(
         mesh.topology.cell_name(), value_shape=(1,), degree=2
@@ -29,7 +31,16 @@ def test_subspace_vector_map_vector_equals_tensor_map():
     Q_space = df.fem.functionspace(mesh, Q)
     QV_space = df.fem.functionspace(mesh, QV)
     QT_space = df.fem.functionspace(mesh, QT)
-    cell_sample = np.random.choice(cells, num_cells // 2, replace=False)
+
+    rng = np.random.default_rng(42)
+    if MPI.COMM_WORLD.rank == 0:
+        cell_sample_global = rng.choice(cells_global, size_global // 2, replace=False)
+    else:
+        cell_sample_global = np.empty(size_global // 2, dtype=np.int32)
+    MPI.COMM_WORLD.Bcast(cell_sample_global, root=0)
+    
+    cell_sample = map_c.global_to_local(cell_sample_global)
+    cell_sample = cell_sample[cell_sample>=0]
 
     Q_map, _ = build_subspace_map(cell_sample, Q_space)
     QV_map, _ = build_subspace_map(cell_sample, QV_space)
@@ -71,36 +82,37 @@ def test_map_evaluation():
     qt = df.fem.Function(QT_space)
     qt_test = qt.copy()
 
-    scalar_array = np.random.random(q.x.array.shape)
+    rng = np.random.default_rng(42)
+    scalar_array = rng.random(q.x.array.shape)
+
+    
     q.x.array[:] = scalar_array
     q.x.scatter_forward()
     scalar_array = q.x.array
 
-    vector_array = np.random.random(qv.x.array.shape)
+    vector_array = rng.random(qv.x.array.shape)
     qv.x.array[:] = vector_array
     qv.x.scatter_forward()
     vector_array = qv.x.array
 
-    tensor_array = np.random.random(qt.x.array.shape)
+    tensor_array = rng.random(qt.x.array.shape)
     qt.x.array[:] = tensor_array
     qt.x.scatter_forward()
     tensor_array = qt.x.array
 
     for _ in range(10):
         if MPI.COMM_WORLD.rank == 0:
-            cell_sample_global = np.random.choice(cells_global, size_global // 2, replace=False)
+            cell_sample_global = rng.choice(cells_global, size_global // 2, replace=False)
         else:
             cell_sample_global = np.empty(size_global // 2, dtype=np.int32)
         MPI.COMM_WORLD.Bcast(cell_sample_global, root=0)
+        
         cell_sample = map_c.global_to_local(cell_sample_global)
         cell_sample = cell_sample[cell_sample>=0]
 
         Q_sub_map, submesh = build_subspace_map(
             cell_sample, Q_space, return_subspace=False
         )
-        map_c_sub = submesh.topology.index_map(submesh.topology.dim)
-        size_local_sub = map_c_sub.size_local
-        size_local_ghosts_sub = map_c_sub.num_ghosts
 
         Q_sub = df.fem.functionspace(submesh, Q)
         QV_sub = df.fem.functionspace(submesh, QV)
