@@ -406,6 +406,12 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
                     self._history_0[k][key].x.array[:] = self._history_1[k][key].x.array
                     self._history_0[k][key].x.scatter_forward()
 
+    def reset_history(self) -> None:
+        for k, (law, _) in enumerate(self.laws):
+            if law.history_dim is not None:
+                for key in law.history_dim:
+                    self._history_0[k][key].x.array[:] = 0.0
+                    self._history_0[k][key].x.scatter_forward()
 
     # TODO: write a function that rotates the strain, stresses, tangent and history that is being input to the material law?
     # TODO: or just rotate the stresses being input to the material model
