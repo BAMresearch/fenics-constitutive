@@ -407,7 +407,6 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
                     self._history_0[k][key].x.scatter_forward()
 
     def reset_history(self) -> None:
-        print("reset history is called")
         self._u.x.array[:] = 0.0
         self._u0.x.array[:] = 0.0
         self._u0.x.scatter_forward()
