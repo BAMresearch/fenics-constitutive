@@ -407,13 +407,36 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
                     self._history_0[k][key].x.scatter_forward()
 
     def reset_history(self) -> None:
+        print("reset history is called")
+        self._u.x.array[:] = 0.0
+        self._u0.x.array[:] = 0.0
+        self._u0.x.scatter_forward()
+
         for k, (law, _) in enumerate(self.laws):
             if law.history_dim is not None:
                 for key in law.history_dim:
                     self._history_0[k][key].x.array[:] = 0.0
                     self._history_0[k][key].x.scatter_forward()
 
-    # TODO: write a function that rotates the strain, stresses, tangent and history that is being input to the material law?
+        self.stress_0.x.array[:] = 0.0
+        self.stress_1.x.array[:] = 0.0
+        self.stress_0.x.scatter_forward()
+
+        self.tangent.x.array[:] = 0.0
+        self.tangent.x.scatter_forward()
+
+
+
+
+
+        # self._del_grad_u = []
+        # self._stress = []
+        # self._history_0 = []
+        # self._history_1 = []
+        # self._tangent = []
+        # self._time=0.0
+
+        # TODO: write a function that rotates the strain, stresses, tangent and history that is being input to the material law?
     # TODO: or just rotate the stresses being input to the material model
     def stress_rotate(self, del_grad_u, mandel_stress):
         # TODO the stress that we get here is mandel stress already. convert it into 3x3 form using appropriate expressions
