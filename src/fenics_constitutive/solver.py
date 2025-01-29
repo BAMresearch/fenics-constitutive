@@ -345,7 +345,7 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
         self._time += self._del_t
 
     def stress_rotate(self, del_grad_u, mandel_stress):
-        # TODO the stress that we get here is mandel stress already. convert it into 3x3 form using appropriate expressions
+
         I2 = np.eye(3,3)
         shape = int(np.shape(del_grad_u)[0]/9)
         mandel_stress = mandel_stress.reshape(-1,6)
