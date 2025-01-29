@@ -31,7 +31,7 @@ jobs:
       - name: Setup Mambaforge
         uses: conda-incubator/setup-miniconda@v3
         with:
-            miniforge-variant: Mambaforge
+            #miniforge-variant: Mambaforge
             miniforge-version: latest
             activate-environment: fenics-constitutive
             use-mamba: true
