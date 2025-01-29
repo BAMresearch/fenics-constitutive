@@ -1,10 +1,9 @@
 name: fenics-constitutive
 channels:
   - conda-forge
-  - defaults
 dependencies:
   - python>=3.10
-  - fenics-dolfinx=0.6.0
+  - fenics-dolfinx>=0.9.0
   - numpy
   - pip
   - pytest
