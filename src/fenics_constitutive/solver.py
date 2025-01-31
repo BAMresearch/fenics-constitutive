@@ -22,7 +22,7 @@ def build_history(
         q_degree: The quadrature degree.
 
     Returns:
-        The history function(s) for the given law.
+        The history function(s) for the given law or None if the history dimension is 0.
 
     """
     if law.history_dim is None:
@@ -64,6 +64,7 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
         u: The displacement field. This is the unknown in the nonlinear problem.
         bcs: The Dirichlet boundary conditions.
         q_degree: The quadrature degree (Polynomial degree which the quadrature rule needs to integrate exactly).
+        del_t: The time increment.
         form_compiler_options: The options for the form compiler.
         jit_options: The options for the JIT compiler.
 
@@ -93,14 +94,14 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
             laws = [(laws, cells)]
 
         constraint = laws[0][0].constraint
-        assert all(
-            law[0].constraint == constraint for law in laws
-        ), "All laws must have the same constraint"
+        assert all(law[0].constraint == constraint for law in laws), (
+            "All laws must have the same constraint"
+        )
 
         gdim = mesh.ufl_cell().geometric_dimension()
-        assert (
-            constraint.geometric_dim() == gdim
-        ), "Geometric dimension mismatch between mesh and laws"
+        assert constraint.geometric_dim() == gdim, (
+            "Geometric dimension mismatch between mesh and laws"
+        )
 
         QVe = ufl.VectorElement(
             "Quadrature",

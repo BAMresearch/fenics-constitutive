@@ -19,10 +19,20 @@ git clone https://github.com/BAMresearch/fenics-constitutive.git
 cd fenics-constitutive
 mamba env create -f environment.yml
 ```
+This automatically installs the required dependencies and the package itself.
+
+Alternatively, if you have all dependencies listed in the `environment.yml` file installed, you can install the package using `pip` after cloning:
+
+```bash
+git clone https://github.com/BAMresearch/fenics-constitutive.git
+cd fenics-constitutive
+pip install -e .
+```
 
 ## Usage
 
-Since this project is based on FEniCSx, a basic knowledge of using FEniCSx is required. Similarly to any other FEniCSx project, you need to create a mesh, function spaces and boundary conditions. Defining the weak form is handled by the `IncrSmallStrainProblem` class. However, you may write your own Newton solver using the `IncrSmallStrainModel` class.
+Since this project is based on FEniCSx, a basic knowledge of using FEniCSx is required. Similarly to any other FEniCSx project, you need to create a mesh, function spaces and boundary conditions. Defining the weak form is handled by the `IncrSmallStrainProblem` class. However, you may write your own Newton solver.
+
 
 ```python
 import dolfinx as df
@@ -90,7 +100,6 @@ def left_boundary(x):
 def right_boundary(x):
    return np.isclose(x[0], 1.0)
 
-# displacement = df.fem.Constant(mesh_2d, np.ndarray([0.01,0.0]))
 dofs_left = df.fem.locate_dofs_geometrical(V, left_boundary)
 dofs_right = df.fem.locate_dofs_geometrical(V, right_boundary)
 bc_left = df.fem.dirichletbc(np.array([0.0, 0.0, 0.0]), dofs_left, V)
@@ -111,3 +120,4 @@ problem.update()
 
 Currently the Python package itself does not contain any constitutive models, however, under `examples/` you can find implementations of Hooke's law, isotropic hardening plasticity and viscoplasticity. 
 
+## Citing

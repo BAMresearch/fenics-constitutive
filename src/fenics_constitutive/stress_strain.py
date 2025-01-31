@@ -7,10 +7,10 @@ import ufl
 from .interfaces import Constraint, IncrSmallStrainModel
 
 __all__ = [
-    "ufl_mandel_strain",
-    "strain_from_grad_u",
-    "UniaxialStrainFrom3D",
     "PlaneStrainFrom3D",
+    "UniaxialStrainFrom3D",
+    "strain_from_grad_u",
+    "ufl_mandel_strain",
 ]
 
 
@@ -158,10 +158,10 @@ class UniaxialStrainFrom3D(IncrSmallStrainModel):
         model: 3D model to convert to uniaxial strain.
 
     Attributes:
-        model: 3D model to convert to uniaxial strain.
-        stress_3d: 3D stress array.
-        tangent_3d: 3D tangent array.
-        grad_del_u_3d: 3D array of gradient of displacement increment.
+        model (IncrSmallStrainModel): 3D model to convert to uniaxial strain.
+        stress_3d (np.ndarray): 3D stress array.
+        tangent_3d (np.ndarray): 3D tangent array.
+        grad_del_u_3d (np.ndarray): 3D array of gradient of displacement increment.
     """
 
     def __init__(self, model: IncrSmallStrainModel) -> None:
@@ -247,10 +247,10 @@ class PlaneStrainFrom3D(IncrSmallStrainModel):
         model: 3D model to convert to plane strain.
 
     Attributes:
-        model: 3D model to convert to plane strain.
-        stress_3d: 3D stress array.
-        tangent_3d: 3D tangent array.
-        grad_del_u_3d: 3D array of gradient of displacement increment.
+        model (IncrSmallStrainModel): 3D model to convert to plane strain.
+        stress_3d (np.ndarray): 3D stress array.
+        tangent_3d (np.ndarray): 3D tangent array.
+        grad_del_u_3d (np.ndarray): 3D array of gradient of displacement increment.
     """
 
     def __init__(self, model: IncrSmallStrainModel) -> None:

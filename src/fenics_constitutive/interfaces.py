@@ -87,13 +87,13 @@ class IncrSmallStrainModel(ABC):
         """
         Evaluate the constitutive model and overwrite the stress, tangent and history.
 
-        Args:
-            time : The current global time.
-            del_t : The time increment.
-            grad_del_u : The gradient of the increment of the displacement field.
-            mandel_stress : The Mandel stress.
-            tangent : The tangent.
-            history : The history variable(s).
+        Parameters:
+            time: The current global time.
+            del_t: The time increment.
+            grad_del_u: The gradient of the increment of the displacement field.
+            mandel_stress: The Mandel stress.
+            tangent: The tangent.
+            history: The history variable(s).
         """
 
     @abstractmethod

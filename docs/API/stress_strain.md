@@ -1,0 +1,1 @@
+:::fenics_constitutive.stress_strain
