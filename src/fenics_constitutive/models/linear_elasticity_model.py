@@ -6,6 +6,14 @@ from fenics_constitutive import Constraint, IncrSmallStrainModel, strain_from_gr
 
 
 class LinearElasticityModel(IncrSmallStrainModel):
+    """
+    A linear elastic material model which has been implemented for all constraints.
+
+    Args:
+        parameters: Material parameters. Must contain "E" for the Youngs modulus and "nu" for the Poisson ratio.
+        constraint: Constraint type.
+    """
+
     def __init__(self, parameters: dict[str, float], constraint: Constraint):
         self._constraint = constraint
         E = parameters["E"]

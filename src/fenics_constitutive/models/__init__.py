@@ -1,3 +1,5 @@
+"""This submodule contains a selection of constitutive models written in Python."""
+
 from __future__ import annotations
 
 from .linear_elasticity_model import LinearElasticityModel
