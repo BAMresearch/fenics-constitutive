@@ -6,9 +6,18 @@ from fenics_constitutive import Constraint, IncrSmallStrainModel, strain_from_gr
 
 
 class VonMises3D(IncrSmallStrainModel):
-    """Von Mises Plasticity model with linear isotropic hardening.
+    """Von Mises Plasticity model with non-linear isotropic hardening.
     Computation of trial stress state is entirely deviatoric. Volumetric part is added later
-    when the stress increment for the current time step is calculated"""
+    when the stress increment for the current time step is calculated.
+    
+    Args:
+           param: Must contain following material parameters:
+                       p_ka :  bulk modulus
+                       p_mu : shear modulus
+                       p_y0 : initial yield stress
+                       p_y00 : final yield stress
+                       p_w : saturation parameter
+    """
 
     def __init__(self, param: dict[str, float]):
         self.xioi = np.array(
