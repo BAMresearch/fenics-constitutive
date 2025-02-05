@@ -6,12 +6,13 @@ from fenics_constitutive import Constraint, IncrSmallStrainModel, strain_from_gr
 
 
 class VonMises3D(IncrSmallStrainModel):
-    """
+    r"""
     Von Mises Plasticity model with non-linear isotropic hardening.
     Computation of trial stress state is entirely deviatoric. Volumetric part is added later
     when the stress increment for the current time step is calculated.
     
-    Following are the elastic potential, plastic potential and yield surface accordingly: 
+    Following are the elastic potential, plastic potential and yield surface accordingly
+     
     $$
     \begin{aligned}
     & \hat{\psi}^e\left(\varepsilon^e\right) = \frac{1}{2} \kappa e^{e^2}+\mu \varepsilon^{e^{e^{\prime}}}: 
