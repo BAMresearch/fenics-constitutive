@@ -17,7 +17,7 @@ class SpringMaxwellModel(IncrSmallStrainModel):
 
     Args:
     parameters: Material parameters. Must contain "E0" for the elastic Youngs modulus, "E1" for the viscous modulus and "tau" for the relaxation time.
-    constraint: Constraint type.
+        constraint: Constraint type.
 
     """
 
