@@ -15,6 +15,10 @@ class SpringMaxwellModel(IncrSmallStrainModel):
     with deviatoric assumptions for 3D generalization (volumetric part of visco strain == 0 damper just working on deviatoric part)
     time integration: backward Euler
 
+    Args:
+    parameters: Material parameters. Must contain "E0" for the elastic Youngs modulus, "E1" for the viscous modulus and "tau" for the relaxation time.
+    constraint: Constraint type.
+
     """
 
     def __init__(self, parameters: dict[str, float], constraint: Constraint):
