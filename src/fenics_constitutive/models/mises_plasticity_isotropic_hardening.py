@@ -15,12 +15,12 @@ class VonMises3D(IncrSmallStrainModel):
      
     $$
     \begin{aligned}
-    & \hat{\psi}^e\left(\varepsilon^e\right) = \frac{1}{2} \kappa e^{e^2}+\mu \varepsilon^{e^{e^{\prime}}}: 
-    \varepsilon^{e^{\prime}} \\
-    & \hat{\psi}^p(\alpha)=\left(y_{\infty}-y_0\right)\left(-\frac{1}{\omega}+\alpha+\frac{1}{\omega} \exp (- 
+    & \hat{\psi}_e\left(\varepsilon_e\right) = \frac{1}{2} \kappa {e_e^2}+\mu \varepsilon{_e^{\prime}}: 
+    \varepsilon{_e^{\prime}} \\
+    & \hat{\psi}_p(\alpha)=\left(y_{\infty}-y_0\right)\left(-\frac{1}{\omega}+\alpha+\frac{1}{\omega} \exp (- 
     \omega \alpha)\right) \\
     & \hat{\phi}(\boldsymbol{\sigma}, \beta)=\left\|\boldsymbol{\sigma}^{\prime}\right\|-\sqrt{\frac{2} 
-    {3}}\left(y_0+\beta\right) \quad \text { with } \quad \beta:=\partial_\alpha \hat{\psi}^p(\alpha)
+    {3}}\left(y_0+\beta\right) \quad \text { with } \quad \beta:=\partial_\alpha \hat{\psi}_p(\alpha)
     \end{aligned}
     $$
     
