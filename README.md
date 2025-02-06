@@ -1,4 +1,4 @@
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.13364955.svg)](https://doi.org/10.5281/zenodo.13364955)
+![Tests](https://github.com/BAMresearch/fenics-constitutive/actions/workflows/pytest.yml/badge.svg) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.13364955.svg)](https://doi.org/10.5281/zenodo.13364955)
 
 # fenics-constitutive
 
