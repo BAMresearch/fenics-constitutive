@@ -18,14 +18,14 @@ def ufl_mandel_strain(
     u: ufl.core.expr.Expr, constraint: Constraint
 ) -> ufl.core.expr.Expr:
     """
-    Compute the Mandel-strain from the displacement field.
+    Compute the strain in Mandel notation from the displacement field.
 
     Args:
         u: Displacement field.
         constraint: Constraint that the model is implemented for.
 
     Returns:
-        Vector-valued UFL expression of the mandel strain.
+        Vector-valued UFL expression of the strain in Mandel notation.
     """
     shape = len(u.ufl_shape)
     geometric_dim = u.ufl_shape[0] if shape > 0 else 1
@@ -71,7 +71,7 @@ def ufl_mandel_strain(
 
 def strain_from_grad_u(grad_u: np.ndarray, constraint: Constraint) -> np.ndarray:
     """
-    Compute the Mandel-strain from the gradient of displacement (or increments of both
+    Compute the strain in Mandel notation from the gradient of displacement (or increments of both
     quantities).
 
     Args:
