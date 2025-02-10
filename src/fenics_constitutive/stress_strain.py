@@ -4,7 +4,7 @@ import dolfinx as df
 import numpy as np
 import ufl
 
-from .interfaces import Constraint, IncrSmallStrainModel
+from .interfaces import IncrSmallStrainModel, StressStrainConstraint
 
 __all__ = [
     "PlaneStrainFrom3D",
@@ -15,7 +15,7 @@ __all__ = [
 
 
 def ufl_mandel_strain(
-    u: ufl.core.expr.Expr, constraint: Constraint
+    u: ufl.core.expr.Expr, constraint: StressStrainConstraint
 ) -> ufl.core.expr.Expr:
     """
     Compute the strain in Mandel notation from the displacement field.
@@ -29,13 +29,13 @@ def ufl_mandel_strain(
     """
     shape = len(u.ufl_shape)
     geometric_dim = u.ufl_shape[0] if shape > 0 else 1
-    assert geometric_dim == constraint.geometric_dim()
+    assert geometric_dim == constraint.geometric_dim
     match constraint:
-        case Constraint.UNIAXIAL_STRAIN:
+        case StressStrainConstraint.UNIAXIAL_STRAIN:
             return ufl.nabla_grad(u)
-        case Constraint.UNIAXIAL_STRESS:
+        case StressStrainConstraint.UNIAXIAL_STRESS:
             return ufl.nabla_grad(u)
-        case Constraint.PLANE_STRAIN:
+        case StressStrainConstraint.PLANE_STRAIN:
             grad_u = ufl.nabla_grad(u)
             return ufl.as_vector(
                 [
@@ -45,7 +45,7 @@ def ufl_mandel_strain(
                     1 / 2**0.5 * (grad_u[0, 1] + grad_u[1, 0]),
                 ]
             )
-        case Constraint.PLANE_STRESS:
+        case StressStrainConstraint.PLANE_STRESS:
             grad_u = ufl.nabla_grad(u)
             return ufl.as_vector(
                 [
@@ -55,7 +55,7 @@ def ufl_mandel_strain(
                     1 / 2**0.5 * (grad_u[0, 1] + grad_u[1, 0]),
                 ]
             )
-        case Constraint.FULL:
+        case StressStrainConstraint.FULL:
             grad_u = ufl.nabla_grad(u)
             return ufl.as_vector(
                 [
@@ -69,7 +69,9 @@ def ufl_mandel_strain(
             )
 
 
-def strain_from_grad_u(grad_u: np.ndarray, constraint: Constraint) -> np.ndarray:
+def strain_from_grad_u(
+    grad_u: np.ndarray, constraint: StressStrainConstraint
+) -> np.ndarray:
     """
     Compute the strain in Mandel notation from the gradient of displacement (or increments of both
     quantities).
@@ -81,18 +83,18 @@ def strain_from_grad_u(grad_u: np.ndarray, constraint: Constraint) -> np.ndarray
     Returns:
         Numpy array containing the strain for all IPs.
     """
-    strain_dim = constraint.stress_strain_dim()
-    n_gauss = int(grad_u.size / (constraint.geometric_dim() ** 2))
+    strain_dim = constraint.stress_strain_dim
+    n_gauss = int(grad_u.size / (constraint.geometric_dim**2))
     strain = np.zeros(strain_dim * n_gauss)
-    grad_u_view = grad_u.reshape(-1, constraint.geometric_dim() ** 2)
+    grad_u_view = grad_u.reshape(-1, constraint.geometric_dim**2)
     strain_view = strain.reshape(-1, strain_dim)
 
     match constraint:
-        case Constraint.UNIAXIAL_STRAIN:
+        case StressStrainConstraint.UNIAXIAL_STRAIN:
             strain_view[:, 0] = grad_u_view[:, 0]
-        case Constraint.UNIAXIAL_STRESS:
+        case StressStrainConstraint.UNIAXIAL_STRESS:
             strain_view[:, 0] = grad_u_view[:, 0]
-        case Constraint.PLANE_STRAIN:
+        case StressStrainConstraint.PLANE_STRAIN:
             """
             Full tensor:
 
@@ -107,7 +109,7 @@ def strain_from_grad_u(grad_u: np.ndarray, constraint: Constraint) -> np.ndarray
             strain_view[:, 1] = grad_u_view[:, 3]
             strain_view[:, 2] = 0.0
             strain_view[:, 3] = 1 / 2**0.5 * (grad_u_view[:, 1] + grad_u_view[:, 2])
-        case Constraint.PLANE_STRESS:
+        case StressStrainConstraint.PLANE_STRESS:
             """
             Full tensor:
 
@@ -122,7 +124,7 @@ def strain_from_grad_u(grad_u: np.ndarray, constraint: Constraint) -> np.ndarray
             strain_view[:, 1] = grad_u_view[:, 3]
             strain_view[:, 2] = 0.0
             strain_view[:, 3] = 1 / 2**0.5 * (grad_u_view[:, 1] + grad_u_view[:, 2])
-        case Constraint.FULL:
+        case StressStrainConstraint.FULL:
             """
             Full tensor:
 
@@ -165,15 +167,15 @@ class UniaxialStrainFrom3D(IncrSmallStrainModel):
     """
 
     def __init__(self, model: IncrSmallStrainModel) -> None:
-        assert model.constraint == Constraint.FULL
+        assert model.constraint == StressStrainConstraint.FULL
         self.model = model
         self.stress_3d = None
         self.tangent_3d = None
         self.grad_del_u_3d = None
 
     @property
-    def constraint(self) -> Constraint:
-        return Constraint.UNIAXIAL_STRAIN
+    def constraint(self) -> StressStrainConstraint:
+        return StressStrainConstraint.UNIAXIAL_STRAIN
 
     def update(self) -> None:
         self.model.update()
@@ -254,15 +256,15 @@ class PlaneStrainFrom3D(IncrSmallStrainModel):
     """
 
     def __init__(self, model: IncrSmallStrainModel) -> None:
-        assert model.constraint == Constraint.FULL
+        assert model.constraint == StressStrainConstraint.FULL
         self.model = model
         self.stress_3d = None
         self.tangent_3d = None
         self.grad_del_u_3d = None
 
     @property
-    def constraint(self) -> Constraint:
-        return Constraint.PLANE_STRAIN
+    def constraint(self) -> StressStrainConstraint:
+        return StressStrainConstraint.PLANE_STRAIN
 
     def update(self) -> None:
         self.model.update()

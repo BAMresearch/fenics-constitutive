@@ -99,7 +99,7 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
         )
 
         gdim = mesh.ufl_cell().geometric_dimension()
-        assert constraint.geometric_dim() == gdim, (
+        assert constraint.geometric_dim == gdim, (
             "Geometric dimension mismatch between mesh and laws"
         )
 
@@ -108,14 +108,14 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
             mesh.ufl_cell(),
             q_degree,
             quad_scheme="default",
-            dim=constraint.stress_strain_dim(),
+            dim=constraint.stress_strain_dim,
         )
         QTe = ufl.TensorElement(
             "Quadrature",
             mesh.ufl_cell(),
             q_degree,
             quad_scheme="default",
-            shape=(constraint.stress_strain_dim(), constraint.stress_strain_dim()),
+            shape=(constraint.stress_strain_dim, constraint.stress_strain_dim),
         )
         Q_grad_u_e = ufl.TensorElement(
             "Quadrature",
