@@ -42,6 +42,9 @@ from fenics_constitutive import (
 )
 from fenics_constitutive.models import LinearElasticityModel
 
+youngs_modulus = 42.0
+poissons_ratio = 0.3
+
 mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 2, 2, 2)
 V = df.fem.VectorFunctionSpace(mesh, ("CG", 1))
 u = df.fem.Function(V)
