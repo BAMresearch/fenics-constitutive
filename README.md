@@ -34,62 +34,20 @@ Since this project is based on FEniCSx, a basic knowledge of using FEniCSx is re
 
 ```python
 import dolfinx as df
-from fenics_constitutive import IncrSmallStrainProblem, IncrSmallStrainModel, Constraint, strain_from_grad_u
-
-class LinearElasticityModel3D(IncrSmallStrainModel):
-    def __init__(self, parameters: dict[str, float]):
-      E = parameters["E"]
-      nu = parameters["nu"]
-      mu = E / (2.0 * (1.0 + nu))
-      lam = E * nu / ((1.0 + nu) * (1.0 - 2.0 * nu))
-
-      self.D = np.array(
-         [
-            [2.0 * mu + lam, lam, lam, 0.0, 0.0, 0.0],
-            [lam, 2.0 * mu + lam, lam, 0.0, 0.0, 0.0],
-            [lam, lam, 2.0 * mu + lam, 0.0, 0.0, 0.0],
-            [0.0, 0.0, 0.0, 2.0 * mu, 0.0, 0.0],
-            [0.0, 0.0, 0.0, 0.0, 2.0 * mu, 0.0],
-            [0.0, 0.0, 0.0, 0.0, 0.0, 2.0 * mu],
-         ]
-      )
-
-    def evaluate(
-        self,
-        time: float,
-        del_t: float,
-        grad_del_u: np.ndarray,
-        mandel_stress: np.ndarray,
-        tangent: np.ndarray,
-        history: np.ndarray | dict[str, np.ndarray] | None,
-    ) -> None:
-        assert (
-            grad_del_u.size // (self.geometric_dim**2)
-            == mandel_stress.size // self.stress_strain_dim
-            == tangent.size // (self.stress_strain_dim**2)
-        )
-        n_gauss = grad_del_u.size // (self.geometric_dim**2)
-        mandel_view = mandel_stress.reshape(-1, self.stress_strain_dim)
-        strain_increment = strain_from_grad_u(grad_del_u, self.constraint)
-        mandel_view += strain_increment.reshape(-1, self.stress_strain_dim) @ self.D
-        tangent[:] = np.tile(self.D.flatten(), n_gauss)
-
-    @property
-    def constraint(self) -> Constraint:
-        return Constraint.FULL
-
-    @property
-    def history_dim(self) -> None:
-        return None
-
-    def update(self) -> None:
-        pass
+from fenics_constitutive import (
+    IncrSmallStrainProblem, 
+    IncrSmallStrainModel, 
+    StressStrainConstraint, 
+    strain_from_grad_u
+)
+from fenics_constitutive.models import LinearElasticityModel
 
 mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 2, 2, 2)
 V = df.fem.VectorFunctionSpace(mesh, ("CG", 1))
 u = df.fem.Function(V)
-law = LinearElasticityModel3D(
-   parameters={"E": youngs_modulus, "nu": poissons_ratio},
+law = LinearElasticityModel(
+   {"E": youngs_modulus, "nu": poissons_ratio},
+   StressStrainConstraint.FULL,
 )
 
 def left_boundary(x):
@@ -119,3 +77,5 @@ problem.update()
 Currently the Python package itself does not contain any constitutive models, however, under `examples/` you can find implementations of Hooke's law, isotropic hardening plasticity and viscoplasticity. 
 
 ## Citing
+
+If you use this package in your research, please cite it using the latest Zenodo DOI which is linked at the top of this README.
