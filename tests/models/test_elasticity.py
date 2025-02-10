@@ -5,7 +5,8 @@ import numpy as np
 import pytest
 import ufl
 from dolfinx.nls.petsc import NewtonSolver
-from linear_elasticity_model import LinearElasticityModel
+
+# from linear_elasticity_model import LinearElasticityModel
 from mpi4py import MPI
 
 from fenics_constitutive import (
@@ -14,6 +15,7 @@ from fenics_constitutive import (
     StressStrainConstraint,
     UniaxialStrainFrom3D,
 )
+from fenics_constitutive.models import LinearElasticityModel
 
 youngs_modulus = 42.0
 poissons_ratio = 0.3

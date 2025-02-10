@@ -3,10 +3,10 @@ from __future__ import annotations
 import dolfinx as df
 import numpy as np
 from dolfinx.nls.petsc import NewtonSolver
-from mises_plasticity_isotropic_hardening import VonMises3D
 from mpi4py import MPI
 
 from fenics_constitutive import IncrSmallStrainProblem
+from fenics_constitutive.models import VonMises3D
 
 
 def test_uniaxial_strain_3d():
