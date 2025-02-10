@@ -77,7 +77,11 @@ problem.update()
 
 ```
 
-Currently the Python package itself does not contain any constitutive models, however, under `examples/` you can find implementations of Hooke's law, isotropic hardening plasticity and viscoplasticity. 
+Currently the Python package contains the following models:
+
+1. Linear elasticity for uniaxial stress, uniaxial strain, plane stress, plane strain, and full 3D stress and strain states.
+2. Mises plasticity with isotropic nonlinear hardening.
+3. 2 viscoelasticity models: Spring-Kelvin and Spring-Maxwell. 
 
 ## Citing
 
