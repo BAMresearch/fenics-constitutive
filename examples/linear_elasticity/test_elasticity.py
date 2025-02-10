@@ -9,9 +9,9 @@ from linear_elasticity_model import LinearElasticityModel
 from mpi4py import MPI
 
 from fenics_constitutive import (
-    Constraint,
     IncrSmallStrainProblem,
     PlaneStrainFrom3D,
+    StressStrainConstraint,
     UniaxialStrainFrom3D,
 )
 
@@ -25,7 +25,7 @@ def test_uniaxial_stress():
     u = df.fem.Function(V)
     law = LinearElasticityModel(
         parameters={"E": youngs_modulus, "nu": poissons_ratio},
-        constraint=Constraint.UNIAXIAL_STRESS,
+        constraint=StressStrainConstraint.UNIAXIAL_STRESS,
     )
 
     def left_boundary(x):
@@ -89,14 +89,14 @@ def test_uniaxial_stress_two_laws(factor: float):
         (
             LinearElasticityModel(
                 parameters={"E": youngs_modulus, "nu": poissons_ratio},
-                constraint=Constraint.UNIAXIAL_STRESS,
+                constraint=StressStrainConstraint.UNIAXIAL_STRESS,
             ),
             np.array([0], dtype=np.int32),
         ),
         (
             LinearElasticityModel(
                 parameters={"E": factor * youngs_modulus, "nu": poissons_ratio},
-                constraint=Constraint.UNIAXIAL_STRESS,
+                constraint=StressStrainConstraint.UNIAXIAL_STRESS,
             ),
             np.array([1], dtype=np.int32),
         ),
@@ -142,7 +142,7 @@ def test_uniaxial_strain():
     u = df.fem.Function(V)
     law = LinearElasticityModel(
         parameters={"E": youngs_modulus, "nu": poissons_ratio},
-        constraint=Constraint.UNIAXIAL_STRAIN,
+        constraint=StressStrainConstraint.UNIAXIAL_STRAIN,
     )
 
     def left_boundary(x):
@@ -181,7 +181,7 @@ def test_uniaxial_strain():
     # test the converter from 3D model to uniaxial strain model
     law_3d = LinearElasticityModel(
         parameters={"E": youngs_modulus, "nu": poissons_ratio},
-        constraint=Constraint.FULL,
+        constraint=StressStrainConstraint.FULL,
     )
     wrapped_1d_law = UniaxialStrainFrom3D(law_3d)
     u_3d = df.fem.Function(V)
@@ -225,7 +225,7 @@ def test_plane_strain():
     u = df.fem.Function(V)
     law = LinearElasticityModel(
         parameters={"E": youngs_modulus, "nu": poissons_ratio},
-        constraint=Constraint.PLANE_STRAIN,
+        constraint=StressStrainConstraint.PLANE_STRAIN,
     )
 
     def left_boundary(x):
@@ -251,16 +251,14 @@ def test_plane_strain():
     problem.update()
     assert (
         np.linalg.norm(
-            problem.stress_0.x.array.reshape(-1, law.constraint.stress_strain_dim())[
-                :, 2
-            ]
+            problem.stress_0.x.array.reshape(-1, law.stress_strain_dim)[:, 2]
         )
         > 1e-2
     )
     # test the model conversion from 3D to plane strain
     law_3d = LinearElasticityModel(
         parameters={"E": youngs_modulus, "nu": poissons_ratio},
-        constraint=Constraint.FULL,
+        constraint=StressStrainConstraint.FULL,
     )
     wrapped_2d_law = PlaneStrainFrom3D(law_3d)
     u_3d = df.fem.Function(V)
@@ -276,9 +274,7 @@ def test_plane_strain():
     # test that the stress is nonzero in 33 direction
     assert (
         np.linalg.norm(
-            problem_3d.stress_0.x.array.reshape(-1, law.constraint.stress_strain_dim())[
-                :, 2
-            ]
+            problem_3d.stress_0.x.array.reshape(-1, law.stress_strain_dim)[:, 2]
         )
         > 1e-2
     )
@@ -303,7 +299,7 @@ def test_plane_stress():
     u = df.fem.Function(V)
     law = LinearElasticityModel(
         parameters={"E": youngs_modulus, "nu": poissons_ratio},
-        constraint=Constraint.PLANE_STRESS,
+        constraint=StressStrainConstraint.PLANE_STRESS,
     )
 
     def left_boundary(x):
@@ -330,9 +326,7 @@ def test_plane_stress():
     problem.update()
     assert (
         np.linalg.norm(
-            problem.stress_0.x.array.reshape(-1, law.constraint.stress_strain_dim())[
-                :, 2
-            ]
+            problem.stress_0.x.array.reshape(-1, law.stress_strain_dim)[:, 2]
         )
         < 1e-10
     )
@@ -345,7 +339,7 @@ def test_3d():
     u = df.fem.Function(V)
     law = LinearElasticityModel(
         parameters={"E": youngs_modulus, "nu": poissons_ratio},
-        constraint=Constraint.FULL,
+        constraint=StressStrainConstraint.FULL,
     )
 
     def left_boundary(x):

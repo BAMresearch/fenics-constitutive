@@ -6,7 +6,7 @@ from dolfinx.nls.petsc import NewtonSolver
 from mises_plasticity_isotropic_hardening import VonMises3D
 from mpi4py import MPI
 
-from fenics_constitutive import Constraint, IncrSmallStrainProblem
+from fenics_constitutive import IncrSmallStrainProblem
 
 
 def test_uniaxial_strain_3d():
@@ -49,7 +49,6 @@ def test_uniaxial_strain_3d():
     )
 
     dirichlet = [fix_ux_left, move_ux_right]
-    #
     problem = IncrSmallStrainProblem(law, u, dirichlet, q_degree=2)
 
     solver = NewtonSolver(MPI.COMM_WORLD, problem)
@@ -144,7 +143,6 @@ def test_uniaxial_cyclic_strain_3d():
     )
 
     dirichlet = [fix_ux_left, move_ux_right]
-    #
     problem = IncrSmallStrainProblem(law, u, dirichlet, q_degree=2)
 
     solver = NewtonSolver(MPI.COMM_WORLD, problem)

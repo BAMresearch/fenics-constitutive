@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import numpy as np
 
-from fenics_constitutive import Constraint, IncrSmallStrainModel, strain_from_grad_u
+from fenics_constitutive import (
+    IncrSmallStrainModel,
+    StressStrainConstraint,
+    strain_from_grad_u,
+)
 
 
 class VonMises3D(IncrSmallStrainModel):
@@ -158,9 +162,9 @@ class VonMises3D(IncrSmallStrainModel):
         pass
 
     @property
-    def constraint(self) -> Constraint:
-        return Constraint.FULL
+    def constraint(self) -> StressStrainConstraint:
+        return StressStrainConstraint.FULL
 
     @property
     def history_dim(self) -> int:
-        return {"eps_n": self.constraint.stress_strain_dim(), "alpha": 1}
+        return {"eps_n": self.constraint.stress_strain_dim, "alpha": 1}

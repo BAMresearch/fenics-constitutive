@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import numpy as np
 
-from fenics_constitutive import Constraint, IncrSmallStrainModel, strain_from_grad_u
+from fenics_constitutive import (
+    IncrSmallStrainModel,
+    StressStrainConstraint,
+    strain_from_grad_u,
+)
 
 
 class SpringKelvinModel(IncrSmallStrainModel):
@@ -17,14 +21,16 @@ class SpringKelvinModel(IncrSmallStrainModel):
 
     """
 
-    def __init__(self, parameters: dict[str, float], constraint: Constraint):
+    def __init__(
+        self, parameters: dict[str, float], constraint: StressStrainConstraint
+    ):
         self._constraint = constraint
         self.E0 = parameters["E0"]  # elastic modulus
         self.E1 = parameters["E1"]  # visco modulus
         self.tau = parameters[
             "tau"
         ]  # relaxation time == eta/(2 mu1) for 1D case eta/E1
-        if constraint == Constraint.UNIAXIAL_STRESS:
+        if constraint == StressStrainConstraint.UNIAXIAL_STRESS:
             self.nu = 0.0
         else:
             self.nu = parameters["nu"]  # Poisson's ratio
@@ -41,7 +47,7 @@ class SpringKelvinModel(IncrSmallStrainModel):
 
     def compute_elasticity(self):
         match self._constraint:
-            case Constraint.FULL:
+            case StressStrainConstraint.FULL:
                 self.D_0 = np.array(
                     [
                         [
@@ -77,7 +83,7 @@ class SpringKelvinModel(IncrSmallStrainModel):
                 self.I2[1] = 1.0
                 self.I2[2] = 1.0
 
-            case Constraint.PLANE_STRAIN:
+            case StressStrainConstraint.PLANE_STRAIN:
                 self.D_0 = np.array(
                     [
                         [2.0 * self.mu0 + self.lam0, self.lam0, self.lam0, 0.0],
@@ -90,7 +96,7 @@ class SpringKelvinModel(IncrSmallStrainModel):
                 self.I2[1] = 1.0
                 self.I2[2] = 1.0
 
-            case Constraint.PLANE_STRESS:
+            case StressStrainConstraint.PLANE_STRESS:
                 self.D_0 = (
                     self.E0
                     / (1 - self.nu**2.0)
@@ -106,7 +112,7 @@ class SpringKelvinModel(IncrSmallStrainModel):
                 self.I2[0] = 1.0
                 self.I2[1] = 1.0
 
-            case Constraint.UNIAXIAL_STRESS:
+            case StressStrainConstraint.UNIAXIAL_STRESS:
                 self.D_0 = np.array([[self.E0]])
                 self.I2[0] = 1.0
             case _:
@@ -166,7 +172,7 @@ class SpringKelvinModel(IncrSmallStrainModel):
         strain_n += strain_increment
 
     @property
-    def constraint(self) -> Constraint:
+    def constraint(self) -> StressStrainConstraint:
         return self._constraint
 
     @property
