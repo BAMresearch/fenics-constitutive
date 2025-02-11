@@ -227,5 +227,5 @@ class SpringMaxwellModel(IncrSmallStrainModel):
             "strain": self.stress_strain_dim,
         }
 
-    def update(self) -> None:
-        pass
+    # def update(self) -> None:
+    #    pass

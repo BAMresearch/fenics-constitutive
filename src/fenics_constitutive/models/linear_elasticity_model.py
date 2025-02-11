@@ -106,5 +106,5 @@ class LinearElasticityModel(IncrSmallStrainModel):
     def history_dim(self) -> None:
         return None
 
-    def update(self) -> None:
-        pass
+    # def update(self) -> None:
+    #    pass

@@ -297,7 +297,7 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
         self.stress_0.x.scatter_forward()
 
         for k, (law, _) in enumerate(self.laws):
-            law.update()
+            # law.update()
             if law.history_dim is not None:
                 for key in law.history_dim:
                     self._history_0[k][key].x.array[:] = self._history_1[k][key].x.array

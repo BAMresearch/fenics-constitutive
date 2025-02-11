@@ -98,14 +98,15 @@ class IncrSmallStrainModel(ABC):
             history: The history variable(s).
         """
 
-    @abstractmethod
-    def update(self) -> None:
-        """
-        Called after the solver has converged to update anything that is not
-        contained in the history variable(s).
-        For example: The model could contain the current time which is not
-        stored in the history, but needs to be updated after each evaluation.
-        """
+    # Method removed because it is not needed anymore.
+    # @abstractmethod
+    # def update(self) -> None:
+    #    """
+    #    Called after the solver has converged to update anything that is not
+    #    contained in the history variable(s).
+    #    For example: The model could contain the current time which is not
+    #    stored in the history, but needs to be updated after each evaluation.
+    #    """
 
     @property
     @abstractmethod

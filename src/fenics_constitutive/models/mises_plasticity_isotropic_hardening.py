@@ -176,8 +176,8 @@ class VonMises3D(IncrSmallStrainModel):
             )
             tangent_view[n] = aah.flatten()
 
-    def update(self) -> None:
-        pass
+    # def update(self) -> None:
+    #    pass
 
     @property
     def constraint(self) -> StressStrainConstraint:
