@@ -81,7 +81,7 @@ Currently the Python package contains the following models:
 
 1. Linear elasticity for uniaxial stress, uniaxial strain, plane stress, plane strain, and full 3D stress and strain states.
 2. Mises plasticity with isotropic nonlinear hardening.
-3. 2 viscoelasticity models: Spring-Kelvin and Spring-Maxwell. 
+3. Two viscoelasticity models: Spring-Kelvin and Spring-Maxwell. 
 
 ## Citing
 
