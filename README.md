@@ -6,7 +6,9 @@ This project  provides a framework for using nonlinear constitutive material mod
 
 Although the project contains some constitutive models -- and will contain more in the foreseeable future -- we are currently not focussed on creating a comprehensive library of models. Instead, through the simplicity of the provided interface which only uses `numpy.ndarray` as a complex datatype, we want to enable users to write their own models in any language that can be linked to Python, while still being able to use their models in simulation scripts that other users have written using our interface.
 
+## Documentation
 
+https://fenics-constitutive.readthedocs.io/en/latest/
 
 ## Installation using conda/mamba
 
