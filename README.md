@@ -81,8 +81,26 @@ Currently the Python package contains the following models:
 
 1. Linear elasticity for uniaxial stress, uniaxial strain, plane stress, plane strain, and full 3D stress and strain states.
 2. Mises plasticity with isotropic nonlinear hardening.
-3. Two viscoelasticity models: Spring-Kelvin and Spring-Maxwell. 
+3. Two viscoelasticity models: Standard linear solid model in both Maxwell representation and Kelvin-Voigt representation. 
 
 ## Citing
 
-If you use this package in your research, please cite it using the latest Zenodo DOI which is linked at the top of this README.
+If you use this package in your research, please cite it using the following bibtex entry:
+
+```bibtex
+@software{fenics_constitutive2024,
+author       = {Diercks, Philipp and
+                Robens-Radermacher, Annika and
+                Rosenbusch, Sjard Mathis and
+                Unger, Jörg F. and
+                Saif-Ur-Rehman},
+title        = {fenics-constitutive},
+month        = oct,
+year         = 2024,
+publisher    = {Zenodo},
+doi          = {10.5281/zenodo.13364955},
+url          = {https://doi.org/10.5281/zenodo.13364955},
+}
+```
+
+If you want to cite a specific version, you can find the DOI on the Zenodo page.
