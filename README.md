@@ -2,9 +2,9 @@
 
 # fenics-constitutive
 
-This project  provides a framework for using nonlinear constitutive material models in dolfinx with the goal of making it easy to implement new models and to use these models interchangably in a simulation. This is made possible by prescribing a simple interface for the constitutive models and by providing a simple wrapper around the dolfinx `NonlinearProblem` that uses the constitutive model to compute the residual and the stiffness matrix. The project is currently focussed on small strain models with the goal of supporting large deformations through the use of objective stress rates  and therefore also supporting a subset of the functionality provided by Abaqus UMATs or Ansys material models.
+This project  provides a framework for using nonlinear constitutive material models in dolfinx with the goal of making it easy to implement new models and to use these models interchangeably in a simulation. This is made possible by prescribing a simple interface for the constitutive models and by providing a simple wrapper around the dolfinx `NonlinearProblem` that uses the constitutive model to compute the residual and the stiffness matrix. The project is currently focussed on small strain models with the goal of supporting large deformations through the use of objective stress rates and, therefore, also supporting a subset of the functionality provided by Abaqus UMATs or Ansys material models.
 
-Although the project contains some constitutive models -- and will contain more in the foreseeable future-- we are currently not focussed on creating a comprehensive library of models. Instead, through the simplicity of the provided interface which only uses `numpy.ndarray` as a complex datatype, we want to enable users to write their own models in any language that can be linked to Python while still being able to use their models in simulation scripts that other users have written using our interface.
+Although the project contains some constitutive models -- and will contain more in the foreseeable future -- we are currently not focussed on creating a comprehensive library of models. Instead, through the simplicity of the provided interface which only uses `numpy.ndarray` as a complex datatype, we want to enable users to write their own models in any language that can be linked to Python, while still being able to use their models in simulation scripts that other users have written using our interface.
 
 
 
@@ -81,7 +81,7 @@ Currently the Python package contains the following models:
 
 1. Linear elasticity for uniaxial stress, uniaxial strain, plane stress, plane strain, and full 3D stress and strain states.
 2. Mises plasticity with isotropic nonlinear hardening.
-3. 2 viscoelasticity models: Spring-Kelvin and Spring-Maxwell. 
+3. Two viscoelasticity models: Spring-Kelvin and Spring-Maxwell. 
 
 ## Citing
 
