@@ -15,12 +15,8 @@ class StressStrainConstraint(Enum):
     """
     Enum for the model constraint.
 
-    The constraint can either be:
-    - UNIAXIAL_STRAIN
-    - UNIAXIAL_STRESS
-    - PLANE_STRAIN
-    - PLANE_STRESS
-    - FULL
+    The constraint can either be: UNIAXIAL_STRAIN,
+    UNIAXIAL_STRESS, PLANE_STRAIN, PLANE_STRESS, FULL
 
     """
 
@@ -84,15 +80,15 @@ class IncrSmallStrainModel(ABC):
         grad_del_u: np.ndarray,
         stress: np.ndarray,
         tangent: np.ndarray,
-        history: np.ndarray | dict[str, np.ndarray] | None,
+        history: dict[str, np.ndarray] | None,
     ) -> None:
-        """
+        r"""
         Evaluate the constitutive model and overwrite the stress, tangent and history.
 
-        Parameters:
+        Args:
             t: The current global time $t_n$.
-            del_t: The time increment $\Delta t$. The time at the end of the increment is $t_{n+1} = t_n + \Delta t$.
-            grad_del_u: The gradient of the increment of the displacement field $\nabla \delta$ with $\delta = u_{n+1}-u_n$.
+            del_t: The time increment $\Delta t$. The time at the end of the increment is $t_{n+1}=t_n+\Delta t$.
+            grad_del_u: The gradient of the increment of the displacement field $\nabla\delta$ with $\delta=u_{n+1}-u_n$.
             stress: The current stress in Mandel notation.
             tangent: The tangent compatible with Mandel notation.
             history: The history variable(s).
@@ -143,9 +139,7 @@ class IncrSmallStrainModel(ABC):
     def history_dim(self) -> dict[str, int | tuple[int, int]] | None:
         """
         The dimensions of history variable(s). This is needed to tell the solver which quadrature
-        spaces or arrays to build. If all history variables are stored in a single
-        array, then the dimension of the array is returned. If the history variables are stored
-        in seperate arrays (or functions), then a dictionary is returned with the name of the
+        spaces or arrays to build. If it is not none, a dictionary is returned with the name of the
         history variable as key and the dimension of the history variable as value.
 
         Returns:
