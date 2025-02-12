@@ -38,7 +38,6 @@ from fenics_constitutive import (
     IncrSmallStrainProblem, 
     IncrSmallStrainModel, 
     StressStrainConstraint, 
-    strain_from_grad_u
 )
 from fenics_constitutive.models import LinearElasticityModel
 
