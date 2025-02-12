@@ -2,13 +2,35 @@ from __future__ import annotations
 
 import numpy as np
 
-from fenics_constitutive import Constraint, IncrSmallStrainModel, strain_from_grad_u
+from fenics_constitutive import (
+    IncrSmallStrainModel,
+    StressStrainConstraint,
+    strain_from_grad_u,
+)
 
 
 class VonMises3D(IncrSmallStrainModel):
-    """Von Mises Plasticity model with linear isotropic hardening.
+    r"""
+    Von Mises Plasticity model with non-linear isotropic hardening.
     Computation of trial stress state is entirely deviatoric. Volumetric part is added later
-    when the stress increment for the current time step is calculated"""
+    when the stress increment for the current time step is calculated.
+    
+    Following are the elastic potential, plastic potential and yield surface accordingly
+     
+    $$
+    \begin{aligned}
+    & \hat{\psi}_e\left(\varepsilon_e\right) = \frac{1}{2} \kappa {e_e^2}+\mu \varepsilon{_e^{\prime}}: 
+    \varepsilon{_e^{\prime}} \\
+    & \hat{\psi}_p(\alpha)=\left(y_{\infty}-y_0\right)\left(-\frac{1}{\omega}+\alpha+\frac{1}{\omega} \exp (- 
+    \omega \alpha)\right) \\
+    & \hat{\phi}(\boldsymbol{\sigma}, \beta)=\left\|\boldsymbol{\sigma}^{\prime}\right\|-\sqrt{\frac{2} 
+    {3}}\left(y_0+\beta\right) \quad \text { with } \quad \beta:=\partial_\alpha \hat{\psi}_p(\alpha)
+    \end{aligned}
+    $$
+    
+    Args:
+           param: Must contain following material parameters: p_ka :  bulk modulus, p_mu : shear modulus, p_y0 : initial yield stress, p_y00 : final yield stress, p_w : saturation parameter
+    """
 
     def __init__(self, param: dict[str, float]):
         self.xioi = np.array(
@@ -154,13 +176,13 @@ class VonMises3D(IncrSmallStrainModel):
             )
             tangent_view[n] = aah.flatten()
 
-    def update(self) -> None:
-        pass
+    # def update(self) -> None:
+    #    pass
 
     @property
-    def constraint(self) -> Constraint:
-        return Constraint.FULL
+    def constraint(self) -> StressStrainConstraint:
+        return StressStrainConstraint.FULL
 
     @property
     def history_dim(self) -> int:
-        return {"eps_n": self.constraint.stress_strain_dim(), "alpha": 1}
+        return {"eps_n": self.constraint.stress_strain_dim, "alpha": 1}

@@ -2,18 +2,32 @@ from __future__ import annotations
 
 import numpy as np
 
-from fenics_constitutive import Constraint, IncrSmallStrainModel, strain_from_grad_u
+from fenics_constitutive import (
+    IncrSmallStrainModel,
+    StressStrainConstraint,
+    strain_from_grad_u,
+)
 
 
 class LinearElasticityModel(IncrSmallStrainModel):
-    def __init__(self, parameters: dict[str, float], constraint: Constraint):
+    """
+    A linear elastic material model which has been implemented for all constraints.
+
+    Args:
+        parameters: Material parameters. Must contain "E" for the Youngs modulus and "nu" for the Poisson ratio.
+        constraint: Constraint type.
+    """
+
+    def __init__(
+        self, parameters: dict[str, float], constraint: StressStrainConstraint
+    ):
         self._constraint = constraint
         E = parameters["E"]
         nu = parameters["nu"]
         mu = E / (2.0 * (1.0 + nu))
         lam = E * nu / ((1.0 + nu) * (1.0 - 2.0 * nu))
         match constraint:
-            case Constraint.FULL:
+            case StressStrainConstraint.FULL:
                 # see https://en.wikipedia.org/wiki/Hooke%27s_law
                 self.D = np.array(
                     [
@@ -25,7 +39,7 @@ class LinearElasticityModel(IncrSmallStrainModel):
                         [0.0, 0.0, 0.0, 0.0, 0.0, 2.0 * mu],
                     ]
                 )
-            case Constraint.PLANE_STRAIN:
+            case StressStrainConstraint.PLANE_STRAIN:
                 # We assert that the strain is being provided with 0 in the z-direction
                 # see https://en.wikipedia.org/wiki/Hooke%27s_law
                 self.D = np.array(
@@ -36,7 +50,7 @@ class LinearElasticityModel(IncrSmallStrainModel):
                         [0.0, 0.0, 0.0, 2.0 * mu],
                     ]
                 )
-            case Constraint.PLANE_STRESS:
+            case StressStrainConstraint.PLANE_STRESS:
                 # We do not make any assumptions about strain in the z-direction
                 # This matrix just multiplies the z component by 0.0 which results
                 # in a plane stress state
@@ -53,11 +67,11 @@ class LinearElasticityModel(IncrSmallStrainModel):
                         ]
                     )
                 )
-            case Constraint.UNIAXIAL_STRAIN:
+            case StressStrainConstraint.UNIAXIAL_STRAIN:
                 # see https://csmbrannon.net/2012/08/02/distinction-between-uniaxial-stress-and-uniaxial-strain/
                 C = E * (1.0 - nu) / ((1.0 + nu) * (1.0 - 2.0 * nu))
                 self.D = np.array([[C]])
-            case Constraint.UNIAXIAL_STRESS:
+            case StressStrainConstraint.UNIAXIAL_STRESS:
                 # see https://csmbrannon.net/2012/08/02/distinction-between-uniaxial-stress-and-uniaxial-strain/
                 self.D = np.array([[E]])
             case _:
@@ -85,12 +99,12 @@ class LinearElasticityModel(IncrSmallStrainModel):
         tangent[:] = np.tile(self.D.flatten(), n_gauss)
 
     @property
-    def constraint(self) -> Constraint:
+    def constraint(self) -> StressStrainConstraint:
         return self._constraint
 
     @property
     def history_dim(self) -> None:
         return None
 
-    def update(self) -> None:
-        pass
+    # def update(self) -> None:
+    #    pass
