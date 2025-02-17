@@ -26,13 +26,13 @@ elasticity_rs
     └── lib.rs
 ```
 
-In order to write a constitutive model which is then linked to rust, you need to define the dependencies in the `Cargo.toml` file. For linear algebra on small matrices, the nalgebra crate is used. For interfacing with numpy, the numpy crate is used. The pyo3 crate is used to create a python module from the rust code. The dependencies are defined as follows:
+In order to write a constitutive model which is then linked to rust, you need to define the dependencies in the `Cargo.toml` file. For linear algebra on small matrices, the `nalgebra` crate is used. For interfacing with `numpy.ndarray`, the `numpy` crate is used. The `PyO3` crate is used to create a Python module from the rust code. The dependencies are defined as follows:
 
 ```toml
 --8<-- "examples/elasticity_rs/Cargo.toml"
 ```
 
-Note that `crate-type = ["cdylib"]` is used to create a dynamic library which can be imported into python. 
+Note that `crate-type = ["cdylib"]` is used to create a dynamic library which can be imported into Python. 
 
 ## Writing the model
 
@@ -65,7 +65,7 @@ If the created shared library is located within the same directory as your Pytho
 import elastictity_rs
 ```
 
-You may also create a soft or hardlink to the shared library in your Python script directory, or import the script using the path to the shared library with 
+You may also create a soft or hard link to the shared library in your Python script directory, or import the script using the path to the shared library with 
 
 ```python
 import importlib.util
@@ -84,7 +84,7 @@ model = module.Elasticity3D(...)
 
 ## Create an IncrSmallStrainModel
 
-So far, we have created a class that can compute the stress and tangent stiffness for a given strain, however, since it is a Rust extension, Python cannot recognise it as a `IncrSmallStrainModel`. This is important because the `IncrSmallStrainProblem` requires the method `constraint` to determine the modeling assumptions about the strains and stresses that the model is implemented in. To do this, we need to create a Python class that inherits from `IncrSmallStrainModel` and calls the Rust extension. The full source code of the model is shown below:
+So far, we have created a class that can compute the stress and tangent stiffness for a given strain, however, since it is a Rust extension, Python cannot recognize it as a `IncrSmallStrainModel`. This is important because the `IncrSmallStrainProblem` requires the method `constraint` to determine the modeling assumptions about the strains and stresses that the model is implemented in. To do this, we need to create a Python class that inherits from `IncrSmallStrainModel` and calls the Rust extension. The full source code of the model is shown below:
 
 ```python
 from elastictity_rs import Elasticity3D

@@ -5,7 +5,7 @@ All files for this example can be found in the [GitHub repository](https://githu
 
 ## Setting up the project
 
-In order to build a linear elasticity model in C++, you need to install a C++ compiler and the build tool Cmake. Additionally, you need a library for linear algebra, and a library to generate Python bindings. We recommend Eigen for linear algebra and either pybind11 or nanobind for the Python bindings. You can install it into your current conda-environment by running the following command:
+In order to build a linear elasticity model in C++, you need to install a C++ compiler and the build tool `cmake`. Additionally, you need a library for linear algebra, and a library to generate Python bindings. We recommend `Eigen` for linear algebra and either `pybind11` or `nanobind` for the Python bindings. You can install it into your current conda-environment by running the following command:
 
 ```bash
 mamba install cmake, clang, pybind11, eigen -c conda-forge
@@ -29,7 +29,7 @@ elasticity_cpp
     └── main.cpp
 ```
 
-In order to write a constitutive model which is then linked to Python, you need to define the dependencies in the `CMakeLists.txt` file. For linear algebra on small matrices, the Eigen library is used. For interfacing with Python, the pybind11 library is used:
+In order to write a constitutive model which is then linked to Python, you need to define the dependencies in the `CMakeLists.txt` file. For linear algebra on small matrices, the `Eigen` library is used. For interfacing with Python, the `pybind11` library is used:
 
 ```cmake
 --8<-- "examples/elasticity_cpp/CMakeLists.txt"
@@ -63,7 +63,7 @@ If the created shared library is located within the same directory as your Pytho
 import elastictity_cpp
 ```
 
-You may also create a soft or hardlink to the shared library in your Python script directory, or import the script using the path to the shared library with 
+You may also create a soft or hard link to the shared library in your Python script directory, or import the script using the path to the shared library with 
 
 ```python
 import importlib.util
@@ -82,7 +82,7 @@ model = module.Elasticity3D(...)
 
 ## Create an IncrSmallStrainModel
 
-So far, we have created a class that can compute the stress and tangent stiffness for a given strain, however, since it is a C++ extension, Python cannot recognise it as a `IncrSmallStrainModel`. This is important because the `IncrSmallStrainProblem` requires the method `constraint` to determine the modeling assumptions about the strains and stresses that the model is implemented in. To do this, we need to create a Python class that inherits from `IncrSmallStrainModel` and calls the C++ extension. The full source code of the model is shown below:
+So far, we have created a class that can compute the stress and tangent stiffness for a given strain, however, since it is a C++ extension, Python cannot recognize it as a `IncrSmallStrainModel`. This is important because the `IncrSmallStrainProblem` requires the method `constraint` to determine the modeling assumptions about the strains and stresses that the model is implemented in. To do this, we need to create a Python class that inherits from `IncrSmallStrainModel` and calls the C++ extension. The full source code of the model is shown below:
 
 ```python
 from elastictity_cpp import Elasticity3D
