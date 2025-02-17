@@ -36,9 +36,7 @@ Note that `crate-type = ["cdylib"]` is used to create a dynamic library which ca
 
 ## Writing the model
 
-TODO: Line by line explanation of the code
-
-The full source code of the model is shown below:
+An example for a full source code of an elasticity model in Rust is shown below:
 
 ```rust
 --8<-- "examples/elasticity_rs/src/lib.rs"

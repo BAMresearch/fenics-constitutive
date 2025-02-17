@@ -42,9 +42,8 @@ In order to write a constitutive model which is then linked to Python, you need 
 
 ## Writing the model
 
-TODO: Line by line explanation of the code
 
-The full source code of the model is shown below:
+An example for a full source code of an elasticity model as an Abaqus UMAT is shown below:
 
 ```fortran linenums="1"
 --8<-- "examples/umat/src/umat_linear_elastic.f"
