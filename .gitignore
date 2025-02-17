@@ -2,8 +2,8 @@ __pycache__
 website
 .doit.*
 
-*build*
-
+*build/*
+*target/*
 site/
 
 *.h5
