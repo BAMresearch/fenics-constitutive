@@ -4,7 +4,7 @@ All files for this example can be found in the [GitHub repository](https://githu
 
 ## Setting up the project
 
-In the preceeding examples, we have implmented a linear elasticity model using one language and looped over all quadrature points. However an Abaqus UMAT is only written for one quadrature poitnt. Therefore, we need to write code that implements a for loop in which the UMAT is called for each quadrature point. This is done in a C++ class that is then compiled into a shared library. The shared library is then imported into Python as in the previous examples. 
+In the preceding examples, we have implemented a linear elasticity model using one language and looped over all quadrature points. However, an Abaqus UMAT is only written for one quadrature point. Therefore, we need to write code implementing a for loop in which the UMAT is called for each quadrature point. This is done in a C++ class that is then compiled into a shared library. The shared library is then imported into Python as in the previous examples. 
 
 In addition to the dependencies from the C++ example, we need to install a Fortran compiler. You can install it into your current conda-environment by running the following command:
 
