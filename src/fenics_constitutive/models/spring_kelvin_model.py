@@ -127,8 +127,29 @@ class SpringKelvinModel(IncrSmallStrainModel):
         time: float,
         del_t: float,
         grad_del_u: np.ndarray,
-        mandel_stress: np.ndarray,
+        stress: np.ndarray,
         tangent: np.ndarray,
+        history: dict[str, np.ndarray] | None = None,
+    ) -> None:
+        self.__evaluate(time, del_t, grad_del_u, stress, tangent, history)
+
+    def evaluate_without_tangent(
+        self,
+        time: float,
+        del_t: float,
+        grad_del_u: np.ndarray,
+        stress: np.ndarray,
+        history: dict[str, np.ndarray] | None = None,
+    ) -> None:
+        self.__evaluate(time, del_t, grad_del_u, stress, None, history)
+
+    def __evaluate(
+        self,
+        time: float,
+        del_t: float,
+        grad_del_u: np.ndarray,
+        mandel_stress: np.ndarray,
+        tangent: np.ndarray | None,
         history: np.ndarray | dict[str, np.ndarray] | None,
     ) -> None:
         assert (
@@ -168,9 +189,10 @@ class SpringKelvinModel(IncrSmallStrainModel):
         )
 
         mandel_view += strain_increment @ self.D_0 - 2 * self.mu0 * _deps_visko
-        D = (1 - self.mu0 / (self.tau * self.mu1 * factor)) * self.D_0
+        if tangent is not None:
+            D = (1 - self.mu0 / (self.tau * self.mu1 * factor)) * self.D_0
+            tangent[:] = np.tile(D.flatten(), n_gauss)
 
-        tangent[:] = np.tile(D.flatten(), n_gauss)
         strain_visco_n += _deps_visko
         strain_n += strain_increment
 

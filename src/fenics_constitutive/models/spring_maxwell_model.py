@@ -169,9 +169,30 @@ class SpringMaxwellModel(IncrSmallStrainModel):
         time: float,
         del_t: float,
         grad_del_u: np.ndarray,
-        mandel_stress: np.ndarray,
+        stress: np.ndarray,
         tangent: np.ndarray,
-        history: np.ndarray | dict[str, np.ndarray] | None,
+        history: dict[str, np.ndarray] | None = None,
+    ) -> None:
+        self.__evaluate(time, del_t, grad_del_u, stress, tangent, history)
+
+    def evaluate_without_tangent(
+        self,
+        time: float,
+        del_t: float,
+        grad_del_u: np.ndarray,
+        stress: np.ndarray,
+        history: dict[str, np.ndarray] | None = None,
+    ) -> None:
+        self.__evaluate(time, del_t, grad_del_u, stress, None, history)
+
+    def __evaluate(
+        self,
+        time: float,
+        del_t: float,
+        grad_del_u: np.ndarray,
+        mandel_stress: np.ndarray,
+        tangent: np.ndarray | None,
+        history: dict[str, np.ndarray] | None = None,
     ) -> None:
         assert (
             grad_del_u.size // (self.geometric_dim**2)
@@ -210,9 +231,10 @@ class SpringMaxwellModel(IncrSmallStrainModel):
 
         dstress = strain_increment @ (self.D_0 + self.D_1) - 2 * self.mu1 * _deps_visko
         mandel_view += dstress
-        D = self.D_0 + (1 - 1 / (self.tau * factor)) * self.D_1
+        if tangent is not None:
+            D = self.D_0 + (1 - 1 / (self.tau * factor)) * self.D_1
+            tangent[:] = np.tile(D.flatten(), n_gauss)
 
-        tangent[:] = np.tile(D.flatten(), n_gauss)
         strain_visco_n += _deps_visko
         strain_n += strain_increment
 

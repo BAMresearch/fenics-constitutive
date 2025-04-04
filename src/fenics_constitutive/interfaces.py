@@ -94,15 +94,31 @@ class IncrSmallStrainModel(ABC):
             history: The history variable(s).
         """
 
-    # Method removed because it is not needed anymore.
-    # @abstractmethod
-    # def update(self) -> None:
-    #    """
-    #    Called after the solver has converged to update anything that is not
-    #    contained in the history variable(s).
-    #    For example: The model could contain the current time which is not
-    #    stored in the history, but needs to be updated after each evaluation.
-    #    """
+    def evaluate_without_tangent(
+        self,
+        t: float,
+        del_t: float,
+        grad_del_u: np.ndarray,
+        stress: np.ndarray,
+        history: dict[str, np.ndarray] | None,
+    ) -> None:
+        r"""
+        Evaluate the constitutive model and overwrite the stress and history.
+        This method should be used if the tangent is not needed, like in a quasi-Newton method
+        or in an explicit time integration scheme.
+
+        Args:
+            t: The current global time $t_n$.
+            del_t: The time increment $\Delta t$. The time at the end of the increment is $t_{n+1}=t_n+\Delta t$.
+            grad_del_u: The gradient of the increment of the displacement field $\nabla\delta$ with $\delta=u_{n+1}-u_n$.
+            stress: The current stress in Mandel notation.
+            history: The history variable(s).
+
+        Raises:
+            NotImplementedError: If the model does not support this method
+        """
+        msg = "This model does not support the evaluate_without_tangent method."
+        raise NotImplementedError(msg)
 
     @property
     @abstractmethod

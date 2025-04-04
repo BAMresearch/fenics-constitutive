@@ -65,9 +65,30 @@ class VonMises3D(IncrSmallStrainModel):
         time: float,
         del_t: float,
         grad_del_u: np.ndarray,
-        mandel_stress: np.ndarray,
+        stress: np.ndarray,
         tangent: np.ndarray,
-        history: np.ndarray | dict[str, np.ndarray],
+        history: dict[str, np.ndarray] | None = None,
+    ) -> None:
+        self.__evaluate(time, del_t, grad_del_u, stress, tangent, history)
+
+    def evaluate_without_tangent(
+        self,
+        time: float,
+        del_t: float,
+        grad_del_u: np.ndarray,
+        stress: np.ndarray,
+        history: dict[str, np.ndarray] | None = None,
+    ) -> None:
+        self.__evaluate(time, del_t, grad_del_u, stress, None, history)
+
+    def __evaluate(
+        self,
+        time: float,
+        del_t: float,
+        grad_del_u: np.ndarray,
+        mandel_stress: np.ndarray,
+        tangent: np.ndarray | None,
+        history: np.ndarray | dict[str, np.ndarray] | None = None,
     ) -> None:
         stress_view = mandel_stress.reshape(-1, self.stress_strain_dim)
         tangent_view = tangent.reshape(-1, self.stress_strain_dim**2)
@@ -168,13 +189,14 @@ class VonMises3D(IncrSmallStrainModel):
             # update total stresses
             stress_view[n] += sh
 
-            # determine elastic-plastic moduli
-            aah = (
-                self.p_ka * self.xioi
-                + 2 * self.p_mu * (1 - 2 * self.p_mu * xc2) * self.xpp
-                + 4 * self.p_mu * self.p_mu * (xc2 - xc1) * np.outer(xn, xn)
-            )
-            tangent_view[n] = aah.flatten()
+            if tangent is not None:
+                # determine elastic-plastic moduli
+                aah = (
+                    self.p_ka * self.xioi
+                    + 2 * self.p_mu * (1 - 2 * self.p_mu * xc2) * self.xpp
+                    + 4 * self.p_mu * self.p_mu * (xc2 - xc1) * np.outer(xn, xn)
+                )
+                tangent_view[n] = aah.flatten()
 
     # def update(self) -> None:
     #    pass

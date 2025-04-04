@@ -87,16 +87,37 @@ class LinearElasticityModel(IncrSmallStrainModel):
         tangent: np.ndarray,
         history: np.ndarray | dict[str, np.ndarray] | None,
     ) -> None:
+        self.__evaluate(time, del_t, grad_del_u, mandel_stress, tangent, history)
+
+    def evaluate_without_tangent(
+        self,
+        t: float,
+        del_t: float,
+        grad_del_u: np.ndarray,
+        stress: np.ndarray,
+        history: np.ndarray | dict[str, np.ndarray] | None,
+    ) -> None:
+        self.__evaluate(t, del_t, grad_del_u, stress, None, history)
+
+    def __evaluate(
+        self,
+        time: float,
+        del_t: float,
+        grad_del_u: np.ndarray,
+        mandel_stress: np.ndarray,
+        tangent: np.ndarray | None,
+        history: dict[str, np.ndarray] | None,
+    ) -> None:
         assert (
             grad_del_u.size // (self.geometric_dim**2)
             == mandel_stress.size // self.stress_strain_dim
-            == tangent.size // (self.stress_strain_dim**2)
         )
         n_gauss = grad_del_u.size // (self.geometric_dim**2)
         mandel_view = mandel_stress.reshape(-1, self.stress_strain_dim)
         strain_increment = strain_from_grad_u(grad_del_u, self.constraint)
         mandel_view += strain_increment.reshape(-1, self.stress_strain_dim) @ self.D
-        tangent[:] = np.tile(self.D.flatten(), n_gauss)
+        if tangent is not None:
+            tangent[:] = np.tile(self.D.flatten(), n_gauss)
 
     @property
     def constraint(self) -> StressStrainConstraint:
@@ -105,6 +126,3 @@ class LinearElasticityModel(IncrSmallStrainModel):
     @property
     def history_dim(self) -> None:
         return None
-
-    # def update(self) -> None:
-    #    pass
