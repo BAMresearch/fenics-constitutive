@@ -94,6 +94,7 @@ class IncrSmallStrainModel(ABC):
             history: The history variable(s).
         """
 
+    @abstractmethod
     def evaluate_without_tangent(
         self,
         t: float,
@@ -113,12 +114,7 @@ class IncrSmallStrainModel(ABC):
             grad_del_u: The gradient of the increment of the displacement field $\nabla\delta$ with $\delta=u_{n+1}-u_n$.
             stress: The current stress in Mandel notation.
             history: The history variable(s).
-
-        Raises:
-            NotImplementedError: If the model does not support this method
         """
-        msg = "This model does not support the evaluate_without_tangent method."
-        raise NotImplementedError(msg)
 
     @property
     @abstractmethod
