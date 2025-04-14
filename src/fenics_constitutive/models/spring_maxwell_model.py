@@ -187,22 +187,22 @@ class SpringMaxwellModel(IncrSmallStrainModel):
 
     def __evaluate(
         self,
-        time: float,
+        t: float,
         del_t: float,
         grad_del_u: np.ndarray,
-        mandel_stress: np.ndarray,
+        stress: np.ndarray,
         tangent: np.ndarray | None,
         history: dict[str, np.ndarray] | None = None,
     ) -> None:
         assert (
             grad_del_u.size // (self.geometric_dim**2)
-            == mandel_stress.size // self.stress_strain_dim
+            == stress.size // self.stress_strain_dim
             == tangent.size // (self.stress_strain_dim**2)
         )
 
         # reshape gauss point arrays
         n_gauss = grad_del_u.size // (self.geometric_dim**2)
-        mandel_view = mandel_stress.reshape(-1, self.stress_strain_dim)
+        mandel_view = stress.reshape(-1, self.stress_strain_dim)
 
         strain_increment = strain_from_grad_u(grad_del_u, self.constraint).reshape(
             -1, self.stress_strain_dim

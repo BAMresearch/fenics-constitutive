@@ -80,14 +80,14 @@ class LinearElasticityModel(IncrSmallStrainModel):
 
     def evaluate(
         self,
-        time: float,
+        t: float,
         del_t: float,
         grad_del_u: np.ndarray,
-        mandel_stress: np.ndarray,
+        stress: np.ndarray,
         tangent: np.ndarray,
         history: np.ndarray | dict[str, np.ndarray] | None,
     ) -> None:
-        self.__evaluate(time, del_t, grad_del_u, mandel_stress, tangent, history)
+        self.__evaluate(t, del_t, grad_del_u, stress, tangent, history)
 
     def evaluate_without_tangent(
         self,
@@ -101,19 +101,19 @@ class LinearElasticityModel(IncrSmallStrainModel):
 
     def __evaluate(
         self,
-        time: float,
+        t: float,
         del_t: float,
         grad_del_u: np.ndarray,
-        mandel_stress: np.ndarray,
+        stress: np.ndarray,
         tangent: np.ndarray | None,
         history: dict[str, np.ndarray] | None,
     ) -> None:
         assert (
             grad_del_u.size // (self.geometric_dim**2)
-            == mandel_stress.size // self.stress_strain_dim
+            == stress.size // self.stress_strain_dim
         )
         n_gauss = grad_del_u.size // (self.geometric_dim**2)
-        mandel_view = mandel_stress.reshape(-1, self.stress_strain_dim)
+        mandel_view = stress.reshape(-1, self.stress_strain_dim)
         strain_increment = strain_from_grad_u(grad_del_u, self.constraint)
         mandel_view += strain_increment.reshape(-1, self.stress_strain_dim) @ self.D
         if tangent is not None:

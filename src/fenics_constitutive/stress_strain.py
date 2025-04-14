@@ -179,10 +179,10 @@ class UniaxialStrainFrom3D(IncrSmallStrainModel):
 
     def evaluate(
         self,
-        time: float,
+        t: float,
         del_t: float,
         grad_del_u: np.ndarray,
-        mandel_stress: np.ndarray,
+        stress: np.ndarray,
         tangent: np.ndarray,
         history: dict[str, np.ndarray] | None,
     ) -> None:
@@ -201,13 +201,13 @@ class UniaxialStrainFrom3D(IncrSmallStrainModel):
         )
 
         self._grad_del_u_to_3d(grad_del_u)
-        self._stress_to_3d(mandel_stress)
+        self._stress_to_3d(stress)
 
         self.model.evaluate(
-            time, del_t, self.grad_del_u_3d, self.stress_3d, self.tangent_3d, history
+            t, del_t, self.grad_del_u_3d, self.stress_3d, self.tangent_3d, history
         )
         self._tangent_to_1d(tangent)
-        self._stress_to_1d(mandel_stress)
+        self._stress_to_1d(stress)
 
     def evaluate_without_tangent(
         self,
@@ -290,10 +290,10 @@ class PlaneStrainFrom3D(IncrSmallStrainModel):
 
     def evaluate(
         self,
-        time: float,
+        t: float,
         del_t: float,
         grad_del_u: np.ndarray,
-        mandel_stress: np.ndarray,
+        stress: np.ndarray,
         tangent: np.ndarray,
         history: dict[str, np.ndarray] | None,
     ) -> None:
@@ -309,13 +309,13 @@ class PlaneStrainFrom3D(IncrSmallStrainModel):
         )
 
         self._grad_del_u_to_3d(grad_del_u)
-        self._stress_to_3d(mandel_stress)
+        self._stress_to_3d(stress)
 
         self.model.evaluate(
-            time, del_t, self.grad_del_u_3d, self.stress_3d, self.tangent_3d, history
+            t, del_t, self.grad_del_u_3d, self.stress_3d, self.tangent_3d, history
         )
         self._tangent_to_2d(tangent)
-        self._stress_to_2d(mandel_stress)
+        self._stress_to_2d(stress)
 
     def evaluate_without_tangent(
         self,
