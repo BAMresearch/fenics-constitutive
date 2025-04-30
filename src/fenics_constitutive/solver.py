@@ -9,6 +9,7 @@ from petsc4py import PETSc
 from .interfaces import IncrSmallStrainModel
 from .maps import SubSpaceMap, build_subspace_map
 from .stress_strain import ufl_mandel_strain
+from scipy.linalg import logm, expm
 
 
 def build_history(
@@ -85,6 +86,8 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
         del_t: float = 1.0,
         form_compiler_options: dict | None = None,
         jit_options: dict | None = None,
+        mesh_update = False,
+        co_rotation = False,
     ):
         mesh = u.function_space.mesh
         map_c = mesh.topology.index_map(mesh.topology.dim)
@@ -127,6 +130,8 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
         QV = df.fem.FunctionSpace(mesh, QVe)
         QT = df.fem.FunctionSpace(mesh, QTe)
 
+        self.mesh_update = mesh_update
+        self.co_rotation = co_rotation
         self.laws: list[tuple[IncrSmallStrainModel, np.ndarray]] = []
         self.submesh_maps: list[SubSpaceMap] = []
 
@@ -246,6 +251,18 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
         #    x.array.data == self._u.vector.array.data
         # ), f"The solution vector must be the same as the one passed to the MechanicsProblem. Got {x.array.data} and {self._u.vector.array.data}"
 
+        if self.mesh_update:
+            # Create a vector function space of order 1
+            V_CG = df.fem.VectorFunctionSpace(self._u.function_space.mesh, ("CG", 1))
+            u_CG0 = df.fem.Function(V_CG)
+            u_CG = df.fem.Function(V_CG)
+
+            u_CG0.interpolate(self._u0)
+            u_CG.interpolate(self._u)
+
+            midpoint_displacement = 0.5 * (u_CG.x.array - u_CG0.x.array)
+            self._u.function_space.mesh.geometry.x[:] += midpoint_displacement.reshape(-1, 3)
+
         # if len(self.laws) > 1:
         for k, (law, cells) in enumerate(self.laws):
             # TODO: test this!
@@ -262,6 +279,8 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
                 self.stress_1.x.array[:] = self.stress_0.x.array
                 self.stress_1.x.scatter_forward()
                 stress_input = self.stress_1.x.array
+                if self.co_rotation:
+                    self.stress_rotate(del_grad_u=self._del_grad_u[k].x.array, mandel_stress=stress_input)
                 tangent_input = self.tangent.x.array
 
             history_input = None
@@ -283,6 +302,9 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
                 self.submesh_maps[k].map_to_parent(self._stress[k], self.stress_1)
                 self.submesh_maps[k].map_to_parent(self._tangent[k], self.tangent)
 
+        if self.mesh_update:
+            self._u.function_space.mesh.geometry.x[:] -= midpoint_displacement.reshape(-1, 3)
+
         self.stress_1.x.scatter_forward()
         self.tangent.x.scatter_forward()
 
@@ -290,6 +312,23 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
         """
         Update the current displacement, stress and history.
         """
+        for k, (law, cells) in enumerate(self.laws):
+            if self.co_rotation:
+                self.stress_rotate(del_grad_u=self._del_grad_u[k].x.array, mandel_stress=self.stress_1.x.array)
+
+        if self.mesh_update:
+
+            # Update to current configuration
+            V_CG = df.fem.VectorFunctionSpace(self._u.function_space.mesh, ("CG", 1))
+            u_CG0 = df.fem.Function(V_CG)
+            u_CG = df.fem.Function(V_CG)
+
+            u_CG0.interpolate(self._u0)
+            u_CG.interpolate(self._u)
+
+            current_displacement = u_CG.x.array - u_CG0.x.array
+            self._u.function_space.mesh.geometry.x[:] += current_displacement.reshape(-1, 3)
+
         self._u0.x.array[:] = self._u.x.array
         self._u0.x.scatter_forward()
 
@@ -305,3 +344,53 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
 
         # time update
         self._time += self._del_t
+
+    def stress_rotate(self, del_grad_u, mandel_stress):
+
+        I2 = np.eye(3,3)
+        shape = int(np.shape(del_grad_u)[0]/9)
+        mandel_stress = mandel_stress.reshape(-1,6)
+
+        stress = np.zeros((shape, 3,3), dtype=np.float64)
+
+        stress[:, 0,0] = mandel_stress[:, 0]
+        stress[:, 1,1] = mandel_stress[:, 1]
+        stress[:, 2,2] = mandel_stress[:, 2]
+        stress[:, 0,1] = 1 / 2 ** 0.5 * (mandel_stress[:, 3])
+        stress[:, 1,2] = 1 / 2 ** 0.5 * (mandel_stress[:, 4])
+        stress[:, 0,2] = 1 / 2 ** 0.5 * (mandel_stress[:, 5])
+        stress[:, 1,0] = stress[:, 0,1]
+        stress[:, 2,1] = stress[:, 1,2]
+        stress[:, 2,0] = stress[:, 0,2]
+
+        g = del_grad_u.reshape(shape,3,3)
+
+        for n, eps in enumerate(g):
+
+            rotation_increment = (eps - np.transpose(eps))/2
+
+            Q_matrix = I2 + (np.linalg.inv(I2 - 0.5*rotation_increment)) @ rotation_increment
+
+            # Logarithm of the rotation matrix
+            log_Q = logm(Q_matrix)
+
+            # Halve the rotation
+            log_Q_half = 0.5 * log_Q
+
+            # Exponentiate to get the half-angle rotation matrix
+            Q_half = expm(log_Q_half)
+
+            rot_stress = Q_half.T @ stress[n,:,:] @ Q_half
+
+            stress[n,:,:] = rot_stress
+
+        rotated_stress_mandel = np.zeros((shape,6), dtype=np.float64)
+
+        rotated_stress_mandel[:, 0] = stress[:, 0,0]
+        rotated_stress_mandel[:, 1] = stress[:, 1,1]
+        rotated_stress_mandel[:, 2] = stress[:, 2,2]
+        rotated_stress_mandel[:, 3] = 2 ** 0.5 * stress[:, 0,1]
+        rotated_stress_mandel[:, 4] = 2 ** 0.5 * stress[:, 1,2]
+        rotated_stress_mandel[:, 5] = 2 ** 0.5 * stress[:, 0,2]
+
+        mandel_stress[:,:] = rotated_stress_mandel
