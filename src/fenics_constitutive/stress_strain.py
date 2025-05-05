@@ -177,17 +177,14 @@ class UniaxialStrainFrom3D(IncrSmallStrainModel):
     def constraint(self) -> StressStrainConstraint:
         return StressStrainConstraint.UNIAXIAL_STRAIN
 
-    def update(self) -> None:
-        self.model.update()
-
     def evaluate(
         self,
-        time: float,
+        t: float,
         del_t: float,
         grad_del_u: np.ndarray,
-        mandel_stress: np.ndarray,
+        stress: np.ndarray,
         tangent: np.ndarray,
-        history: np.ndarray | dict[str, np.ndarray] | None,
+        history: dict[str, np.ndarray] | None,
     ) -> None:
         self.tangent_3d = (
             np.zeros(6 * 6 * len(grad_del_u))
@@ -204,13 +201,38 @@ class UniaxialStrainFrom3D(IncrSmallStrainModel):
         )
 
         self._grad_del_u_to_3d(grad_del_u)
-        self._stress_to_3d(mandel_stress)
+        self._stress_to_3d(stress)
 
         self.model.evaluate(
-            time, del_t, self.grad_del_u_3d, self.stress_3d, self.tangent_3d, history
+            t, del_t, self.grad_del_u_3d, self.stress_3d, self.tangent_3d, history
         )
         self._tangent_to_1d(tangent)
-        self._stress_to_1d(mandel_stress)
+        self._stress_to_1d(stress)
+
+    def evaluate_without_tangent(
+        self,
+        t: float,
+        del_t: float,
+        grad_del_u: np.ndarray,
+        stress: np.ndarray,
+        history: dict[str, np.ndarray] | None,
+    ) -> None:
+        self.stress_3d = (
+            np.zeros(6 * len(grad_del_u)) if self.stress_3d is None else self.stress_3d
+        )
+        self.grad_del_u_3d = (
+            np.zeros(9 * len(grad_del_u))
+            if self.grad_del_u_3d is None
+            else self.grad_del_u_3d
+        )
+
+        self._grad_del_u_to_3d(grad_del_u)
+        self._stress_to_3d(stress)
+
+        self.model.evaluate_without_tangent(
+            t, del_t, self.grad_del_u_3d, self.stress_3d, history
+        )
+        self._stress_to_1d(stress)
 
     @property
     def history_dim(self) -> dict[str, int | tuple[int, int]] | None:
@@ -266,17 +288,14 @@ class PlaneStrainFrom3D(IncrSmallStrainModel):
     def constraint(self) -> StressStrainConstraint:
         return StressStrainConstraint.PLANE_STRAIN
 
-    def update(self) -> None:
-        self.model.update()
-
     def evaluate(
         self,
-        time: float,
+        t: float,
         del_t: float,
         grad_del_u: np.ndarray,
-        mandel_stress: np.ndarray,
+        stress: np.ndarray,
         tangent: np.ndarray,
-        history: np.ndarray | dict[str, np.ndarray] | None,
+        history: dict[str, np.ndarray] | None,
     ) -> None:
         n_gauss = int(grad_del_u.size / 4)
         self.tangent_3d = (
@@ -290,12 +309,37 @@ class PlaneStrainFrom3D(IncrSmallStrainModel):
         )
 
         self._grad_del_u_to_3d(grad_del_u)
-        self._stress_to_3d(mandel_stress)
+        self._stress_to_3d(stress)
 
         self.model.evaluate(
-            time, del_t, self.grad_del_u_3d, self.stress_3d, self.tangent_3d, history
+            t, del_t, self.grad_del_u_3d, self.stress_3d, self.tangent_3d, history
         )
         self._tangent_to_2d(tangent)
+        self._stress_to_2d(stress)
+
+    def evaluate_without_tangent(
+        self,
+        time: float,
+        del_t: float,
+        grad_del_u: np.ndarray,
+        mandel_stress: np.ndarray,
+        history: dict[str, np.ndarray] | None,
+    ) -> None:
+        n_gauss = int(grad_del_u.size / 4)
+
+        self.stress_3d = (
+            np.zeros(6 * n_gauss) if self.stress_3d is None else self.stress_3d
+        )
+        self.grad_del_u_3d = (
+            np.zeros(9 * n_gauss) if self.grad_del_u_3d is None else self.grad_del_u_3d
+        )
+
+        self._grad_del_u_to_3d(grad_del_u)
+        self._stress_to_3d(mandel_stress)
+
+        self.model.evaluate_without_tangent(
+            time, del_t, self.grad_del_u_3d, self.stress_3d, history
+        )
         self._stress_to_2d(mandel_stress)
 
     @property
