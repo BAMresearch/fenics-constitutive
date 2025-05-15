@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Protocol
-
 import numpy as np
 
 from fenics_constitutive import (
@@ -10,7 +8,14 @@ from fenics_constitutive import (
     strain_from_grad_u,
 )
 
-from .utils import lame_parameters
+from .elasticity_laws import (
+    ElasticityLaw,
+    FullConstraintLaw,
+    PlaneStrainLaw,
+    PlaneStressLaw,
+    UniaxialStrainLaw,
+    UniaxialStressLaw,
+)
 
 
 class LinearElasticityModel(IncrSmallStrainModel):
@@ -28,7 +33,7 @@ class LinearElasticityModel(IncrSmallStrainModel):
         self._constraint = constraint
         E = parameters["E"]
         nu = parameters["nu"]
-        law_map = {
+        law_map: dict[StressStrainConstraint, ElasticityLaw] = {
             StressStrainConstraint.FULL: FullConstraintLaw(),
             StressStrainConstraint.PLANE_STRAIN: PlaneStrainLaw(),
             StressStrainConstraint.PLANE_STRESS: PlaneStressLaw(),
@@ -74,62 +79,3 @@ class LinearElasticityModel(IncrSmallStrainModel):
 
     # def update(self) -> None:
     #    pass
-
-
-class ElasticityConstitutiveLaw(Protocol):
-    def get_D(self, E: float, nu: float) -> np.ndarray: ...
-
-
-class FullConstraintLaw(ElasticityConstitutiveLaw):
-    def get_D(self, E: float, nu: float) -> np.ndarray:
-        mu, lam = lame_parameters(E, nu)
-        return np.array(
-            [
-                [2.0 * mu + lam, lam, lam, 0.0, 0.0, 0.0],
-                [lam, 2.0 * mu + lam, lam, 0.0, 0.0, 0.0],
-                [lam, lam, 2.0 * mu + lam, 0.0, 0.0, 0.0],
-                [0.0, 0.0, 0.0, 2.0 * mu, 0.0, 0.0],
-                [0.0, 0.0, 0.0, 0.0, 2.0 * mu, 0.0],
-                [0.0, 0.0, 0.0, 0.0, 0.0, 2.0 * mu],
-            ]
-        )
-
-
-class PlaneStrainLaw(ElasticityConstitutiveLaw):
-    def get_D(self, E: float, nu: float) -> np.ndarray:
-        mu, lam = lame_parameters(E, nu)
-        return np.array(
-            [
-                [2.0 * mu + lam, lam, lam, 0.0],
-                [lam, 2.0 * mu + lam, lam, 0.0],
-                [lam, lam, 2.0 * mu + lam, 0.0],
-                [0.0, 0.0, 0.0, 2.0 * mu],
-            ]
-        )
-
-
-class PlaneStressLaw(ElasticityConstitutiveLaw):
-    def get_D(self, E: float, nu: float) -> np.ndarray:
-        return (
-            E
-            / (1 - nu**2.0)
-            * np.array(
-                [
-                    [1.0, nu, 0.0, 0.0],
-                    [nu, 1.0, 0.0, 0.0],
-                    [0.0, 0.0, 0.0, 0.0],
-                    [0.0, 0.0, 0.0, (1.0 - nu)],
-                ]
-            )
-        )
-
-
-class UniaxialStrainLaw(ElasticityConstitutiveLaw):
-    def get_D(self, E: float, nu: float) -> np.ndarray:
-        C = E * (1.0 - nu) / ((1.0 + nu) * (1.0 - 2.0 * nu))
-        return np.array([[C]])
-
-
-class UniaxialStressLaw(ElasticityConstitutiveLaw):
-    def get_D(self, E: float, nu: float) -> np.ndarray:
-        return np.array([[E]])

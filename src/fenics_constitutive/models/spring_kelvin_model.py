@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Protocol
-
 import numpy as np
 
 from fenics_constitutive import (
@@ -10,87 +8,15 @@ from fenics_constitutive import (
     strain_from_grad_u,
 )
 
+from .elasticity_laws import (
+    ElasticityLaw,
+    FullConstraintLaw,
+    PlaneStrainLaw,
+    PlaneStressLaw,
+    UniaxialStrainLaw,
+    UniaxialStressLaw,
+)
 from .utils import lame_parameters
-
-
-class SpringKelvinElasticityLaw(Protocol):
-    def get_D(self, E: float, nu: float) -> np.ndarray: ...
-    def get_I2(self, stress_strain_dim: int) -> np.ndarray: ...
-
-
-class FullSpringKelvinLaw:
-    def get_D(self, E: float, nu: float) -> np.ndarray:
-        mu, lam = lame_parameters(E, nu)
-        return np.array(
-            [
-                [2.0 * mu + lam, lam, lam, 0.0, 0.0, 0.0],
-                [lam, 2.0 * mu + lam, lam, 0.0, 0.0, 0.0],
-                [lam, lam, 2.0 * mu + lam, 0.0, 0.0, 0.0],
-                [0.0, 0.0, 0.0, 2.0 * mu, 0.0, 0.0],
-                [0.0, 0.0, 0.0, 0.0, 2.0 * mu, 0.0],
-                [0.0, 0.0, 0.0, 0.0, 0.0, 2.0 * mu],
-            ]
-        )
-
-    def get_I2(self, stress_strain_dim: int) -> np.ndarray:
-        I2 = np.zeros(stress_strain_dim, dtype=np.float64)
-        I2[0] = 1.0
-        I2[1] = 1.0
-        I2[2] = 1.0
-        return I2
-
-
-class PlaneStrainSpringKelvinLaw:
-    def get_D(self, E: float, nu: float) -> np.ndarray:
-        mu, lam = lame_parameters(E, nu)
-        return np.array(
-            [
-                [2.0 * mu + lam, lam, lam, 0.0],
-                [lam, 2.0 * mu + lam, lam, 0.0],
-                [lam, lam, 2.0 * mu + lam, 0.0],
-                [0.0, 0.0, 0.0, 2.0 * mu],
-            ]
-        )
-
-    def get_I2(self, stress_strain_dim: int) -> np.ndarray:
-        I2 = np.zeros(stress_strain_dim, dtype=np.float64)
-        I2[0] = 1.0
-        I2[1] = 1.0
-        I2[2] = 1.0
-        return I2
-
-
-class PlaneStressSpringKelvinLaw:
-    def get_D(self, E: float, nu: float) -> np.ndarray:
-        return (
-            E
-            / (1 - nu**2.0)
-            * np.array(
-                [
-                    [1.0, nu, 0.0, 0.0],
-                    [nu, 1.0, 0.0, 0.0],
-                    [0.0, 0.0, 0.0, 0.0],
-                    [0.0, 0.0, 0.0, (1.0 - nu)],
-                ]
-            )
-        )
-
-    def get_I2(self, stress_strain_dim: int) -> np.ndarray:
-        I2 = np.zeros(stress_strain_dim, dtype=np.float64)
-        I2[0] = 1.0
-        I2[1] = 1.0
-        return I2
-
-
-class UniaxialStressSpringKelvinLaw:
-    def get_D(self, E: float, nu: float) -> np.ndarray:
-        _ = nu
-        return np.array([[E]])
-
-    def get_I2(self, stress_strain_dim: int) -> np.ndarray:
-        I2 = np.zeros(stress_strain_dim, dtype=np.float64)
-        I2[0] = 1.0
-        return I2
 
 
 class SpringKelvinModel(IncrSmallStrainModel):
@@ -122,11 +48,12 @@ class SpringKelvinModel(IncrSmallStrainModel):
         else:
             self.nu = parameters["nu"]  # Poisson's ratio
 
-        law_map = {
-            StressStrainConstraint.FULL: FullSpringKelvinLaw(),
-            StressStrainConstraint.PLANE_STRAIN: PlaneStrainSpringKelvinLaw(),
-            StressStrainConstraint.PLANE_STRESS: PlaneStressSpringKelvinLaw(),
-            StressStrainConstraint.UNIAXIAL_STRESS: UniaxialStressSpringKelvinLaw(),
+        law_map: dict[StressStrainConstraint, ElasticityLaw] = {
+            StressStrainConstraint.FULL: FullConstraintLaw(),
+            StressStrainConstraint.PLANE_STRAIN: PlaneStrainLaw(),
+            StressStrainConstraint.PLANE_STRESS: PlaneStressLaw(),
+            StressStrainConstraint.UNIAXIAL_STRAIN: UniaxialStrainLaw(),
+            StressStrainConstraint.UNIAXIAL_STRESS: UniaxialStressLaw(),
         }
         try:
             law = law_map[constraint]

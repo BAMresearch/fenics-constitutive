@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Protocol
-
 import numpy as np
 
 from fenics_constitutive import (
@@ -10,61 +8,15 @@ from fenics_constitutive import (
     strain_from_grad_u,
 )
 
+from .elasticity_laws import (
+    ElasticityLaw,
+    FullConstraintLaw,
+    PlaneStrainLaw,
+    PlaneStressLaw,
+    UniaxialStrainLaw,
+    UniaxialStressLaw,
+)
 from .utils import lame_parameters
-
-
-class SpringMaxwellElasticityLaw(Protocol):
-    def get_D(self, E: float, nu: float) -> np.ndarray: ...
-
-
-class FullSpringMaxwellLaw:
-    def get_D(self, E: float, nu: float) -> np.ndarray:
-        mu, lam = lame_parameters(E, nu)
-        return np.array(
-            [
-                [2.0 * mu + lam, lam, lam, 0.0, 0.0, 0.0],
-                [lam, 2.0 * mu + lam, lam, 0.0, 0.0, 0.0],
-                [lam, lam, 2.0 * mu + lam, 0.0, 0.0, 0.0],
-                [0.0, 0.0, 0.0, 2.0 * mu, 0.0, 0.0],
-                [0.0, 0.0, 0.0, 0.0, 2.0 * mu, 0.0],
-                [0.0, 0.0, 0.0, 0.0, 0.0, 2.0 * mu],
-            ]
-        )
-
-
-class PlaneStrainSpringMaxwellLaw:
-    def get_D(self, E: float, nu: float) -> np.ndarray:
-        mu, lam = lame_parameters(E, nu)
-        return np.array(
-            [
-                [2.0 * mu + lam, lam, lam, 0.0],
-                [lam, 2.0 * mu + lam, lam, 0.0],
-                [lam, lam, 2.0 * mu + lam, 0.0],
-                [0.0, 0.0, 0.0, 2.0 * mu],
-            ]
-        )
-
-
-class PlaneStressSpringMaxwellLaw:
-    def get_D(self, E: float, nu: float) -> np.ndarray:
-        return (
-            E
-            / (1 - nu**2.0)
-            * np.array(
-                [
-                    [1.0, nu, 0.0, 0.0],
-                    [nu, 1.0, 0.0, 0.0],
-                    [0.0, 0.0, 0.0, 0.0],
-                    [0.0, 0.0, 0.0, (1.0 - nu)],
-                ]
-            )
-        )
-
-
-class UniaxialStressSpringMaxwellLaw:
-    def get_D(self, E: float, nu: float) -> np.ndarray:
-        _ = nu
-        return np.array([[E]])
 
 
 class SpringMaxwellModel(IncrSmallStrainModel):
@@ -95,11 +47,12 @@ class SpringMaxwellModel(IncrSmallStrainModel):
         else:
             self.nu = parameters["nu"]  # Poisson's ratio
 
-        law_map: dict[StressStrainConstraint, SpringMaxwellElasticityLaw] = {
-            StressStrainConstraint.FULL: FullSpringMaxwellLaw(),
-            StressStrainConstraint.PLANE_STRAIN: PlaneStrainSpringMaxwellLaw(),
-            StressStrainConstraint.PLANE_STRESS: PlaneStressSpringMaxwellLaw(),
-            StressStrainConstraint.UNIAXIAL_STRESS: UniaxialStressSpringMaxwellLaw(),
+        law_map: dict[StressStrainConstraint, ElasticityLaw] = {
+            StressStrainConstraint.FULL: FullConstraintLaw(),
+            StressStrainConstraint.PLANE_STRAIN: PlaneStrainLaw(),
+            StressStrainConstraint.PLANE_STRESS: PlaneStressLaw(),
+            StressStrainConstraint.UNIAXIAL_STRAIN: UniaxialStrainLaw(),
+            StressStrainConstraint.UNIAXIAL_STRESS: UniaxialStressLaw(),
         }
         try:
             law = law_map[constraint]
