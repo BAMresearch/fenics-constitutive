@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Protocol
+
 import numpy as np
 
 from fenics_constitutive import (
@@ -7,6 +9,115 @@ from fenics_constitutive import (
     StressStrainConstraint,
     strain_from_grad_u,
 )
+
+
+class SpringMaxwellElasticityLaw(Protocol):
+    def get_D_0(self, mu0: float, lam0: float, E0: float, nu: float) -> np.ndarray: ...
+    def get_D_1(self, mu1: float, lam1: float, E1: float, nu: float) -> np.ndarray: ...
+
+
+class FullSpringMaxwellLaw:
+    def get_D_0(self, mu0: float, lam0: float, E0: float, nu: float) -> np.ndarray:
+        _ = E0
+        _ = nu
+        return np.array(
+            [
+                [2.0 * mu0 + lam0, lam0, lam0, 0.0, 0.0, 0.0],
+                [lam0, 2.0 * mu0 + lam0, lam0, 0.0, 0.0, 0.0],
+                [lam0, lam0, 2.0 * mu0 + lam0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 2.0 * mu0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0, 2.0 * mu0, 0.0],
+                [0.0, 0.0, 0.0, 0.0, 0.0, 2.0 * mu0],
+            ]
+        )
+
+    def get_D_1(self, mu1: float, lam1: float, E1: float, nu: float) -> np.ndarray:
+        _ = E1
+        _ = nu
+        return np.array(
+            [
+                [2.0 * mu1 + lam1, lam1, lam1, 0.0, 0.0, 0.0],
+                [lam1, 2.0 * mu1 + lam1, lam1, 0.0, 0.0, 0.0],
+                [lam1, lam1, 2.0 * mu1 + lam1, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 2.0 * mu1, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0, 2.0 * mu1, 0.0],
+                [0.0, 0.0, 0.0, 0.0, 0.0, 2.0 * mu1],
+            ]
+        )
+
+
+class PlaneStrainSpringMaxwellLaw:
+    def get_D_0(self, mu0: float, lam0: float, E0: float, nu: float) -> np.ndarray:
+        _ = E0
+        _ = nu
+        return np.array(
+            [
+                [2.0 * mu0 + lam0, lam0, lam0, 0.0],
+                [lam0, 2.0 * mu0 + lam0, lam0, 0.0],
+                [lam0, lam0, 2.0 * mu0 + lam0, 0.0],
+                [0.0, 0.0, 0.0, 2.0 * mu0],
+            ]
+        )
+
+    def get_D_1(self, mu1: float, lam1: float, E1: float, nu: float) -> np.ndarray:
+        _ = E1
+        _ = nu
+        return np.array(
+            [
+                [2.0 * mu1 + lam1, lam1, lam1, 0.0],
+                [lam1, 2.0 * mu1 + lam1, lam1, 0.0],
+                [lam1, lam1, 2.0 * mu1 + lam1, 0.0],
+                [0.0, 0.0, 0.0, 2.0 * mu1],
+            ]
+        )
+
+
+class PlaneStressSpringMaxwellLaw:
+    def get_D_0(self, mu0: float, lam0: float, E0: float, nu: float) -> np.ndarray:
+        _ = mu0
+        _ = lam0
+        return (
+            E0
+            / (1 - nu**2.0)
+            * np.array(
+                [
+                    [1.0, nu, 0.0, 0.0],
+                    [nu, 1.0, 0.0, 0.0],
+                    [0.0, 0.0, 0.0, 0.0],
+                    [0.0, 0.0, 0.0, (1.0 - nu)],
+                ]
+            )
+        )
+
+    def get_D_1(self, mu1: float, lam1: float, E1: float, nu: float) -> np.ndarray:
+        _ = mu1
+        _ = lam1
+        return (
+            E1
+            / (1 - nu**2.0)
+            * np.array(
+                [
+                    [1.0, nu, 0.0, 0.0],
+                    [nu, 1.0, 0.0, 0.0],
+                    [0.0, 0.0, 0.0, 0.0],
+                    [0.0, 0.0, 0.0, (1.0 - nu)],
+                ]
+            )
+        )
+
+
+class UniaxialStressSpringMaxwellLaw:
+    def get_D_0(self, mu0: float, lam0: float, E0: float, nu: float) -> np.ndarray:
+        _ = mu0
+        _ = lam0
+        _ = nu
+        return np.array([[E0]])
+
+    def get_D_1(self, mu1: float, lam1: float, E1: float, nu: float) -> np.ndarray:
+        _ = mu1
+        _ = lam1
+        _ = nu
+        return np.array([[E1]])
 
 
 class SpringMaxwellModel(IncrSmallStrainModel):
@@ -31,9 +142,7 @@ class SpringMaxwellModel(IncrSmallStrainModel):
         self._constraint = constraint
         self.E0 = parameters["E0"]  # elastic modulus
         self.E1 = parameters["E1"]  # visco modulus
-        self.tau = parameters[
-            "tau"
-        ]  # relaxation time == eta/(2 mu1) for 1D case eta/E1
+        self.tau = parameters["tau"]  # relaxation time
         if constraint == StressStrainConstraint.UNIAXIAL_STRESS:
             self.nu = 0.0
         else:
@@ -45,156 +154,49 @@ class SpringMaxwellModel(IncrSmallStrainModel):
         self.mu1 = self.E1 / (2.0 * (1.0 + self.nu))
         self.lam1 = self.E1 * self.nu / ((1.0 + self.nu) * (1.0 - 2.0 * self.nu))
 
-        self.compute_elasticity()  # initialize elasticity tensor
-
-    def compute_elasticity(self):
-        match self._constraint:
-            case StressStrainConstraint.FULL:
-                self.D_0 = np.array(
-                    [
-                        [
-                            2.0 * self.mu0 + self.lam0,
-                            self.lam0,
-                            self.lam0,
-                            0.0,
-                            0.0,
-                            0.0,
-                        ],
-                        [
-                            self.lam0,
-                            2.0 * self.mu0 + self.lam0,
-                            self.lam0,
-                            0.0,
-                            0.0,
-                            0.0,
-                        ],
-                        [
-                            self.lam0,
-                            self.lam0,
-                            2.0 * self.mu0 + self.lam0,
-                            0.0,
-                            0.0,
-                            0.0,
-                        ],
-                        [0.0, 0.0, 0.0, 2.0 * self.mu0, 0.0, 0.0],
-                        [0.0, 0.0, 0.0, 0.0, 2.0 * self.mu0, 0.0],
-                        [0.0, 0.0, 0.0, 0.0, 0.0, 2.0 * self.mu0],
-                    ]
-                )
-                self.D_1 = np.array(
-                    [
-                        [
-                            2.0 * self.mu1 + self.lam1,
-                            self.lam1,
-                            self.lam1,
-                            0.0,
-                            0.0,
-                            0.0,
-                        ],
-                        [
-                            self.lam1,
-                            2.0 * self.mu1 + self.lam1,
-                            self.lam1,
-                            0.0,
-                            0.0,
-                            0.0,
-                        ],
-                        [
-                            self.lam1,
-                            self.lam1,
-                            2.0 * self.mu1 + self.lam1,
-                            0.0,
-                            0.0,
-                            0.0,
-                        ],
-                        [0.0, 0.0, 0.0, 2.0 * self.mu1, 0.0, 0.0],
-                        [0.0, 0.0, 0.0, 0.0, 2.0 * self.mu1, 0.0],
-                        [0.0, 0.0, 0.0, 0.0, 0.0, 2.0 * self.mu1],
-                    ]
-                )
-
-            case StressStrainConstraint.PLANE_STRAIN:
-                self.D_0 = np.array(
-                    [
-                        [2.0 * self.mu0 + self.lam0, self.lam0, self.lam0, 0.0],
-                        [self.lam0, 2.0 * self.mu0 + self.lam0, self.lam0, 0.0],
-                        [self.lam0, self.lam0, 2.0 * self.mu0 + self.lam0, 0.0],
-                        [0.0, 0.0, 0.0, 2.0 * self.mu0],
-                    ]
-                )
-                self.D_1 = np.array(
-                    [
-                        [2.0 * self.mu1 + self.lam1, self.lam1, self.lam1, 0.0],
-                        [self.lam1, 2.0 * self.mu1 + self.lam1, self.lam1, 0.0],
-                        [self.lam1, self.lam1, 2.0 * self.mu1 + self.lam1, 0.0],
-                        [0.0, 0.0, 0.0, 2.0 * self.mu1],
-                    ]
-                )
-
-            case StressStrainConstraint.PLANE_STRESS:
-                self.D_0 = (
-                    self.E0
-                    / (1 - self.nu**2.0)
-                    * np.array(
-                        [
-                            [1.0, self.nu, 0.0, 0.0],
-                            [self.nu, 1.0, 0.0, 0.0],
-                            [0.0, 0.0, 0.0, 0.0],
-                            [0.0, 0.0, 0.0, (1.0 - self.nu)],
-                        ]
-                    )
-                )
-                self.D_1 = (
-                    self.E1
-                    / (1 - self.nu**2.0)
-                    * np.array(
-                        [
-                            [1.0, self.nu, 0.0, 0.0],
-                            [self.nu, 1.0, 0.0, 0.0],
-                            [0.0, 0.0, 0.0, 0.0],
-                            [0.0, 0.0, 0.0, (1.0 - self.nu)],
-                        ]
-                    )
-                )
-
-            case StressStrainConstraint.UNIAXIAL_STRESS:
-                self.D_0 = np.array([[self.E0]])
-                self.D_1 = np.array([[self.E1]])
-            case _:
-                msg = "Constraint not implemented"
-                raise NotImplementedError(msg)
+        law_map = {
+            StressStrainConstraint.FULL: FullSpringMaxwellLaw(),
+            StressStrainConstraint.PLANE_STRAIN: PlaneStrainSpringMaxwellLaw(),
+            StressStrainConstraint.PLANE_STRESS: PlaneStressSpringMaxwellLaw(),
+            StressStrainConstraint.UNIAXIAL_STRESS: UniaxialStressSpringMaxwellLaw(),
+        }
+        try:
+            law = law_map[constraint]
+        except KeyError as err:
+            msg = "Constraint not implemented"
+            raise NotImplementedError(msg) from err
+        self.D_0 = law.get_D_0(self.mu0, self.lam0, self.E0, self.nu)
+        self.D_1 = law.get_D_1(self.mu1, self.lam1, self.E1, self.nu)
 
     def evaluate(
         self,
-        time: float,
+        t: float,
         del_t: float,
         grad_del_u: np.ndarray,
-        mandel_stress: np.ndarray,
+        stress: np.ndarray,
         tangent: np.ndarray,
         history: np.ndarray | dict[str, np.ndarray] | None,
     ) -> None:
+        _ = t
         assert (
             grad_del_u.size // (self.geometric_dim**2)
-            == mandel_stress.size // self.stress_strain_dim
+            == stress.size // self.stress_strain_dim
             == tangent.size // (self.stress_strain_dim**2)
         )
 
         # reshape gauss point arrays
         n_gauss = grad_del_u.size // (self.geometric_dim**2)
-        mandel_view = mandel_stress.reshape(-1, self.stress_strain_dim)
+        mandel_view = stress.reshape(-1, self.stress_strain_dim)
 
         strain_increment = strain_from_grad_u(grad_del_u, self.constraint).reshape(
             -1, self.stress_strain_dim
         )
+        if history is None:
+            msg = "history must not be None"
+            raise ValueError(msg)
         strain_visco_n = history["strain_visco"].reshape(-1, self.stress_strain_dim)
         strain_n = history["strain"].reshape(-1, self.stress_strain_dim)
 
-        # if del_t == 0:
-        #     # linear step visko strain is zero
-        #     D = self.D_0 + self.D_1
-        #     mandel_view += strain_increment @ D
-        #     _deps_visko = np.zeros_like(strain_increment)
-        # else:
         assert del_t > 0, "Time step must be defined and positive."
 
         strain_total = strain_n + strain_increment
@@ -221,7 +223,7 @@ class SpringMaxwellModel(IncrSmallStrainModel):
         return self._constraint
 
     @property
-    def history_dim(self) -> None:
+    def history_dim(self) -> dict[str, int | tuple[int, int]] | None:
         return {
             "strain_visco": self.stress_strain_dim,
             "strain": self.stress_strain_dim,
