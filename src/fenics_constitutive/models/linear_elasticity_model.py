@@ -10,11 +10,7 @@ from fenics_constitutive import (
 
 from .elasticity_laws import (
     ElasticityLaw,
-    FullConstraintLaw,
-    PlaneStrainLaw,
-    PlaneStressLaw,
-    UniaxialStrainLaw,
-    UniaxialStressLaw,
+    get_elasticity_law,
 )
 
 
@@ -33,19 +29,7 @@ class LinearElasticityModel(IncrSmallStrainModel):
         self._constraint = constraint
         E = parameters["E"]
         nu = parameters["nu"]
-        law_map: dict[StressStrainConstraint, ElasticityLaw] = {
-            StressStrainConstraint.FULL: FullConstraintLaw(),
-            StressStrainConstraint.PLANE_STRAIN: PlaneStrainLaw(),
-            StressStrainConstraint.PLANE_STRESS: PlaneStressLaw(),
-            StressStrainConstraint.UNIAXIAL_STRAIN: UniaxialStrainLaw(),
-            StressStrainConstraint.UNIAXIAL_STRESS: UniaxialStressLaw(),
-        }
-        try:
-            law = law_map[constraint]
-        except KeyError as err:
-            msg = "Constraint not implemented"
-            raise NotImplementedError(msg) from err
-        # Call get_D with E and nu for all laws
+        law = get_elasticity_law(constraint)
         self.D = law.get_D(E, nu)
 
     def evaluate(

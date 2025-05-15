@@ -8,14 +8,7 @@ from fenics_constitutive import (
     strain_from_grad_u,
 )
 
-from .elasticity_laws import (
-    ElasticityLaw,
-    FullConstraintLaw,
-    PlaneStrainLaw,
-    PlaneStressLaw,
-    UniaxialStrainLaw,
-    UniaxialStressLaw,
-)
+from .elasticity_laws import get_elasticity_law
 from .utils import lame_parameters
 
 
@@ -47,18 +40,7 @@ class SpringMaxwellModel(IncrSmallStrainModel):
         else:
             self.nu = parameters["nu"]  # Poisson's ratio
 
-        law_map: dict[StressStrainConstraint, ElasticityLaw] = {
-            StressStrainConstraint.FULL: FullConstraintLaw(),
-            StressStrainConstraint.PLANE_STRAIN: PlaneStrainLaw(),
-            StressStrainConstraint.PLANE_STRESS: PlaneStressLaw(),
-            StressStrainConstraint.UNIAXIAL_STRAIN: UniaxialStrainLaw(),
-            StressStrainConstraint.UNIAXIAL_STRESS: UniaxialStressLaw(),
-        }
-        try:
-            law = law_map[constraint]
-        except KeyError as err:
-            msg = "Constraint not implemented"
-            raise NotImplementedError(msg) from err
+        law = get_elasticity_law(constraint)
         self.D_0 = law.get_D(self.E0, self.nu)
         self.D_1 = law.get_D(self.E1, self.nu)
 

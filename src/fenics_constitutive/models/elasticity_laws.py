@@ -5,6 +5,7 @@ from typing import Protocol
 import numpy as np
 
 from .utils import lame_parameters
+from fenics_constitutive import StressStrainConstraint
 
 
 class ElasticityLaw(Protocol):
@@ -91,3 +92,19 @@ class UniaxialStressLaw(ElasticityLaw):
         I2 = np.zeros(stress_strain_dim, dtype=np.float64)
         I2[0] = 1.0
         return I2
+
+
+def get_elasticity_law(constraint: StressStrainConstraint) -> ElasticityLaw:
+    """Factory function to return the appropriate law object for a given constraint."""
+    law_map = {
+        StressStrainConstraint.FULL: FullConstraintLaw(),
+        StressStrainConstraint.PLANE_STRAIN: PlaneStrainLaw(),
+        StressStrainConstraint.PLANE_STRESS: PlaneStressLaw(),
+        StressStrainConstraint.UNIAXIAL_STRAIN: UniaxialStrainLaw(),
+        StressStrainConstraint.UNIAXIAL_STRESS: UniaxialStressLaw(),
+    }
+    try:
+        return law_map[constraint]
+    except KeyError as err:
+        msg = f"Constraint {constraint} not implemented."
+        raise NotImplementedError(msg) from err
