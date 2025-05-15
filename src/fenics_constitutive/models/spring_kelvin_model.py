@@ -14,22 +14,21 @@ from .utils import lame_parameters
 
 
 class SpringKelvinElasticityLaw(Protocol):
-    def get_D_0(self, mu0: float, lam0: float, E0: float, nu: float) -> np.ndarray: ...
+    def get_D(self, E: float, nu: float) -> np.ndarray: ...
     def get_I2(self, stress_strain_dim: int) -> np.ndarray: ...
 
 
 class FullSpringKelvinLaw:
-    def get_D_0(self, mu0: float, lam0: float, E0: float, nu: float) -> np.ndarray:
-        _ = E0
-        _ = nu
+    def get_D(self, E: float, nu: float) -> np.ndarray:
+        mu, lam = lame_parameters(E, nu)
         return np.array(
             [
-                [2.0 * mu0 + lam0, lam0, lam0, 0.0, 0.0, 0.0],
-                [lam0, 2.0 * mu0 + lam0, lam0, 0.0, 0.0, 0.0],
-                [lam0, lam0, 2.0 * mu0 + lam0, 0.0, 0.0, 0.0],
-                [0.0, 0.0, 0.0, 2.0 * mu0, 0.0, 0.0],
-                [0.0, 0.0, 0.0, 0.0, 2.0 * mu0, 0.0],
-                [0.0, 0.0, 0.0, 0.0, 0.0, 2.0 * mu0],
+                [2.0 * mu + lam, lam, lam, 0.0, 0.0, 0.0],
+                [lam, 2.0 * mu + lam, lam, 0.0, 0.0, 0.0],
+                [lam, lam, 2.0 * mu + lam, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 2.0 * mu, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0, 2.0 * mu, 0.0],
+                [0.0, 0.0, 0.0, 0.0, 0.0, 2.0 * mu],
             ]
         )
 
@@ -42,15 +41,14 @@ class FullSpringKelvinLaw:
 
 
 class PlaneStrainSpringKelvinLaw:
-    def get_D_0(self, mu0: float, lam0: float, E0: float, nu: float) -> np.ndarray:
-        _ = E0
-        _ = nu
+    def get_D(self, E: float, nu: float) -> np.ndarray:
+        mu, lam = lame_parameters(E, nu)
         return np.array(
             [
-                [2.0 * mu0 + lam0, lam0, lam0, 0.0],
-                [lam0, 2.0 * mu0 + lam0, lam0, 0.0],
-                [lam0, lam0, 2.0 * mu0 + lam0, 0.0],
-                [0.0, 0.0, 0.0, 2.0 * mu0],
+                [2.0 * mu + lam, lam, lam, 0.0],
+                [lam, 2.0 * mu + lam, lam, 0.0],
+                [lam, lam, 2.0 * mu + lam, 0.0],
+                [0.0, 0.0, 0.0, 2.0 * mu],
             ]
         )
 
@@ -63,11 +61,9 @@ class PlaneStrainSpringKelvinLaw:
 
 
 class PlaneStressSpringKelvinLaw:
-    def get_D_0(self, mu0: float, lam0: float, E0: float, nu: float) -> np.ndarray:
-        _ = mu0
-        _ = lam0
+    def get_D(self, E: float, nu: float) -> np.ndarray:
         return (
-            E0
+            E
             / (1 - nu**2.0)
             * np.array(
                 [
@@ -87,11 +83,9 @@ class PlaneStressSpringKelvinLaw:
 
 
 class UniaxialStressSpringKelvinLaw:
-    def get_D_0(self, mu0: float, lam0: float, E0: float, nu: float) -> np.ndarray:
-        _ = mu0
-        _ = lam0
+    def get_D(self, E: float, nu: float) -> np.ndarray:
         _ = nu
-        return np.array([[E0]])
+        return np.array([[E]])
 
     def get_I2(self, stress_strain_dim: int) -> np.ndarray:
         I2 = np.zeros(stress_strain_dim, dtype=np.float64)
@@ -128,10 +122,6 @@ class SpringKelvinModel(IncrSmallStrainModel):
         else:
             self.nu = parameters["nu"]  # Poisson's ratio
 
-        # lame constants (need to be updated if time dependent material parameters are used)
-        self.mu0, self.lam0 = lame_parameters(self.E0, self.nu)
-        self.mu1, _ = lame_parameters(self.E1, self.nu)
-
         law_map = {
             StressStrainConstraint.FULL: FullSpringKelvinLaw(),
             StressStrainConstraint.PLANE_STRAIN: PlaneStrainSpringKelvinLaw(),
@@ -143,8 +133,10 @@ class SpringKelvinModel(IncrSmallStrainModel):
         except KeyError as err:
             msg = "Constraint not implemented"
             raise NotImplementedError(msg) from err
-        self.D_0 = law.get_D_0(self.mu0, self.lam0, self.E0, self.nu)
+        self.D_0 = law.get_D(self.E0, self.nu)
         self.I2 = law.get_I2(self.stress_strain_dim)
+        self.mu0, self.lam0 = lame_parameters(self.E0, self.nu)
+        self.mu1, _ = lame_parameters(self.E1, self.nu)
 
     def evaluate(
         self,

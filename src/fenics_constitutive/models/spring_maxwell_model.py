@@ -14,88 +14,41 @@ from .utils import lame_parameters
 
 
 class SpringMaxwellElasticityLaw(Protocol):
-    def get_D_0(self, mu0: float, lam0: float, E0: float, nu: float) -> np.ndarray: ...
-    def get_D_1(self, mu1: float, lam1: float, E1: float, nu: float) -> np.ndarray: ...
+    def get_D(self, E: float, nu: float) -> np.ndarray: ...
 
 
 class FullSpringMaxwellLaw:
-    def get_D_0(self, mu0: float, lam0: float, E0: float, nu: float) -> np.ndarray:
-        _ = E0
-        _ = nu
+    def get_D(self, E: float, nu: float) -> np.ndarray:
+        mu, lam = lame_parameters(E, nu)
         return np.array(
             [
-                [2.0 * mu0 + lam0, lam0, lam0, 0.0, 0.0, 0.0],
-                [lam0, 2.0 * mu0 + lam0, lam0, 0.0, 0.0, 0.0],
-                [lam0, lam0, 2.0 * mu0 + lam0, 0.0, 0.0, 0.0],
-                [0.0, 0.0, 0.0, 2.0 * mu0, 0.0, 0.0],
-                [0.0, 0.0, 0.0, 0.0, 2.0 * mu0, 0.0],
-                [0.0, 0.0, 0.0, 0.0, 0.0, 2.0 * mu0],
-            ]
-        )
-
-    def get_D_1(self, mu1: float, lam1: float, E1: float, nu: float) -> np.ndarray:
-        _ = E1
-        _ = nu
-        return np.array(
-            [
-                [2.0 * mu1 + lam1, lam1, lam1, 0.0, 0.0, 0.0],
-                [lam1, 2.0 * mu1 + lam1, lam1, 0.0, 0.0, 0.0],
-                [lam1, lam1, 2.0 * mu1 + lam1, 0.0, 0.0, 0.0],
-                [0.0, 0.0, 0.0, 2.0 * mu1, 0.0, 0.0],
-                [0.0, 0.0, 0.0, 0.0, 2.0 * mu1, 0.0],
-                [0.0, 0.0, 0.0, 0.0, 0.0, 2.0 * mu1],
+                [2.0 * mu + lam, lam, lam, 0.0, 0.0, 0.0],
+                [lam, 2.0 * mu + lam, lam, 0.0, 0.0, 0.0],
+                [lam, lam, 2.0 * mu + lam, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 2.0 * mu, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0, 2.0 * mu, 0.0],
+                [0.0, 0.0, 0.0, 0.0, 0.0, 2.0 * mu],
             ]
         )
 
 
 class PlaneStrainSpringMaxwellLaw:
-    def get_D_0(self, mu0: float, lam0: float, E0: float, nu: float) -> np.ndarray:
-        _ = E0
-        _ = nu
+    def get_D(self, E: float, nu: float) -> np.ndarray:
+        mu, lam = lame_parameters(E, nu)
         return np.array(
             [
-                [2.0 * mu0 + lam0, lam0, lam0, 0.0],
-                [lam0, 2.0 * mu0 + lam0, lam0, 0.0],
-                [lam0, lam0, 2.0 * mu0 + lam0, 0.0],
-                [0.0, 0.0, 0.0, 2.0 * mu0],
-            ]
-        )
-
-    def get_D_1(self, mu1: float, lam1: float, E1: float, nu: float) -> np.ndarray:
-        _ = E1
-        _ = nu
-        return np.array(
-            [
-                [2.0 * mu1 + lam1, lam1, lam1, 0.0],
-                [lam1, 2.0 * mu1 + lam1, lam1, 0.0],
-                [lam1, lam1, 2.0 * mu1 + lam1, 0.0],
-                [0.0, 0.0, 0.0, 2.0 * mu1],
+                [2.0 * mu + lam, lam, lam, 0.0],
+                [lam, 2.0 * mu + lam, lam, 0.0],
+                [lam, lam, 2.0 * mu + lam, 0.0],
+                [0.0, 0.0, 0.0, 2.0 * mu],
             ]
         )
 
 
 class PlaneStressSpringMaxwellLaw:
-    def get_D_0(self, mu0: float, lam0: float, E0: float, nu: float) -> np.ndarray:
-        _ = mu0
-        _ = lam0
+    def get_D(self, E: float, nu: float) -> np.ndarray:
         return (
-            E0
-            / (1 - nu**2.0)
-            * np.array(
-                [
-                    [1.0, nu, 0.0, 0.0],
-                    [nu, 1.0, 0.0, 0.0],
-                    [0.0, 0.0, 0.0, 0.0],
-                    [0.0, 0.0, 0.0, (1.0 - nu)],
-                ]
-            )
-        )
-
-    def get_D_1(self, mu1: float, lam1: float, E1: float, nu: float) -> np.ndarray:
-        _ = mu1
-        _ = lam1
-        return (
-            E1
+            E
             / (1 - nu**2.0)
             * np.array(
                 [
@@ -109,17 +62,9 @@ class PlaneStressSpringMaxwellLaw:
 
 
 class UniaxialStressSpringMaxwellLaw:
-    def get_D_0(self, mu0: float, lam0: float, E0: float, nu: float) -> np.ndarray:
-        _ = mu0
-        _ = lam0
+    def get_D(self, E: float, nu: float) -> np.ndarray:
         _ = nu
-        return np.array([[E0]])
-
-    def get_D_1(self, mu1: float, lam1: float, E1: float, nu: float) -> np.ndarray:
-        _ = mu1
-        _ = lam1
-        _ = nu
-        return np.array([[E1]])
+        return np.array([[E]])
 
 
 class SpringMaxwellModel(IncrSmallStrainModel):
@@ -150,10 +95,6 @@ class SpringMaxwellModel(IncrSmallStrainModel):
         else:
             self.nu = parameters["nu"]  # Poisson's ratio
 
-        # lame constants (need to be updated if time dependent material parameters are used)
-        self.mu0, self.lam0 = lame_parameters(self.E0, self.nu)
-        self.mu1, self.lam1 = lame_parameters(self.E1, self.nu)
-
         law_map: dict[StressStrainConstraint, SpringMaxwellElasticityLaw] = {
             StressStrainConstraint.FULL: FullSpringMaxwellLaw(),
             StressStrainConstraint.PLANE_STRAIN: PlaneStrainSpringMaxwellLaw(),
@@ -165,8 +106,8 @@ class SpringMaxwellModel(IncrSmallStrainModel):
         except KeyError as err:
             msg = "Constraint not implemented"
             raise NotImplementedError(msg) from err
-        self.D_0 = law.get_D_0(self.mu0, self.lam0, self.E0, self.nu)
-        self.D_1 = law.get_D_1(self.mu1, self.lam1, self.E1, self.nu)
+        self.D_0 = law.get_D(self.E0, self.nu)
+        self.D_1 = law.get_D(self.E1, self.nu)
 
     def evaluate(
         self,
@@ -199,18 +140,20 @@ class SpringMaxwellModel(IncrSmallStrainModel):
 
         assert del_t > 0, "Time step must be defined and positive."
 
+        mu1, _ = lame_parameters(self.E1, self.nu)
+
         strain_total = strain_n + strain_increment
         factor = 1 / del_t + 1 / self.tau
         _deps_visko = (
             1
             / factor
             * (
-                1 / (self.tau * 2 * self.mu1) * strain_total @ self.D_1
+                1 / (self.tau * 2 * mu1) * strain_total @ self.D_1
                 - 1 / self.tau * strain_visco_n
             )
         )
 
-        dstress = strain_increment @ (self.D_0 + self.D_1) - 2 * self.mu1 * _deps_visko
+        dstress = strain_increment @ (self.D_0 + self.D_1) - 2 * mu1 * _deps_visko
         mandel_view += dstress
         D = self.D_0 + (1 - 1 / (self.tau * factor)) * self.D_1
 
