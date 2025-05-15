@@ -10,6 +10,8 @@ from fenics_constitutive import (
     strain_from_grad_u,
 )
 
+from .utils import lame_parameters
+
 
 class SpringKelvinElasticityLaw(Protocol):
     def get_D_0(self, mu0: float, lam0: float, E0: float, nu: float) -> np.ndarray: ...
@@ -127,9 +129,8 @@ class SpringKelvinModel(IncrSmallStrainModel):
             self.nu = parameters["nu"]  # Poisson's ratio
 
         # lame constants (need to be updated if time dependent material parameters are used)
-        self.mu0 = self.E0 / (2.0 * (1.0 + self.nu))
-        self.lam0 = self.E0 * self.nu / ((1.0 + self.nu) * (1.0 - 2.0 * self.nu))
-        self.mu1 = self.E1 / (2.0 * (1.0 + self.nu))
+        self.mu0, self.lam0 = lame_parameters(self.E0, self.nu)
+        self.mu1, _ = lame_parameters(self.E1, self.nu)
 
         law_map = {
             StressStrainConstraint.FULL: FullSpringKelvinLaw(),

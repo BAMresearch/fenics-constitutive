@@ -10,6 +10,8 @@ from fenics_constitutive import (
     strain_from_grad_u,
 )
 
+from .utils import lame_parameters
+
 
 class LinearElasticityModel(IncrSmallStrainModel):
     """
@@ -80,8 +82,7 @@ class ElasticityConstitutiveLaw(Protocol):
 
 class FullConstraintLaw(ElasticityConstitutiveLaw):
     def get_D(self, E: float, nu: float) -> np.ndarray:
-        mu = E / (2.0 * (1.0 + nu))
-        lam = E * nu / ((1.0 + nu) * (1.0 - 2.0 * nu))
+        mu, lam = lame_parameters(E, nu)
         return np.array(
             [
                 [2.0 * mu + lam, lam, lam, 0.0, 0.0, 0.0],
@@ -96,8 +97,7 @@ class FullConstraintLaw(ElasticityConstitutiveLaw):
 
 class PlaneStrainLaw(ElasticityConstitutiveLaw):
     def get_D(self, E: float, nu: float) -> np.ndarray:
-        mu = E / (2.0 * (1.0 + nu))
-        lam = E * nu / ((1.0 + nu) * (1.0 - 2.0 * nu))
+        mu, lam = lame_parameters(E, nu)
         return np.array(
             [
                 [2.0 * mu + lam, lam, lam, 0.0],
