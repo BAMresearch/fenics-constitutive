@@ -18,26 +18,28 @@ from .maps import SubSpaceMap, build_subspace_map
 from .stress_strain import ufl_mandel_strain
 
 
-class BaseLawProtocol(Protocol):
+class Law(Protocol):
     law: IncrSmallStrainModel
     cells: np.ndarray
     del_grad_u: df.fem.Function
     tangent: df.fem.Function
     history: History | None
 
-    def get_stress_and_tangent(self, solver: Any) -> tuple[np.ndarray, np.ndarray]: ...
+    def update_stress_and_tangent(
+        self, solver: Any
+    ) -> tuple[np.ndarray, np.ndarray]: ...
     def map_to_parent(self, solver: Any) -> None: ...
 
 
 @dataclass
-class SingleLaw(BaseLawProtocol):
+class SingleLaw(Law):
     law: IncrSmallStrainModel
     cells: np.ndarray
     del_grad_u: df.fem.Function
     tangent: df.fem.Function
     history: History | None = None
 
-    def get_stress_and_tangent(self, solver: Any) -> tuple[np.ndarray, np.ndarray]:
+    def update_stress_and_tangent(self, solver: Any) -> tuple[np.ndarray, np.ndarray]:
         solver.stress_1.x.array[:] = solver.stress_0.x.array
         solver.stress_1.x.scatter_forward()
         return solver.stress_1.x.array, solver.tangent.x.array
@@ -48,7 +50,7 @@ class SingleLaw(BaseLawProtocol):
 
 
 @dataclass
-class MultiLaw(BaseLawProtocol):
+class MultiLaw(Law):
     law: IncrSmallStrainModel
     cells: np.ndarray
     del_grad_u: df.fem.Function
@@ -57,7 +59,7 @@ class MultiLaw(BaseLawProtocol):
     submesh_map: SubSpaceMap
     history: History | None = None
 
-    def get_stress_and_tangent(self, solver: Any) -> tuple[np.ndarray, np.ndarray]:
+    def update_stress_and_tangent(self, solver: Any) -> tuple[np.ndarray, np.ndarray]:
         self.submesh_map.map_to_child(solver.stress_0, self.stress)
         return self.stress.x.array, self.tangent.x.array
 
@@ -136,7 +138,7 @@ class IncrSmallStrainProblem(NonlinearProblem):
         QV = df.fem.functionspace(mesh, QVe)
         QT = df.fem.functionspace(mesh, QTe)
 
-        self._laws: list[BaseLawProtocol] = []  # Holds SingleLaw or MultiLaw, type-safe
+        self._laws: list[Law] = []  # Holds SingleLaw or MultiLaw, type-safe
         self._del_t = del_t  # time increment
         self._time = 0  # global time will be updated in the update method
 
@@ -287,11 +289,10 @@ class IncrSmallStrainProblem(NonlinearProblem):
                 cells1=np.arange(cells.size, dtype=np.int32),
             )
             law.del_grad_u.x.scatter_forward()
-            stress_input, tangent_input = law.get_stress_and_tangent(self)
+            stress_input, tangent_input = law.update_stress_and_tangent(self)
             history_input = None
             if law.history is not None:
                 history_input = law.history.advance()
-
             with df.common.Timer("constitutive-law-evaluation"):
                 law.law.evaluate(
                     self._time,
@@ -301,9 +302,7 @@ class IncrSmallStrainProblem(NonlinearProblem):
                     tangent_input,
                     history_input,
                 )
-
             law.map_to_parent(self)
-
         self.stress_1.x.scatter_forward()
         self.tangent.x.scatter_forward()
 
