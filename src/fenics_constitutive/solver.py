@@ -20,6 +20,8 @@ from .stress_strain import ufl_mandel_strain
 
 @dataclass
 class LawData:
+    law: IncrSmallStrainModel
+    cells: np.ndarray
     del_grad_u: df.fem.Function
     stress: df.fem.Function | None  # None for single-law/homogeneous case
     tangent: df.fem.Function
@@ -96,17 +98,14 @@ class IncrSmallStrainProblem(NonlinearProblem):
         QV = df.fem.functionspace(mesh, QVe)
         QT = df.fem.functionspace(mesh, QTe)
 
-        self.laws: list[tuple[IncrSmallStrainModel, np.ndarray]] = []
         self.submesh_maps: list[SubSpaceMap] = []
-        self._law_data: list[LawData] = []
+        self._laws: list[LawData] = []
 
         self._del_t = del_t  # time increment
         self._time = 0  # global time will be updated in the update method
 
         # if len(laws) > 1:
         for law, cells in laws:
-            self.laws.append((law, cells))
-
             # default case for homogenous domain
             submesh = mesh
             stress_fn = None
@@ -130,8 +129,10 @@ class IncrSmallStrainProblem(NonlinearProblem):
             QT_subspace = df.fem.functionspace(submesh, QTe)
             tangent_fn = df.fem.Function(QT_subspace)
 
-            self._law_data.append(
+            self._laws.append(
                 LawData(
+                    law=law,
+                    cells=cells,
                     del_grad_u=del_grad_u_fn,
                     stress=stress_fn,
                     history=History.try_create(law, submesh, q_degree),
@@ -179,7 +180,7 @@ class IncrSmallStrainProblem(NonlinearProblem):
         def _history_or_none(law_data: LawData) -> dict[str, Function] | None:
             return law_data.history.history_0 if law_data.history else None
 
-        return [_history_or_none(law_data) for law_data in self._law_data]
+        return [_history_or_none(law_data) for law_data in self._laws]
 
     @property
     def _history_1(self) -> list[Dict[str, Function] | None]:
@@ -188,12 +189,12 @@ class IncrSmallStrainProblem(NonlinearProblem):
         def _history_or_none(law_data: LawData) -> dict[str, Function] | None:
             return law_data.history.history_1 if law_data.history else None
 
-        return [_history_or_none(law_data) for law_data in self._law_data]
+        return [_history_or_none(law_data) for law_data in self._laws]
 
     @property
     def _del_grad_u(self) -> list[Function]:
         """Return a list of del_grad_u Functions for all laws (for backward compatibility)."""
-        return [law_data.del_grad_u for law_data in self._law_data]
+        return [law_data.del_grad_u for law_data in self._laws]
 
     @property
     def a(self) -> df.fem.FormMetaClass:
@@ -237,8 +238,9 @@ class IncrSmallStrainProblem(NonlinearProblem):
         # ), f"The solution vector must be the same as the one passed to the MechanicsProblem. Got {x.array.data} and {self._u.vector.array.data}"
 
         # if len(self.laws) > 1:
-        for k, (law, cells) in enumerate(self.laws):
-            law_data = self._law_data[k]
+        for k, law_data in enumerate(self._laws):
+            law = law_data.law
+            cells = law_data.cells
 
             law_data.del_grad_u.interpolate(
                 self.del_grad_u_expr,
@@ -247,7 +249,7 @@ class IncrSmallStrainProblem(NonlinearProblem):
             )
 
             law_data.del_grad_u.x.scatter_forward()
-            if len(self.laws) > 1 and law_data.stress is not None:
+            if len(self._laws) > 1 and law_data.stress is not None:
                 self.submesh_maps[k].map_to_child(self.stress_0, law_data.stress)
                 stress_input = law_data.stress.x.array
                 tangent_input = law_data.tangent.x.array
@@ -270,7 +272,8 @@ class IncrSmallStrainProblem(NonlinearProblem):
                     tangent_input,
                     history_input,
                 )
-            if len(self.laws) > 1 and law_data.stress is not None:
+
+            if len(self._laws) > 1 and law_data.stress is not None:
                 self.submesh_maps[k].map_to_parent(law_data.stress, self.stress_1)
                 self.submesh_maps[k].map_to_parent(law_data.tangent, self.tangent)
 
@@ -287,8 +290,7 @@ class IncrSmallStrainProblem(NonlinearProblem):
         self.stress_0.x.array[:] = self.stress_1.x.array
         self.stress_0.x.scatter_forward()
 
-        for k, _ in enumerate(self.laws):
-            law_data = self._law_data[k]
+        for k, law_data in enumerate(self._laws):
             if law_data.history is not None:
                 law_data.history.commit()
 
