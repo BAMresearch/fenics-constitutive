@@ -1,44 +1,29 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+from typing import Dict
+
 import basix
 import basix.ufl
 import dolfinx as df
 import numpy as np
 import ufl
 from dolfinx.fem.petsc import NonlinearProblem
+from dolfinx.fem.function import Function
 from petsc4py import PETSc
 
+from .history import History
 from .interfaces import IncrSmallStrainModel
 from .maps import SubSpaceMap, build_subspace_map
 from .stress_strain import ufl_mandel_strain
 
 
-def build_history(
-    law: IncrSmallStrainModel, mesh: df.mesh.Mesh, q_degree: int
-) -> dict[str, df.fem.Function] | None:
-    """Build the history space and function(s) for the given law.
-
-    Args:
-        law: The constitutive law.
-        mesh: Either the full mesh for a homogenous domain or the submesh.
-        q_degree: The quadrature degree.
-
-    Returns:
-        The history function(s) for the given law or None if the history dimension is 0.
-
-    """
-    if law.history_dim is None:
-        return None
-
-    history = {}
-    for key, value in law.history_dim.items():
-        value_shape = (value,) if isinstance(value, int) else value
-        Q = basix.ufl.quadrature_element(
-            mesh.topology.cell_name(), value_shape=value_shape, degree=q_degree
-        )
-        history_space = df.fem.functionspace(mesh, Q)
-        history[key] = df.fem.Function(history_space)
-    return history
+@dataclass
+class LawData:
+    del_grad_u: df.fem.Function
+    stress: df.fem.Function | None  # None for single-law/homogeneous case
+    tangent: df.fem.Function
+    history: History | None = None
 
 
 class IncrSmallStrainProblem(NonlinearProblem):
@@ -113,12 +98,7 @@ class IncrSmallStrainProblem(NonlinearProblem):
 
         self.laws: list[tuple[IncrSmallStrainModel, np.ndarray]] = []
         self.submesh_maps: list[SubSpaceMap] = []
-
-        self._del_grad_u = []
-        self._stress = []
-        self._history_0 = []
-        self._history_1 = []
-        self._tangent = []
+        self._law_data: list[LawData] = []
 
         self._del_t = del_t  # time increment
         self._time = 0  # global time will be updated in the update method
@@ -129,36 +109,39 @@ class IncrSmallStrainProblem(NonlinearProblem):
 
             # default case for homogenous domain
             submesh = mesh
+            stress_fn = None
 
             if len(laws) > 1:
                 # ### submesh and subspace for strain, stress
-                subspace_map, submesh, QV_subspace = build_subspace_map(
-                    cells, QV, return_subspace=True
-                )
+                subspace_map_tuple = build_subspace_map(cells, QV, return_subspace=True)
+                if len(subspace_map_tuple) == 3:
+                    subspace_map, submesh, QV_subspace = subspace_map_tuple
+                else:
+                    subspace_map, submesh = subspace_map_tuple
+                    QV_subspace = QV  # fallback
                 self.submesh_maps.append(subspace_map)
-                self._stress.append(df.fem.Function(QV_subspace))
+                stress_fn = fn_for(QV_subspace)
 
             # subspace for grad u
             Q_grad_u_subspace = df.fem.functionspace(submesh, Q_grad_u_e)
-            self._del_grad_u.append(df.fem.Function(Q_grad_u_subspace))
+            del_grad_u_fn = df.fem.Function(Q_grad_u_subspace)
 
             # subspace for tanget
             QT_subspace = df.fem.functionspace(submesh, QTe)
-            self._tangent.append(df.fem.Function(QT_subspace))
+            tangent_fn = df.fem.Function(QT_subspace)
 
-            # subspaces for history
-            history_0 = build_history(law, submesh, q_degree)
-            history_1 = (
-                {key: fn.copy() for key, fn in history_0.items()}
-                if isinstance(history_0, dict)
-                else history_0
+            self._law_data.append(
+                LawData(
+                    del_grad_u=del_grad_u_fn,
+                    stress=stress_fn,
+                    history=History.try_create(law, submesh, q_degree),
+                    tangent=tangent_fn,
+                )
             )
-            self._history_0.append(history_0)
-            self._history_1.append(history_1)
 
-        self.stress_0 = df.fem.Function(QV)
-        self.stress_1 = df.fem.Function(QV)
-        self.tangent = df.fem.Function(QT)
+        self.stress_0 = fn_for(QV)
+        self.stress_1 = fn_for(QV)
+        self.tangent = fn_for(QT)
 
         u_, du = ufl.TestFunction(u.function_space), ufl.TrialFunction(u.function_space)
 
@@ -188,6 +171,29 @@ class IncrSmallStrainProblem(NonlinearProblem):
         self.del_grad_u_expr = df.fem.Expression(
             ufl.nabla_grad(self._u - self._u0), self.q_points
         )
+
+    @property
+    def _history_0(self) -> list[Dict[str, Function] | None]:
+        """Return a list of history_0 dicts for all laws (for backward compatibility)."""
+
+        def _history_or_none(law_data: LawData) -> dict[str, Function] | None:
+            return law_data.history.history_0 if law_data.history else None
+
+        return [_history_or_none(law_data) for law_data in self._law_data]
+
+    @property
+    def _history_1(self) -> list[Dict[str, Function] | None]:
+        """Return a list of history_1 dicts for all laws (for backward compatibility)."""
+
+        def _history_or_none(law_data: LawData) -> dict[str, Function] | None:
+            return law_data.history.history_1 if law_data.history else None
+
+        return [_history_or_none(law_data) for law_data in self._law_data]
+
+    @property
+    def _del_grad_u(self) -> list[Function]:
+        """Return a list of del_grad_u Functions for all laws (for backward compatibility)."""
+        return [law_data.del_grad_u for law_data in self._law_data]
 
     @property
     def a(self) -> df.fem.FormMetaClass:
@@ -232,21 +238,19 @@ class IncrSmallStrainProblem(NonlinearProblem):
 
         # if len(self.laws) > 1:
         for k, (law, cells) in enumerate(self.laws):
-            self._del_grad_u[k].interpolate(
+            law_data = self._law_data[k]
+
+            law_data.del_grad_u.interpolate(
                 self.del_grad_u_expr,
                 cells0=cells,
                 cells1=np.arange(cells.size, dtype=np.int32),
             )
-            # self.del_grad_u_expr.eval(
-            #    self._del_grad_u[k].function_space.mesh,
-            #    cells,
-            #    self._del_grad_u[k].x.array.reshape(cells.size, -1),
-            # )
-            self._del_grad_u[k].x.scatter_forward()
-            if len(self.laws) > 1:
-                self.submesh_maps[k].map_to_child(self.stress_0, self._stress[k])
-                stress_input = self._stress[k].x.array
-                tangent_input = self._tangent[k].x.array
+
+            law_data.del_grad_u.x.scatter_forward()
+            if len(self.laws) > 1 and law_data.stress is not None:
+                self.submesh_maps[k].map_to_child(self.stress_0, law_data.stress)
+                stress_input = law_data.stress.x.array
+                tangent_input = law_data.tangent.x.array
             else:
                 self.stress_1.x.array[:] = self.stress_0.x.array
                 self.stress_1.x.scatter_forward()
@@ -254,23 +258,21 @@ class IncrSmallStrainProblem(NonlinearProblem):
                 tangent_input = self.tangent.x.array
 
             history_input = None
-            if law.history_dim is not None:
-                history_input = {}
-                for key in law.history_dim:
-                    self._history_1[k][key].x.array[:] = self._history_0[k][key].x.array
-                    history_input[key] = self._history_1[k][key].x.array
+            if law_data.history is not None:
+                history_input = law_data.history.advance()
+
             with df.common.Timer("constitutive-law-evaluation"):
                 law.evaluate(
                     self._time,
                     self._del_t,
-                    self._del_grad_u[k].x.array,
+                    law_data.del_grad_u.x.array,
                     stress_input,
                     tangent_input,
                     history_input,
                 )
-            if len(self.laws) > 1:
-                self.submesh_maps[k].map_to_parent(self._stress[k], self.stress_1)
-                self.submesh_maps[k].map_to_parent(self._tangent[k], self.tangent)
+            if len(self.laws) > 1 and law_data.stress is not None:
+                self.submesh_maps[k].map_to_parent(law_data.stress, self.stress_1)
+                self.submesh_maps[k].map_to_parent(law_data.tangent, self.tangent)
 
         self.stress_1.x.scatter_forward()
         self.tangent.x.scatter_forward()
@@ -285,12 +287,17 @@ class IncrSmallStrainProblem(NonlinearProblem):
         self.stress_0.x.array[:] = self.stress_1.x.array
         self.stress_0.x.scatter_forward()
 
-        for k, (law, _) in enumerate(self.laws):
-            # law.update()
-            if law.history_dim is not None:
-                for key in law.history_dim:
-                    self._history_0[k][key].x.array[:] = self._history_1[k][key].x.array
-                    self._history_0[k][key].x.scatter_forward()
+        for k, _ in enumerate(self.laws):
+            law_data = self._law_data[k]
+            if law_data.history is not None:
+                law_data.history.commit()
 
         # time update
         self._time += self._del_t
+
+
+def fn_for(space: df.fem.FunctionSpace) -> df.fem.Function:
+    """Create a Function for the given FunctionSpace."""
+    function = df.fem.Function(space)
+    assert isinstance(function, df.fem.Function)
+    return function
