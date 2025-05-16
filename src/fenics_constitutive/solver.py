@@ -18,7 +18,7 @@ from .maps import SubSpaceMap, build_subspace_map
 from .stress_strain import ufl_mandel_strain
 
 
-class Law(Protocol):
+class LawContext(Protocol):
     law: IncrSmallStrainModel
     cells: np.ndarray
     del_grad_u: df.fem.Function
@@ -32,7 +32,7 @@ class Law(Protocol):
 
 
 @dataclass
-class SingleLaw(Law):
+class SingleLawContext(LawContext):
     law: IncrSmallStrainModel
     cells: np.ndarray
     del_grad_u: df.fem.Function
@@ -50,7 +50,7 @@ class SingleLaw(Law):
 
 
 @dataclass
-class MultiLaw(Law):
+class MultiLawContext(LawContext):
     law: IncrSmallStrainModel
     cells: np.ndarray
     del_grad_u: df.fem.Function
@@ -138,7 +138,7 @@ class IncrSmallStrainProblem(NonlinearProblem):
         QV = df.fem.functionspace(mesh, QVe)
         QT = df.fem.functionspace(mesh, QTe)
 
-        self._laws: list[Law] = []  # Holds SingleLaw or MultiLaw, type-safe
+        self._laws: list[LawContext] = []  # Holds SingleLawContext or MultiLawContext, type-safe
         self._del_t = del_t  # time increment
         self._time = 0  # global time will be updated in the update method
 
@@ -150,7 +150,7 @@ class IncrSmallStrainProblem(NonlinearProblem):
             QT_subspace = df.fem.functionspace(mesh, QTe)
             tangent_fn: df.fem.Function = fn_for(QT_subspace)
             self._laws.append(
-                SingleLaw(
+                SingleLawContext(
                     law=law,
                     cells=cells,
                     del_grad_u=del_grad_u_fn,
@@ -173,7 +173,7 @@ class IncrSmallStrainProblem(NonlinearProblem):
                 QT_subspace = df.fem.functionspace(submesh, QTe)
                 tangent_fn: df.fem.Function = fn_for(QT_subspace)
                 self._laws.append(
-                    MultiLaw(
+                    MultiLawContext(
                         law=law,
                         cells=cells,
                         del_grad_u=del_grad_u_fn,
