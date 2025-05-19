@@ -16,11 +16,7 @@ from fenics_constitutive.maps import build_subspace_map
 from fenics_constitutive.stress_strain import ufl_mandel_strain
 
 from ._history import History
-from ._lawcontext import (
-    LawContext,
-    MultiLawContext,
-    SingleLawContext,
-)
+from ._lawcontext import LawContext, MultiLawContext, SingleLawContext
 
 
 @dataclass(slots=True)
@@ -80,7 +76,7 @@ class IncrementalDisplacement:
 class IncrementalStress:
     __slots__ = ("_current", "_previous")
 
-    def __init__(self, function_space):
+    def __init__(self, function_space) -> None:
         self._current = fn_for(function_space)
         self._previous = fn_for(function_space)
 
@@ -149,7 +145,7 @@ class IncrSmallStrainProblem(NonlinearProblem):
         del_t: float = 1.0,
         form_compiler_options: dict | None = None,
         jit_options: dict | None = None,
-    ):
+    ) -> None:
         mesh = u.function_space.mesh
         map_c = mesh.topology.index_map(mesh.topology.dim)
         num_cells = map_c.size_local + map_c.num_ghosts
@@ -289,7 +285,7 @@ class IncrSmallStrainProblem(NonlinearProblem):
         self.incr_disp.update_current(x)
 
         for law_ctx in self._law_contexts:
-            law_ctx.step(self)
+            law_ctx.step(self.sim_time, self.incr_disp, self.stress, self.tangent)
 
         self.stress.scatter_current()
         self.tangent.x.scatter_forward()
@@ -302,8 +298,7 @@ class IncrSmallStrainProblem(NonlinearProblem):
         self.stress.update_previous()
 
         for law in self._law_contexts:
-            if law.history is not None:
-                law.history.commit()
+            law.commit_history()
 
         self.sim_time.advance()
 
