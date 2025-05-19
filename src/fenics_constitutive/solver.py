@@ -21,51 +21,130 @@ from .stress_strain import ufl_mandel_strain
 class LawContext(Protocol):
     law: IncrSmallStrainModel
     cells: np.ndarray
-    del_grad_u: df.fem.Function
+    displacement_gradient_fn: df.fem.Function
     tangent: df.fem.Function
     history: History | None
 
     def update_stress_and_tangent(
-        self, solver: Any
+        self, solver: IncrSmallStrainProblem
     ) -> tuple[np.ndarray, np.ndarray]: ...
-    def map_to_parent(self, solver: Any) -> None: ...
+    def map_to_parent(self, solver: IncrSmallStrainProblem) -> None: ...
+    def displacement_gradient(self) -> np.ndarray: ...
+    def scatter_displacement_gradient(self) -> None: ...
 
 
 @dataclass
 class SingleLawContext(LawContext):
     law: IncrSmallStrainModel
     cells: np.ndarray
-    del_grad_u: df.fem.Function
+    displacement_gradient_fn: df.fem.Function
     tangent: df.fem.Function
     history: History | None = None
 
-    def update_stress_and_tangent(self, solver: Any) -> tuple[np.ndarray, np.ndarray]:
-        solver.stress_1.x.array[:] = solver.stress_0.x.array
-        solver.stress_1.x.scatter_forward()
+    def update_stress_and_tangent(
+        self, solver: IncrSmallStrainProblem
+    ) -> tuple[np.ndarray, np.ndarray]:
+        solver.stress.update_current()
         return solver.stress_1.x.array, solver.tangent.x.array
 
-    def map_to_parent(self, solver: Any) -> None:
+    def map_to_parent(self, solver: IncrSmallStrainProblem) -> None:
         # No mapping needed in single law case
         pass
+
+    def displacement_gradient(self) -> np.ndarray:
+        return self.displacement_gradient_fn.x.array.reshape(self.cells.size, -1)
+
+    def scatter_displacement_gradient(self) -> None:
+        self.displacement_gradient_fn.x.scatter_forward()
 
 
 @dataclass
 class MultiLawContext(LawContext):
     law: IncrSmallStrainModel
     cells: np.ndarray
-    del_grad_u: df.fem.Function
+    displacement_gradient_fn: df.fem.Function
     stress: df.fem.Function
     tangent: df.fem.Function
     submesh_map: SubSpaceMap
     history: History | None = None
 
-    def update_stress_and_tangent(self, solver: Any) -> tuple[np.ndarray, np.ndarray]:
-        self.submesh_map.map_to_child(solver.stress_0, self.stress)
+    def update_stress_and_tangent(
+        self, solver: IncrSmallStrainProblem
+    ) -> tuple[np.ndarray, np.ndarray]:
+        self.submesh_map.map_to_child(solver.stress.previous, self.stress)
         return self.stress.x.array, self.tangent.x.array
 
-    def map_to_parent(self, solver: Any) -> None:
-        self.submesh_map.map_to_parent(self.stress, solver.stress_1)
+    def map_to_parent(self, solver: IncrSmallStrainProblem) -> None:
+        self.submesh_map.map_to_parent(self.stress, solver.stress.current)
         self.submesh_map.map_to_parent(self.tangent, solver.tangent)
+
+    def displacement_gradient(self) -> np.ndarray:
+        return self.displacement_gradient_fn.x.array.reshape(self.cells.size, -1)
+
+    def scatter_displacement_gradient(self) -> None:
+        self.displacement_gradient_fn.x.scatter_forward()
+
+
+@dataclass
+class IncrementalDisplacement:
+    __slots__ = ("_expr", "current", "previous", "q_points", "u")
+
+    u: df.fem.Function
+    q_points: Any  # unsure what the type of q_points is
+
+    def __post_init__(self) -> None:
+        self.current = self.u
+        self.previous = self.u.copy()
+        self._expr = df.fem.Expression(
+            ufl.nabla_grad(self.current - self.previous), self.q_points
+        )
+
+    def update_previous(self) -> None:
+        self.previous.x.array[:] = self.current.x.array
+        self.previous.x.scatter_forward()
+
+    def update_current(self, x: np.ndarray) -> None:
+        """Copy the solution vector x into the current displacement and update ghosts."""
+        x.copy(self.current.x.petsc_vec)
+        self.current.x.petsc_vec.ghostUpdate(
+            addv=PETSc.InsertMode.INSERT, mode=PETSc.ScatterMode.FORWARD
+        )
+
+    def evaluate_incremental_gradient(self, law_ctx: LawContext) -> None:
+        """Evaluate the incremental displacement gradient at the given cells and write to out_array."""
+        law_ctx.displacement_gradient_fn.interpolate(
+            self._expr,
+            cells0=law_ctx.cells,
+            cells1=np.arange(law_ctx.cells.size, dtype=np.int32),
+        )
+        law_ctx.scatter_displacement_gradient()
+
+
+class IncrementalStress:
+    __slots__ = ("_current", "_previous")
+
+    def __init__(self, function_space):
+        self._current = fn_for(function_space)
+        self._previous = fn_for(function_space)
+
+    @property
+    def current(self) -> df.fem.Function:
+        return self._current
+
+    @property
+    def previous(self) -> df.fem.Function:
+        return self._previous
+
+    def update_previous(self) -> None:
+        self._previous.x.array[:] = self._current.x.array
+        self._previous.x.scatter_forward()
+
+    def update_current(self) -> None:
+        self._current.x.array[:] = self._previous.x.array
+        self._current.x.scatter_forward()
+
+    def scatter_current(self) -> None:
+        self._current.x.scatter_forward()
 
 
 class IncrSmallStrainProblem(NonlinearProblem):
@@ -138,7 +217,7 @@ class IncrSmallStrainProblem(NonlinearProblem):
         QV = df.fem.functionspace(mesh, QVe)
         QT = df.fem.functionspace(mesh, QTe)
 
-        self._laws: list[LawContext] = []  # Holds SingleLawContext or MultiLawContext, type-safe
+        self._law_contexts: list[LawContext] = []
         self._del_t = del_t  # time increment
         self._time = 0  # global time will be updated in the update method
 
@@ -146,14 +225,14 @@ class IncrSmallStrainProblem(NonlinearProblem):
             # Single law case
             law, cells = laws[0]
             Q_grad_u_subspace = df.fem.functionspace(mesh, Q_grad_u_e)
-            del_grad_u_fn = fn_for(Q_grad_u_subspace)
+            inc_disp_grad_fn = fn_for(Q_grad_u_subspace)
             QT_subspace = df.fem.functionspace(mesh, QTe)
             tangent_fn: df.fem.Function = fn_for(QT_subspace)
-            self._laws.append(
+            self._law_contexts.append(
                 SingleLawContext(
                     law=law,
                     cells=cells,
-                    del_grad_u=del_grad_u_fn,
+                    displacement_gradient_fn=inc_disp_grad_fn,
                     tangent=tangent_fn,
                     history=History.try_create(law, mesh, q_degree),
                 )
@@ -169,14 +248,14 @@ class IncrSmallStrainProblem(NonlinearProblem):
                     QV_subspace = QV  # fallback
                 stress_fn = fn_for(QV_subspace)
                 Q_grad_u_subspace = df.fem.functionspace(submesh, Q_grad_u_e)
-                del_grad_u_fn = fn_for(Q_grad_u_subspace)
+                inc_disp_grad_fn = fn_for(Q_grad_u_subspace)
                 QT_subspace = df.fem.functionspace(submesh, QTe)
                 tangent_fn: df.fem.Function = fn_for(QT_subspace)
-                self._laws.append(
+                self._law_contexts.append(
                     MultiLawContext(
                         law=law,
                         cells=cells,
-                        del_grad_u=del_grad_u_fn,
+                        displacement_gradient_fn=inc_disp_grad_fn,
                         stress=stress_fn,
                         tangent=tangent_fn,
                         submesh_map=subspace_map,
@@ -184,8 +263,7 @@ class IncrSmallStrainProblem(NonlinearProblem):
                     )
                 )
 
-        self.stress_0 = fn_for(QV)
-        self.stress_1 = fn_for(QV)
+        self.stress = IncrementalStress(QV)
         self.tangent = fn_for(QT)
 
         u_, du = ufl.TestFunction(u.function_space), ufl.TrialFunction(u.function_space)
@@ -204,8 +282,6 @@ class IncrSmallStrainProblem(NonlinearProblem):
             * self.dxm
         )
 
-        self._u = u
-        self._u0 = u.copy()
         self._bcs = bcs
         self._form_compiler_options = form_compiler_options
         self._jit_options = jit_options
@@ -213,9 +289,7 @@ class IncrSmallStrainProblem(NonlinearProblem):
         basix_celltype = getattr(basix.CellType, mesh.topology.cell_type.name)
         self.q_points, _ = basix.make_quadrature(basix_celltype, q_degree)
 
-        self.del_grad_u_expr = df.fem.Expression(
-            ufl.nabla_grad(self._u - self._u0), self.q_points
-        )
+        self.incr_disp = IncrementalDisplacement(u, self.q_points)
 
     @property
     def _history_0(self) -> list[dict[str, Function] | None]:
@@ -224,7 +298,7 @@ class IncrSmallStrainProblem(NonlinearProblem):
         def _history_or_none(law) -> dict[str, Function] | None:
             return law.history.history_0 if law.history else None
 
-        return [_history_or_none(law) for law in self._laws]
+        return [_history_or_none(law) for law in self._law_contexts]
 
     @property
     def _history_1(self) -> list[dict[str, Function] | None]:
@@ -233,12 +307,12 @@ class IncrSmallStrainProblem(NonlinearProblem):
         def _history_or_none(law) -> dict[str, Function] | None:
             return law.history.history_1 if law.history else None
 
-        return [_history_or_none(law) for law in self._laws]
+        return [_history_or_none(law) for law in self._law_contexts]
 
     @property
     def _del_grad_u(self) -> list[Function]:
-        """Return a list of del_grad_u Functions for all laws (for backward compatibility)."""
-        return [law.del_grad_u for law in self._laws]
+        """Return a list of inc_disp_grad Functions for all laws (for backward compatibility)."""
+        return [law.displacement_gradient_fn for law in self._law_contexts]
 
     @property
     def a(self) -> df.fem.FormMetaClass:
@@ -248,7 +322,7 @@ class IncrSmallStrainProblem(NonlinearProblem):
             # ensure compilation of UFL forms
             super().__init__(
                 self.R_form,
-                self._u,
+                self.incr_disp.current,
                 self._bcs,
                 self.dR_form,
                 form_compiler_options=self._form_compiler_options
@@ -270,58 +344,59 @@ class IncrSmallStrainProblem(NonlinearProblem):
 
         """
         super().form(x)
-        # this copies the data from the vector x to the function _u
-        x.copy(self._u.x.petsc_vec)
-        self._u.x.petsc_vec.ghostUpdate(
-            addv=PETSc.InsertMode.INSERT, mode=PETSc.ScatterMode.FORWARD
-        )
-        # This assertion can fail, even if everything is correct.
-        # Left here, because I would like the check to work someday again.
-        # assert (
-        #    x.array.data == self._u.vector.array.data
-        # ), f"The solution vector must be the same as the one passed to the MechanicsProblem. Got {x.array.data} and {self._u.vector.array.data}"
+        self.incr_disp.update_current(x)
 
-        for law in self._laws:
-            cells = law.cells
-            law.del_grad_u.interpolate(
-                self.del_grad_u_expr,
-                cells0=cells,
-                cells1=np.arange(cells.size, dtype=np.int32),
+        for law_ctx in self._law_contexts:
+            self.incr_disp.evaluate_incremental_gradient(law_ctx)
+            stress_input, tangent_input = law_ctx.update_stress_and_tangent(self)
+
+            history_input = (
+                law_ctx.history.advance() if law_ctx.history is not None else None
             )
-            law.del_grad_u.x.scatter_forward()
-            stress_input, tangent_input = law.update_stress_and_tangent(self)
-            history_input = None
-            if law.history is not None:
-                history_input = law.history.advance()
+
             with df.common.Timer("constitutive-law-evaluation"):
-                law.law.evaluate(
+                law_ctx.law.evaluate(
                     self._time,
                     self._del_t,
-                    law.del_grad_u.x.array,
+                    law_ctx.displacement_gradient_fn.x.array,
                     stress_input,
                     tangent_input,
                     history_input,
                 )
-            law.map_to_parent(self)
-        self.stress_1.x.scatter_forward()
+            law_ctx.map_to_parent(self)
+
+        self.stress.scatter_current()
         self.tangent.x.scatter_forward()
 
     def update(self) -> None:
         """
         Update the current displacement, stress and history.
         """
-        self._u0.x.array[:] = self._u.x.array
-        self._u0.x.scatter_forward()
+        self.incr_disp.update_previous()
+        self.stress.update_previous()
 
-        self.stress_0.x.array[:] = self.stress_1.x.array
-        self.stress_0.x.scatter_forward()
-
-        for law in self._laws:
+        for law in self._law_contexts:
             if law.history is not None:
                 law.history.commit()
 
         # time update
         self._time += self._del_t
+
+    @property
+    def _u(self) -> df.fem.Function:
+        return self.incr_disp.current
+
+    @property
+    def _u0(self) -> df.fem.Function:
+        return self.incr_disp.previous
+
+    @property
+    def stress_0(self) -> df.fem.Function:
+        return self.stress.previous
+
+    @property
+    def stress_1(self) -> df.fem.Function:
+        return self.stress.current
 
 
 def fn_for(space: df.fem.FunctionSpace) -> df.fem.Function:
