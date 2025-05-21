@@ -12,8 +12,10 @@ from dolfinx.fem.function import Function
 from petsc4py import PETSc
 
 from fenics_constitutive.interfaces import IncrSmallStrainModel
-from fenics_constitutive.maps import build_subspace_map
+from fenics_constitutive.maps import SubSpaceMap, build_subspace_map
+from fenics_constitutive.solver._spaces import ElementSpaces
 from fenics_constitutive.stress_strain import ufl_mandel_strain
+from fenics_constitutive.typesafe import fn_for
 
 from ._history import History
 from ._lawcontext import LawContext, MultiLawContext, SingleLawContext
@@ -158,77 +160,30 @@ class IncrSmallStrainProblem(NonlinearProblem):
             "All laws must have the same constraint"
         )
 
-        gdim = mesh.geometry.dim
-        assert constraint.geometric_dim == gdim, (
-            "Geometric dimension mismatch between mesh and laws"
-        )
-
-        QVe = basix.ufl.quadrature_element(
-            mesh.topology.cell_name(),
-            value_shape=(constraint.stress_strain_dim,),
-            degree=q_degree,
-        )
-        QTe = basix.ufl.quadrature_element(
-            mesh.topology.cell_name(),
-            value_shape=(
-                constraint.stress_strain_dim,
-                constraint.stress_strain_dim,
-            ),
-            degree=q_degree,
-        )
-        Q_grad_u_e = basix.ufl.quadrature_element(
-            mesh.topology.cell_name(), value_shape=(gdim, gdim), degree=q_degree
-        )
-        QV = df.fem.functionspace(mesh, QVe)
-        QT = df.fem.functionspace(mesh, QTe)
+        element_spaces = ElementSpaces.create(mesh, constraint, q_degree)
+        self.stress = IncrementalStress(element_spaces.stress_vector_space)
+        self.tangent = fn_for(element_spaces.stress_tensor_space(mesh))
 
         self._law_contexts: list[LawContext] = []
         self.sim_time = SimulationTime(dt=del_t)
 
-        if len(laws) == 1:
-            # Single law case
-            law, cells = laws[0]
-            QT_subspace = df.fem.functionspace(mesh, QTe)
-            tangent_fn: df.fem.Function = fn_for(QT_subspace)
-
-            Q_grad_u_subspace = df.fem.functionspace(mesh, Q_grad_u_e)
-            inc_disp_grad_fn = fn_for(Q_grad_u_subspace)
-            disp_grad = DisplacementGradientFunction(cells, inc_disp_grad_fn)
-            self._law_contexts.append(
-                SingleLawContext(
-                    law=law,
-                    displacement_gradient=disp_grad,
-                    history=History.try_create(law, mesh, q_degree),
+        for law, cells in laws:
+            if len(laws) == 1:
+                inc_disp_grad_fn = fn_for(
+                    element_spaces.displacement_gradient_tensor_space(mesh)
                 )
-            )
-        else:
-            # Multi law case
-            for law, cells in laws:
-                subspace_map_tuple = build_subspace_map(cells, QV, return_subspace=True)
-                if len(subspace_map_tuple) == 3:
-                    subspace_map, submesh, QV_subspace = subspace_map_tuple
-                else:
-                    subspace_map, submesh = subspace_map_tuple
-                    QV_subspace = QV  # fallback
-                stress_fn = fn_for(QV_subspace)
-                Q_grad_u_subspace = df.fem.functionspace(submesh, Q_grad_u_e)
-                inc_disp_grad_fn = fn_for(Q_grad_u_subspace)
-                QT_subspace = df.fem.functionspace(submesh, QTe)
-                tangent_fn: df.fem.Function = fn_for(QT_subspace)
                 disp_grad = DisplacementGradientFunction(cells, inc_disp_grad_fn)
                 self._law_contexts.append(
-                    MultiLawContext(
+                    SingleLawContext(
                         law=law,
                         displacement_gradient=disp_grad,
-                        stress=stress_fn,
-                        tangent=tangent_fn,
-                        submesh_map=subspace_map,
-                        history=History.try_create(law, submesh, q_degree),
+                        history=History.try_create(law, mesh, element_spaces.q_degree),
                     )
                 )
-
-        self.stress = IncrementalStress(QV)
-        self.tangent = fn_for(QT)
+            else:
+                self._law_contexts.append(
+                    MultiLawContext.create(law, cells, element_spaces)
+                )
 
         u_, du = ufl.TestFunction(u.function_space), ufl.TrialFunction(u.function_space)
 
@@ -363,10 +318,3 @@ class IncrSmallStrainProblem(NonlinearProblem):
             law.displacement_gradient.displacement_gradient_fn
             for law in self._law_contexts
         ]
-
-
-def fn_for(space: df.fem.FunctionSpace) -> df.fem.Function:
-    """Create a Function for the given FunctionSpace."""
-    function = df.fem.Function(space)
-    assert isinstance(function, df.fem.Function)
-    return function

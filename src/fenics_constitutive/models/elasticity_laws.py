@@ -4,8 +4,9 @@ from typing import Protocol
 
 import numpy as np
 
-from .utils import lame_parameters
 from fenics_constitutive import StressStrainConstraint
+
+from .utils import lame_parameters
 
 
 class ElasticityLaw(Protocol):

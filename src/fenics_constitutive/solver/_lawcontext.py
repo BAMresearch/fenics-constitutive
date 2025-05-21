@@ -7,8 +7,10 @@ from typing import TYPE_CHECKING
 import dolfinx as df
 import numpy as np
 
+from fenics_constitutive import typesafe
 from fenics_constitutive.interfaces import IncrSmallStrainModel
-from fenics_constitutive.maps import SubSpaceMap
+from fenics_constitutive.maps import SubSpaceMap, build_subspace_map
+from ._spaces import ElementSpaces
 
 from ._history import History
 
@@ -106,6 +108,34 @@ class MultiLawContext(LawContext):
     submesh_map: SubSpaceMap
     history: History | None = None
 
+    @staticmethod
+    def create(
+        law: IncrSmallStrainModel, cells: np.ndarray, element_spaces: ElementSpaces
+    ) -> MultiLawContext:
+        from ._solver import DisplacementGradientFunction
+
+        subspace_map, submesh, stress_vector_space = _build_subspace_map(
+            cells, element_spaces.stress_vector_space
+        )
+        stress_fn = typesafe.fn_for(stress_vector_space)
+        tangent_fn: df.fem.Function = typesafe.fn_for(
+            element_spaces.stress_tensor_space(submesh)
+        )
+        inc_disp_grad_fn = typesafe.fn_for(
+            element_spaces.displacement_gradient_tensor_space(submesh)
+        )
+        disp_grad = DisplacementGradientFunction(cells, inc_disp_grad_fn)
+
+        history = History.try_create(law, submesh, element_spaces.q_degree)
+        return MultiLawContext(
+            law=law,
+            displacement_gradient=disp_grad,
+            stress=stress_fn,
+            tangent=tangent_fn,
+            submesh_map=subspace_map,
+            history=history,
+        )
+
     def update_stress_and_tangent(
         self,
         stress: IncrementalStress,
@@ -121,3 +151,16 @@ class MultiLawContext(LawContext):
     ) -> None:
         self.submesh_map.map_to_parent(self.stress, stress.current)
         self.submesh_map.map_to_parent(self.tangent, tangent)
+
+
+def _build_subspace_map(
+    cells: np.ndarray, QV: df.fem.FunctionSpace
+) -> tuple[SubSpaceMap, df.mesh.Mesh, df.fem.FunctionSpace]:
+    subspace_map_tuple = build_subspace_map(cells, QV, return_subspace=True)
+    if len(subspace_map_tuple) == 3:
+        subspace_map, submesh, QV_subspace = subspace_map_tuple
+    else:
+        subspace_map, submesh = subspace_map_tuple
+        QV_subspace = QV  # fallback
+
+    return subspace_map, submesh, QV_subspace
