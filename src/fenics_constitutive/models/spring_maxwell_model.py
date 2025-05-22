@@ -169,19 +169,18 @@ class SpringMaxwellModel(IncrSmallStrainModel):
         time: float,
         del_t: float,
         grad_del_u: np.ndarray,
-        mandel_stress: np.ndarray,
-        tangent: np.ndarray,
-        history: np.ndarray | dict[str, np.ndarray] | None,
+        stress: np.ndarray,
+        tangent: np.ndarray | None,
+        history: dict[str, np.ndarray] | None = None,
     ) -> None:
         assert (
             grad_del_u.size // (self.geometric_dim**2)
-            == mandel_stress.size // self.stress_strain_dim
-            == tangent.size // (self.stress_strain_dim**2)
+            == stress.size // self.stress_strain_dim
         )
 
         # reshape gauss point arrays
         n_gauss = grad_del_u.size // (self.geometric_dim**2)
-        mandel_view = mandel_stress.reshape(-1, self.stress_strain_dim)
+        mandel_view = stress.reshape(-1, self.stress_strain_dim)
 
         strain_increment = strain_from_grad_u(grad_del_u, self.constraint).reshape(
             -1, self.stress_strain_dim
@@ -189,12 +188,6 @@ class SpringMaxwellModel(IncrSmallStrainModel):
         strain_visco_n = history["strain_visco"].reshape(-1, self.stress_strain_dim)
         strain_n = history["strain"].reshape(-1, self.stress_strain_dim)
 
-        # if del_t == 0:
-        #     # linear step visko strain is zero
-        #     D = self.D_0 + self.D_1
-        #     mandel_view += strain_increment @ D
-        #     _deps_visko = np.zeros_like(strain_increment)
-        # else:
         assert del_t > 0, "Time step must be defined and positive."
 
         strain_total = strain_n + strain_increment
@@ -210,9 +203,13 @@ class SpringMaxwellModel(IncrSmallStrainModel):
 
         dstress = strain_increment @ (self.D_0 + self.D_1) - 2 * self.mu1 * _deps_visko
         mandel_view += dstress
-        D = self.D_0 + (1 - 1 / (self.tau * factor)) * self.D_1
+        if tangent is not None:
+            assert grad_del_u.size // (self.geometric_dim**2) == tangent.size // (
+                self.stress_strain_dim**2
+            )
+            D = self.D_0 + (1 - 1 / (self.tau * factor)) * self.D_1
+            tangent[:] = np.tile(D.flatten(), n_gauss)
 
-        tangent[:] = np.tile(D.flatten(), n_gauss)
         strain_visco_n += _deps_visko
         strain_n += strain_increment
 
@@ -226,6 +223,3 @@ class SpringMaxwellModel(IncrSmallStrainModel):
             "strain_visco": self.stress_strain_dim,
             "strain": self.stress_strain_dim,
         }
-
-    # def update(self) -> None:
-    #    pass
