@@ -66,32 +66,10 @@ class VonMises3D(IncrSmallStrainModel):
         del_t: float,
         grad_del_u: np.ndarray,
         stress: np.ndarray,
-        tangent: np.ndarray,
-        history: dict[str, np.ndarray] | None = None,
-    ) -> None:
-        self.__evaluate(t, del_t, grad_del_u, stress, tangent, history)
-
-    def evaluate_without_tangent(
-        self,
-        t: float,
-        del_t: float,
-        grad_del_u: np.ndarray,
-        stress: np.ndarray,
-        history: dict[str, np.ndarray] | None = None,
-    ) -> None:
-        self.__evaluate(t, del_t, grad_del_u, stress, None, history)
-
-    def __evaluate(
-        self,
-        t: float,
-        del_t: float,
-        grad_del_u: np.ndarray,
-        stress: np.ndarray,
         tangent: np.ndarray | None,
         history: np.ndarray | dict[str, np.ndarray] | None = None,
     ) -> None:
         stress_view = stress.reshape(-1, self.stress_strain_dim)
-        tangent_view = tangent.reshape(-1, self.stress_strain_dim**2)
         strain_increment = strain_from_grad_u(grad_del_u, self.constraint).reshape(
             -1, self.stress_strain_dim
         )
@@ -190,6 +168,7 @@ class VonMises3D(IncrSmallStrainModel):
             stress_view[n] += sh
 
             if tangent is not None:
+                tangent_view = tangent.reshape(-1, self.stress_strain_dim**2)
                 # determine elastic-plastic moduli
                 aah = (
                     self.p_ka * self.xioi
