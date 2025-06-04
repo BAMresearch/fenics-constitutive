@@ -1,0 +1,20 @@
+[package]
+name = "elasticity_rs"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "elasticity_rs"
+crate-type = ["cdylib"]
+
+[dependencies]
+numpy = {version = "*", features=["nalgebra"]}
+nalgebra = "*"
+
+[dependencies.pyo3]
+version = "*"
+# "extension-module" tells pyo3 we want to build an extension module (skips linking against libpython.so)
+# "abi3-py38" tells pyo3 (and maturin) to build using the stable ABI with minimum Python version 3.8
+features = ["extension-module", "abi3-py38"]

@@ -1,15 +1,106 @@
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.13364955.svg)](https://doi.org/10.5281/zenodo.13364955)
+![Tests](https://github.com/BAMresearch/fenics-constitutive/actions/workflows/pytest.yml/badge.svg) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.13364955.svg)](https://doi.org/10.5281/zenodo.13364955)
 
 # fenics-constitutive
 
-_For some examples which are using legacy-FEniCS you may look on the old `master` branch [legacy code](https://github.com/BAMresearch/fenics-constitutive/tree/master)_
+This project  provides a framework for using nonlinear constitutive material models in dolfinx with the goal of making it easy to implement new models and to use these models interchangeably in a simulation. This is made possible by prescribing a simple interface for the constitutive models and by providing a simple wrapper around the dolfinx `NonlinearProblem` that uses the constitutive model to compute the residual and the stiffness matrix. The project is currently focussed on small strain models with the goal of supporting large deformations through the use of objective stress rates and, therefore, also supporting a subset of the functionality provided by Abaqus UMATs or Ansys material models.
 
-The new and improved version of `fenics-constitutive` which has the goal of simulating mechanical problems in FEniCSx with nonlinear consitutive models like plasticity, damage, etc. Everything is still a work in process, but from this projct you might expect:
+Although the project contains some constitutive models -- and will contain more in the foreseeable future -- we are currently not focussed on creating a comprehensive library of models. Instead, through the simplicity of the provided interface which only uses `numpy.ndarray` as a complex datatype, we want to enable users to write their own models in any language that can be linked to Python, while still being able to use their models in simulation scripts that other users have written using our interface.
 
-1. An interface for constitutive models for small strain increments (and some examples for such models)
-2. Solvers for mechanical problems which can use any constitutive model that follows our interface design
-   * This means that **YOU** may write constitutive models in any programming language as long as you can bind that code to Python and this code takes `numpy.ndarray` as parameters.
-3. Solvers that account for large deformations via an objective stress rate.
-4. A documentaion explaining the interface design and tutorials on how to write your own constitutive models.
+## Documentation
 
-More to follow soon!
+https://fenics-constitutive.readthedocs.io/en/latest/
+
+## Installation using conda/mamba
+
+Clone the repository and create a new environment from the `environment.yml` file:
+
+```bash
+git clone https://github.com/BAMresearch/fenics-constitutive.git
+cd fenics-constitutive
+mamba env create -f environment.yml
+```
+This automatically installs the required dependencies and the package itself.
+
+Alternatively, if you have all dependencies listed in the `environment.yml` file installed, you can install the package using `pip` after cloning:
+
+```bash
+git clone https://github.com/BAMresearch/fenics-constitutive.git
+cd fenics-constitutive
+pip install -e .
+```
+
+## Usage
+
+Since this project is based on FEniCSx, a basic knowledge of using FEniCSx is required. Similarly to any other FEniCSx project, you need to create a mesh, function spaces and boundary conditions. Defining the weak form is handled by the `IncrSmallStrainProblem` class. However, you may write your own Newton solver.
+
+
+```python
+import dolfinx as df
+from fenics_constitutive import (
+    IncrSmallStrainProblem, 
+    IncrSmallStrainModel, 
+    StressStrainConstraint, 
+)
+from fenics_constitutive.models import LinearElasticityModel
+
+youngs_modulus = 42.0
+poissons_ratio = 0.3
+
+mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 2, 2, 2)
+V = df.fem.VectorFunctionSpace(mesh, ("CG", 1))
+u = df.fem.Function(V)
+law = LinearElasticityModel(
+   {"E": youngs_modulus, "nu": poissons_ratio},
+   StressStrainConstraint.FULL,
+)
+
+def left_boundary(x):
+   return np.isclose(x[0], 0.0)
+
+def right_boundary(x):
+   return np.isclose(x[0], 1.0)
+
+dofs_left = df.fem.locate_dofs_geometrical(V, left_boundary)
+dofs_right = df.fem.locate_dofs_geometrical(V, right_boundary)
+bc_left = df.fem.dirichletbc(np.array([0.0, 0.0, 0.0]), dofs_left, V)
+bc_right = df.fem.dirichletbc(np.array([0.01, 0.0, 0.0]), dofs_right, V)
+
+problem = IncrSmallStrainProblem(
+   law,
+   u,
+   [bc_left, bc_right],
+   1,
+)
+
+solver = NewtonSolver(MPI.COMM_WORLD, problem)
+n, converged = solver.solve(u)
+problem.update()
+
+```
+
+Currently the Python package contains the following models:
+
+1. Linear elasticity for uniaxial stress, uniaxial strain, plane stress, plane strain, and full 3D stress and strain states.
+2. Mises plasticity with isotropic nonlinear hardening.
+3. Two viscoelasticity models: Standard linear solid model in both Maxwell representation and Kelvin-Voigt representation. 
+
+## Citing
+
+If you use this package in your research, please cite it using the following bibtex entry for our paper in _Advances in Engineering Software_:
+
+```bibtex
+@Article{Rosenbusch2025AiES,
+  author   = {Sjard Mathis Rosenbusch and Philipp Diercks and Vitaliy Kindrachuk and Jörg F. Unger},
+  journal  = {Advances in Engineering Software},
+  title    = {Integrating custom constitutive models into FEniCSx: A versatile approach and case studies},
+  year     = {2025},
+  issn     = {0965-9978},
+  pages    = {103922},
+  volume   = {206},
+  doi      = {https://doi.org/10.1016/j.advengsoft.2025.103922},
+  keywords = {Finite element method, Constitutive models, FEniCSx, UMAT, Rust, Python, C++},
+  url      = {https://www.sciencedirect.com/science/article/pii/S0965997825000602},
+}
+```
+
+Additionally, if you want to cite a specific version of the software, you can use the published records on [Zenodo](https://doi.org/10.5281/zenodo.13364955).

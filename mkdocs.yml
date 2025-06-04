@@ -1,0 +1,72 @@
+site_name: FEniCS Constitutive
+
+repo_url: https://github.com/BAMresearch/fenics-constitutive
+edit_uri: blob/main/docs/
+
+theme:
+  name: material
+  highlightjs: true
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    - content.code.copy
+
+extra_javascript:
+  - https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.4/MathJax.js?config=TeX-AMS-MML_HTMLorMML
+
+plugins:
+  - search
+  #- bibtex:
+  #    bib_file: "docs/literature.bib"
+  - mkdocs-jupyter:
+      execute: true
+      include_source: True
+  #- gen-files:
+  #    scripts:
+  #      - scripts/gen_ref_pages.py
+  - mkdocstrings:
+      handlers:
+          python:
+            options:
+              #docstring_section_style: table
+              separate_signature: true
+              show_signature_annotations: true
+              parameter_headings: true
+              show_symbol_type_heading: true
+              show_symbol_type_toc: true
+  - include_dir_to_nav:
+      recurse: true
+      file_pattern: '.*\.(md|ipynb)$'
+
+markdown_extensions:
+  - admonition
+  - footnotes
+  - mdx_math:
+      enable_dollar_delimiter: true
+  - pymdownx.tasklist
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  #- mdx_include
+  #- markdown_include.include:
+  #    base_path: docs
+  #    custom_checkbox: true
+  #- markdown_checklist.extension
+
+nav:
+  - index.md
+  - Getting Started:
+    -  getting_started/installation.md
+    -  getting_started/basic_usage.ipynb
+  - Custom Models:
+    #- custom_models/rust.ipynb
+    - custom_models/rust_elasticity.md
+    - custom_models/cpp_elasticity.md
+    - custom_models/umat_elasticity.md
+  - API: API
+
+
