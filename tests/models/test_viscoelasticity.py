@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
 
 import dolfinx as df
 import numpy as np
@@ -8,10 +8,13 @@ import pytest
 import ufl
 from dolfinx.nls.petsc import NewtonSolver
 from mpi4py import MPI
-from spring_kelvin_model import SpringKelvinModel
-from spring_maxwell_model import SpringMaxwellModel
 
-from fenics_constitutive import Constraint, IncrSmallStrainModel, IncrSmallStrainProblem
+from fenics_constitutive import (
+    IncrSmallStrainModel,
+    IncrSmallStrainProblem,
+    StressStrainConstraint,
+)
+from fenics_constitutive.models import SpringKelvinModel, SpringMaxwellModel
 
 youngs_modulus = 42.0
 poissons_ratio = 0.2
@@ -28,7 +31,7 @@ def test_relaxation_uniaxial_stress(mat: IncrSmallStrainModel):
     u = df.fem.Function(V)
     law = mat(
         parameters={"E0": youngs_modulus, "E1": visco_modulus, "tau": relaxation_time},
-        constraint=Constraint.UNIAXIAL_STRESS,
+        constraint=StressStrainConstraint.UNIAXIAL_STRESS,
     )
 
     def left_boundary(x):
@@ -136,7 +139,7 @@ def test_relaxation(dim: int, mat: IncrSmallStrainModel):
                 "tau": relaxation_time,
                 "nu": poissons_ratio,
             },
-            constraint=Constraint.PLANE_STRESS,
+            constraint=StressStrainConstraint.PLANE_STRESS,
         )
 
     elif dim == 3:
@@ -149,7 +152,7 @@ def test_relaxation(dim: int, mat: IncrSmallStrainModel):
                 "tau": relaxation_time,
                 "nu": poissons_ratio,
             },
-            constraint=Constraint.FULL,
+            constraint=StressStrainConstraint.FULL,
         )
 
         def z_boundary(x):
@@ -299,7 +302,7 @@ def test_kelvin_vs_maxwell():
             "tau": relaxation_time,
             "nu": poissons_ratio,
         },
-        constraint=Constraint.UNIAXIAL_STRESS,
+        constraint=StressStrainConstraint.UNIAXIAL_STRESS,
     )
     # transfer Kelvin parameters to Maxwell (see Technische Mechanik 4)
     E0_M = (youngs_modulus * visco_modulus) / (youngs_modulus + visco_modulus)
@@ -309,7 +312,7 @@ def test_kelvin_vs_maxwell():
     # Maxwell material
     law_M = SpringMaxwellModel(
         parameters={"E0": E0_M, "E1": E1_M, "tau": tau_M, "nu": poissons_ratio},
-        constraint=Constraint.UNIAXIAL_STRESS,
+        constraint=StressStrainConstraint.UNIAXIAL_STRESS,
     )
 
     def left_boundary(x):
@@ -379,7 +382,7 @@ def test_creep(dim: int, mat: IncrSmallStrainModel):
                 "tau": relaxation_time,
                 "nu": poissons_ratio,
             },
-            constraint=Constraint.PLANE_STRESS,
+            constraint=StressStrainConstraint.PLANE_STRESS,
         )
 
     elif dim == 3:
@@ -393,7 +396,7 @@ def test_creep(dim: int, mat: IncrSmallStrainModel):
                 "tau": relaxation_time,
                 "nu": poissons_ratio,
             },
-            constraint=Constraint.FULL,
+            constraint=StressStrainConstraint.FULL,
         )
 
         def z_boundary(x):
@@ -589,7 +592,7 @@ def define_problem(mat: IncrSmallStrainModel, dim: int):
                 "tau": relaxation_time,
                 "nu": poissons_ratio,
             },
-            constraint=Constraint.PLANE_STRAIN,
+            constraint=StressStrainConstraint.PLANE_STRAIN,
         )
         fixed_vector = np.array([0.0, 0.0])
     elif dim == 3:
@@ -601,7 +604,7 @@ def define_problem(mat: IncrSmallStrainModel, dim: int):
                 "tau": relaxation_time,
                 "nu": poissons_ratio,
             },
-            constraint=Constraint.FULL,
+            constraint=StressStrainConstraint.FULL,
         )
         fixed_vector = np.array([0.0, 0.0, 0.0])
 

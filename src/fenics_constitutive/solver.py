@@ -5,8 +5,8 @@ import basix.ufl
 import dolfinx as df
 import numpy as np
 import ufl
-from petsc4py import PETSc
 from dolfinx.fem.petsc import NonlinearProblem
+from petsc4py import PETSc
 
 from .interfaces import IncrSmallStrainModel
 from .maps import SubSpaceMap, build_subspace_map
@@ -24,7 +24,7 @@ def build_history(
         q_degree: The quadrature degree.
 
     Returns:
-        The history function(s) for the given law.
+        The history function(s) for the given law or None if the history dimension is 0.
 
     """
     if law.history_dim is None:
@@ -53,6 +53,7 @@ class IncrSmallStrainProblem(NonlinearProblem):
         u: The displacement field. This is the unknown in the nonlinear problem.
         bcs: The Dirichlet boundary conditions.
         q_degree: The quadrature degree (Polynomial degree which the quadrature rule needs to integrate exactly).
+        del_t: The time increment.
         form_compiler_options: The options for the form compiler.
         jit_options: The options for the JIT compiler.
 
@@ -82,14 +83,14 @@ class IncrSmallStrainProblem(NonlinearProblem):
             laws = [(laws, cells)]
 
         constraint = laws[0][0].constraint
-        assert all(
-            law[0].constraint == constraint for law in laws
-        ), "All laws must have the same constraint"
+        assert all(law[0].constraint == constraint for law in laws), (
+            "All laws must have the same constraint"
+        )
 
         gdim = mesh.geometry.dim
-        assert (
-            constraint.geometric_dim() == gdim
-        ), "Geometric dimension mismatch between mesh and laws"
+        assert constraint.geometric_dim() == gdim, (
+            "Geometric dimension mismatch between mesh and laws"
+        )
 
         QVe = basix.ufl.quadrature_element(
             mesh.topology.cell_name(),
@@ -236,11 +237,11 @@ class IncrSmallStrainProblem(NonlinearProblem):
                 cells0=cells,
                 cells1=np.arange(cells.size, dtype=np.int32),
             )
-            #self.del_grad_u_expr.eval(
+            # self.del_grad_u_expr.eval(
             #    self._del_grad_u[k].function_space.mesh,
             #    cells,
             #    self._del_grad_u[k].x.array.reshape(cells.size, -1),
-            #)
+            # )
             self._del_grad_u[k].x.scatter_forward()
             if len(self.laws) > 1:
                 self.submesh_maps[k].map_to_child(self.stress_0, self._stress[k])
@@ -285,7 +286,7 @@ class IncrSmallStrainProblem(NonlinearProblem):
         self.stress_0.x.scatter_forward()
 
         for k, (law, _) in enumerate(self.laws):
-            law.update()
+            # law.update()
             if law.history_dim is not None:
                 for key in law.history_dim:
                     self._history_0[k][key].x.array[:] = self._history_1[k][key].x.array

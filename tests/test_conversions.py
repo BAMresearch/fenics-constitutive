@@ -7,26 +7,30 @@ import pytest
 import ufl
 from mpi4py import MPI
 
-from fenics_constitutive import Constraint, strain_from_grad_u, ufl_mandel_strain
+from fenics_constitutive import (
+    StressStrainConstraint,
+    strain_from_grad_u,
+    ufl_mandel_strain,
+)
 
 
 def test_strain_from_grad_u():
     grad_u = np.array([[1.0]])
-    constraint = Constraint.UNIAXIAL_STRAIN
+    constraint = StressStrainConstraint.UNIAXIAL_STRAIN
     strain = strain_from_grad_u(grad_u, constraint)
     assert np.allclose(strain, np.array([1.0]))
-    constraint = Constraint.UNIAXIAL_STRESS
+    constraint = StressStrainConstraint.UNIAXIAL_STRESS
     strain = strain_from_grad_u(grad_u, constraint)
     assert np.allclose(strain, np.array([1.0]))
     grad_u = np.array([[1.0, 2.0], [3.0, 4.0]])
-    constraint = Constraint.PLANE_STRAIN
+    constraint = StressStrainConstraint.PLANE_STRAIN
     strain = strain_from_grad_u(grad_u, constraint)
     assert np.allclose(strain, np.array([1.0, 4.0, 0.0, 0.5 * (4.0 + 1.0) * 2**0.5]))
-    constraint = Constraint.PLANE_STRESS
+    constraint = StressStrainConstraint.PLANE_STRESS
     strain = strain_from_grad_u(grad_u, constraint)
     assert np.allclose(strain, np.array([1.0, 4.0, 0.0, 0.5 * (4.0 + 1.0) * 2**0.5]))
     grad_u = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
-    constraint = Constraint.FULL
+    constraint = StressStrainConstraint.FULL
     strain = strain_from_grad_u(grad_u, constraint)
     assert np.allclose(
         strain,
@@ -46,15 +50,15 @@ def test_strain_from_grad_u():
 @pytest.mark.parametrize(
     ("constraint"),
     [
-        (Constraint.UNIAXIAL_STRAIN),
-        (Constraint.UNIAXIAL_STRESS),
-        (Constraint.PLANE_STRAIN),
-        (Constraint.PLANE_STRESS),
-        (Constraint.FULL),
+        (StressStrainConstraint.UNIAXIAL_STRAIN),
+        (StressStrainConstraint.UNIAXIAL_STRESS),
+        (StressStrainConstraint.PLANE_STRAIN),
+        (StressStrainConstraint.PLANE_STRESS),
+        (StressStrainConstraint.FULL),
     ],
 )
-def test_ufl_strain_equals_array_conversion(constraint: Constraint):
-    match constraint.geometric_dim():
+def test_ufl_strain_equals_array_conversion(constraint: StressStrainConstraint):
+    match constraint.geometric_dim:
         case 1:
             mesh = df.mesh.create_unit_interval(MPI.COMM_WORLD, 2)
 

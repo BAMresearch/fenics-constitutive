@@ -3,14 +3,14 @@ from __future__ import annotations
 import dolfinx as df
 import numpy as np
 from dolfinx.nls.petsc import NewtonSolver
-from mises_plasticity_isotropic_hardening import VonMises3D
 from mpi4py import MPI
 
-from fenics_constitutive import Constraint, IncrSmallStrainProblem
+from fenics_constitutive import IncrSmallStrainProblem
+from fenics_constitutive.models import VonMises3D
 
 
 def test_uniaxial_strain_3d():
-    #no MPI, one cell only
+    # no MPI, one cell only
     mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 1, 1, 1)
     V = df.fem.functionspace(mesh, ("CG", 1, (3,)))
     u = df.fem.Function(V)
@@ -50,7 +50,7 @@ def test_uniaxial_strain_3d():
     )
 
     dirichlet = [fix_ux_left, move_ux_right]
-    
+
     problem = IncrSmallStrainProblem(law, u, dirichlet, q_degree=1)
 
     solver = NewtonSolver(MPI.COMM_WORLD, problem)
@@ -63,7 +63,7 @@ def test_uniaxial_strain_3d():
     load = [0.0]
 
     for inc, time in enumerate(load_steps):
-        #print("Load Increment:", inc)
+        # print("Load Increment:", inc)
 
         current_disp = time * max_disp
         scalar_x.value = current_disp
@@ -71,7 +71,7 @@ def test_uniaxial_strain_3d():
         niter, converged = solver.solve(u)
         problem.update()
 
-        #print(f"Converged: {converged} in {niter} iterations.")
+        # print(f"Converged: {converged} in {niter} iterations.")
         iterations = np.append(iterations, niter)
 
         stress_values = []
@@ -145,7 +145,6 @@ def test_uniaxial_cyclic_strain_3d():
     )
 
     dirichlet = [fix_ux_left, move_ux_right]
-    #
     problem = IncrSmallStrainProblem(law, u, dirichlet, q_degree=1)
 
     solver = NewtonSolver(MPI.COMM_WORLD, problem)
@@ -158,7 +157,7 @@ def test_uniaxial_cyclic_strain_3d():
     load = [0.0]
 
     for inc, time in enumerate(load_steps):
-        #print("Load Increment:", inc)
+        # print("Load Increment:", inc)
 
         current_disp = np.sin(time) * max_disp
         scalar_x.value = current_disp
@@ -166,7 +165,7 @@ def test_uniaxial_cyclic_strain_3d():
         niter, converged = solver.solve(u)
         problem.update()
 
-        #print(f"Converged: {converged} in {niter} iterations.")
+        # print(f"Converged: {converged} in {niter} iterations.")
         iterations = np.append(iterations, niter)
 
         stress_values = []

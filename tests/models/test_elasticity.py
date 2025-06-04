@@ -5,16 +5,18 @@ import numpy as np
 import pytest
 import ufl
 from dolfinx.nls.petsc import NewtonSolver
-from linear_elasticity_model import LinearElasticityModel
+
+# from linear_elasticity_model import LinearElasticityModel
 from mpi4py import MPI
 
 from fenics_constitutive import (
-    Constraint,
     IncrSmallStrainProblem,
     PlaneStrainFrom3D,
+    StressStrainConstraint,
     UniaxialStrainFrom3D,
     norm,
 )
+from fenics_constitutive.models import LinearElasticityModel
 
 youngs_modulus = 42.0
 poissons_ratio = 0.3
@@ -26,7 +28,7 @@ def test_uniaxial_stress():
     u = df.fem.Function(V)
     law = LinearElasticityModel(
         parameters={"E": youngs_modulus, "nu": poissons_ratio},
-        constraint=Constraint.UNIAXIAL_STRESS,
+        constraint=StressStrainConstraint.UNIAXIAL_STRESS,
     )
 
     def left_boundary(x):
@@ -52,14 +54,22 @@ def test_uniaxial_stress():
     n, converged = solver.solve(u)
 
     # Compare the result with the analytical solution
-    diff = problem.stress_1 - ufl.as_vector([youngs_modulus * 0.01,])
+    diff = problem.stress_1 - ufl.as_vector(
+        [
+            youngs_modulus * 0.01,
+        ]
+    )
     assert norm(diff, problem.dxm) < 1e-10 / youngs_modulus * 0.01
 
     problem.update()
     # Check that the stress is updated correctly
-    diff = problem.stress_0 - ufl.as_vector([youngs_modulus * 0.01,])
+    diff = problem.stress_0 - ufl.as_vector(
+        [
+            youngs_modulus * 0.01,
+        ]
+    )
     assert norm(diff, problem.dxm) < 1e-10 / youngs_modulus * 0.01
-    
+
     # Check that the displacement is updated correctly
     max_u = MPI.COMM_WORLD.allreduce(np.max(problem._u0.x.array), MPI.MAX)
     assert max_u == displacement.value
@@ -68,9 +78,12 @@ def test_uniaxial_stress():
     n, converged = solver.solve(u)
 
     # Compare the result of the updated problem with new BC with the analytical solution
-    diff = problem.stress_1 - ufl.as_vector([youngs_modulus * 0.02,])
+    diff = problem.stress_1 - ufl.as_vector(
+        [
+            youngs_modulus * 0.02,
+        ]
+    )
     assert norm(diff, problem.dxm) < 1e-10 / youngs_modulus * 0.02
-    
 
 
 @pytest.mark.parametrize(
@@ -86,19 +99,21 @@ def test_uniaxial_stress_two_laws(factor: float):
     mesh = df.mesh.create_unit_interval(MPI.COMM_WORLD, 2)
     V = df.fem.functionspace(mesh, ("CG", 1))
     u = df.fem.Function(V)
-    cells_local = mesh.topology.index_map(mesh.topology.dim).global_to_local(np.arange(2, dtype=np.int32))
+    cells_local = mesh.topology.index_map(mesh.topology.dim).global_to_local(
+        np.arange(2, dtype=np.int32)
+    )
     laws = [
         (
             LinearElasticityModel(
                 parameters={"E": youngs_modulus, "nu": poissons_ratio},
-                constraint=Constraint.UNIAXIAL_STRESS,
+                constraint=StressStrainConstraint.UNIAXIAL_STRESS,
             ),
             cells_local[0:1],
         ),
         (
             LinearElasticityModel(
                 parameters={"E": factor * youngs_modulus, "nu": poissons_ratio},
-                constraint=Constraint.UNIAXIAL_STRESS,
+                constraint=StressStrainConstraint.UNIAXIAL_STRESS,
             ),
             cells_local[1:2],
         ),
@@ -144,7 +159,7 @@ def test_uniaxial_strain():
     u = df.fem.Function(V)
     law = LinearElasticityModel(
         parameters={"E": youngs_modulus, "nu": poissons_ratio},
-        constraint=Constraint.UNIAXIAL_STRAIN,
+        constraint=StressStrainConstraint.UNIAXIAL_STRAIN,
     )
 
     def left_boundary(x):
@@ -175,13 +190,17 @@ def test_uniaxial_strain():
         * (1.0 - poissons_ratio)
         / ((1.0 + poissons_ratio) * (1.0 - 2.0 * poissons_ratio))
     ) * displacement.value
-    diff = problem.stress_0 - ufl.as_vector([analytical_stress,])
+    diff = problem.stress_0 - ufl.as_vector(
+        [
+            analytical_stress,
+        ]
+    )
     assert norm(diff, problem.dxm) < 1e-10 / analytical_stress
 
     # test the converter from 3D model to uniaxial strain model
     law_3d = LinearElasticityModel(
         parameters={"E": youngs_modulus, "nu": poissons_ratio},
-        constraint=Constraint.FULL,
+        constraint=StressStrainConstraint.FULL,
     )
     wrapped_1d_law = UniaxialStrainFrom3D(law_3d)
     u_3d = df.fem.Function(V)
@@ -196,12 +215,16 @@ def test_uniaxial_strain():
     problem_3d.update()
 
     # test that sigma_11 is the same as the analytical solution
-    diff = problem_3d.stress_0 - ufl.as_vector([analytical_stress,])
+    diff = problem_3d.stress_0 - ufl.as_vector(
+        [
+            analytical_stress,
+        ]
+    )
     assert norm(diff, problem_3d.dxm) < 1e-10 / analytical_stress
 
     # test that the stresses of the problem with uniaxial strain model
     # are the same as the stresses of the problem with the converted 3D model
-    diff =  problem_3d.stress_0 - problem.stress_0
+    diff = problem_3d.stress_0 - problem.stress_0
     assert norm(diff, problem_3d.dxm) < 1e-10 / norm(problem.stress_0, problem.dxm)
 
     # test that the shear stresses are zero. Since this is uniaxial strain, the
@@ -209,19 +232,17 @@ def test_uniaxial_strain():
     assert np.linalg.norm(wrapped_1d_law.stress_3d[3:6]) < 1e-14
     # test that the displacement is the same in both versions
     diff = problem_3d._u - problem._u
-    assert (
-        norm(diff, problem_3d.dxm) < 1e-14 / norm(problem._u, problem.dxm)
-    )
+    assert norm(diff, problem_3d.dxm) < 1e-14 / norm(problem._u, problem.dxm)
 
 
 def test_plane_strain():
     # sanity check if out of plane stress is NOT zero
     mesh = df.mesh.create_unit_square(MPI.COMM_WORLD, 2, 2)
-    V = df.fem.functionspace(mesh, ("CG", 1,(2,)))
+    V = df.fem.functionspace(mesh, ("CG", 1, (2,)))
     u = df.fem.Function(V)
     law = LinearElasticityModel(
         parameters={"E": youngs_modulus, "nu": poissons_ratio},
-        constraint=Constraint.PLANE_STRAIN,
+        constraint=StressStrainConstraint.PLANE_STRAIN,
     )
 
     def left_boundary(x):
@@ -251,7 +272,7 @@ def test_plane_strain():
     # test the model conversion from 3D to plane strain
     law_3d = LinearElasticityModel(
         parameters={"E": youngs_modulus, "nu": poissons_ratio},
-        constraint=Constraint.FULL,
+        constraint=StressStrainConstraint.FULL,
     )
     wrapped_2d_law = PlaneStrainFrom3D(law_3d)
     u_3d = df.fem.Function(V)
@@ -266,25 +287,23 @@ def test_plane_strain():
     problem_3d.update()
     # test that the stress is nonzero in 33 direction
     assert norm(problem_3d.stress_0[2], problem.dxm) > 1e-2
-    
+
     # test that the displacement is the same in both versions
     diff = problem_3d._u - problem._u
-    assert (
-        norm(diff, problem.dxm)/ norm(problem._u, problem.dxm) < 1e-14 
-    )
+    assert norm(diff, problem.dxm) / norm(problem._u, problem.dxm) < 1e-14
     # test that the stresses are the same in both versions
     diff = problem_3d.stress_0 - problem.stress_0
-    assert norm(diff, problem.dxm) / norm(problem.stress_0, problem.dxm)< 1e-10 
+    assert norm(diff, problem.dxm) / norm(problem.stress_0, problem.dxm) < 1e-10
 
 
 def test_plane_stress():
     # just a sanity check if out of plane stress is really zero
     mesh = df.mesh.create_unit_square(MPI.COMM_WORLD, 2, 2)
-    V = df.fem.functionspace(mesh, ("CG", 1,(2,)))
+    V = df.fem.functionspace(mesh, ("CG", 1, (2,)))
     u = df.fem.Function(V)
     law = LinearElasticityModel(
         parameters={"E": youngs_modulus, "nu": poissons_ratio},
-        constraint=Constraint.PLANE_STRESS,
+        constraint=StressStrainConstraint.PLANE_STRESS,
     )
 
     def left_boundary(x):
@@ -311,17 +330,16 @@ def test_plane_stress():
     problem.update()
     # test that the out of plane stress is zero
     assert norm(problem.stress_0[2], problem.dxm) < 1e-10
-    
 
 
 def test_3d():
     # test the 3d case against a pure fenics implementation
     mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 2, 2, 2)
-    V = df.fem.functionspace(mesh, ("CG", 1,(3,)))
+    V = df.fem.functionspace(mesh, ("CG", 1, (3,)))
     u = df.fem.Function(V)
     law = LinearElasticityModel(
         parameters={"E": youngs_modulus, "nu": poissons_ratio},
-        constraint=Constraint.FULL,
+        constraint=StressStrainConstraint.FULL,
     )
 
     def left_boundary(x):
