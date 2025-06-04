@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import basix
 import dolfinx as df
 import numpy as np
@@ -305,3 +307,97 @@ class IncrSmallStrainProblem(df.fem.petsc.NonlinearProblem):
 
         # time update
         self._time += self._del_t
+
+
+@dataclass
+class SubmeshDataHandler:
+    """
+    A data handler for the constitutive law. This is used to store the data
+    for the constitutive law and to update it.
+
+    Args:
+        laws: A list of tuples where the first element is the constitutive law and the second
+            element is the cells for the submesh. If only one law is provided, it is assumed
+            that the domain is homogenous.
+        u: The displacement field. This is the unknown in the nonlinear problem.
+        q_degree: The quadrature degree (Polynomial degree which the quadrature rule needs to integrate exactly).
+        del_t: The time increment.
+    """
+
+    history_initial: list[dict[str, df.fem.Function]] | None
+    history: list[dict[str, df.fem.Function]] | None
+    stress_initial: list[df.fem.Function] | None
+    stress: list[df.fem.Function] | None
+    tangent: list[df.fem.Function] | None
+    del_grad_u: list[df.fem.Function]
+
+    def __init__(
+        laws: list[tuple[IncrSmallStrainModel, np.ndarray]] | IncrSmallStrainModel,
+        q_degree: int,
+        use_tangent: bool = True,
+        use_initial_state: bool = True,
+    ):
+        if isinstance(laws, IncrSmallStrainModel):
+            laws = [(laws, None)]
+
+        history_initial = []
+        history = []
+        stress_initial = []
+        stress = []
+        tangent = []
+        del_grad_u = []
+
+        for law, _ in laws:
+            # history =
+            # history_0 = (
+            #    {key: fn.copy() for key, fn in history_0.items()}
+            #    if isinstance(history_0, dict)
+            #    else history_0
+            # )
+            history.append(build_history(law, None, 0))
+
+            if len(laws) > 1:
+                stress.append(df.fem.Function(law.constraint.stress_strain_space))
+            else:
+                stress = None
+                stress_initial = None
+
+            if use_initial_state:
+                history_ = (
+                    {key: fn.copy() for key, fn in history[-1].items()}
+                    if isinstance(history[-1], dict)
+                    else history[-1]
+                )
+                history_initial.append(history_)
+
+                stress_initial.append(stress[-1].copy() if stress is not None else None)
+
+            if use_tangent:
+                tangent.append(df.fem.Function(law.constraint.tangent_space))
+
+            super().__init__(
+                history_initial=history_initial if use_initial_state else None,
+                history=history,
+                stress_initial=stress_initial if use_initial_state else None,
+                stress=stress,
+                tangent=tangent if use_tangent else None,
+                del_grad_u=del_grad_u,
+            )
+
+
+def evaluate_model(
+    models: list[IncrSmallStrainModel],
+    stress: np.ndarray,
+) -> None:
+    """Evaluate the models with the given data.
+
+    Args:
+        models: The constitutive models.
+        del_grad_u: The gradient of the displacement.
+        stress: The stress.
+        tangent: The tangent.
+        history: The history.
+
+    """
+    for model in models:
+        model.evaluate(del_grad_u, stress, tangent, history)
