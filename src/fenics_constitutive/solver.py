@@ -88,20 +88,20 @@ class IncrSmallStrainProblem(NonlinearProblem):
         )
 
         gdim = mesh.geometry.dim
-        assert constraint.geometric_dim() == gdim, (
+        assert constraint.geometric_dim == gdim, (
             "Geometric dimension mismatch between mesh and laws"
         )
 
         QVe = basix.ufl.quadrature_element(
             mesh.topology.cell_name(),
-            value_shape=(constraint.stress_strain_dim(),),
+            value_shape=(constraint.stress_strain_dim,),
             degree=q_degree,
         )
         QTe = basix.ufl.quadrature_element(
             mesh.topology.cell_name(),
             value_shape=(
-                constraint.stress_strain_dim(),
-                constraint.stress_strain_dim(),
+                constraint.stress_strain_dim,
+                constraint.stress_strain_dim,
             ),
             degree=q_degree,
         )

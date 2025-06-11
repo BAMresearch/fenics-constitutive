@@ -103,10 +103,12 @@ class VonMises3D(IncrSmallStrainModel):
             # elastic - plastic step
             if phitr > 0:
                 # initialization
-                gamma = 0
+                gamma_0 = 1
+                gamma_1 = 0
                 xr = 1
                 it = 0
                 tol = 1e-12
+                tol_rel = 1e-8
                 nmax = 100
                 # flow direction
                 xn = sigtr / sigtrn
@@ -130,41 +132,44 @@ class VonMises3D(IncrSmallStrainModel):
                     ) * self.p_w * np.exp(-self.p_w * (alpha[n] + np.sqrt(2 / 3) * x))
 
                 # start Newton iteration
-                while np.abs(xr) > tol:
+                while np.abs(xr) > tol and abs(gamma_1 - gamma_0) > tol_rel * abs(
+                    gamma_1
+                ):
+                    gamma_0 = gamma_1
                     it = it + 1
                     # compute residium
-                    xr = f(gamma)
+                    xr = f(gamma_0)
                     # compute tangent
-                    xg = df(gamma)
+                    xg = df(gamma_0)
                     # update plastic flow
-                    gamma = gamma - xr / xg
+                    gamma_1 = gamma_0 - xr / xg
                     # exit Newton algorithm for iteration > nmax
                     if it > nmax:
-                        # print('No Convergence in Newton Raphson Iteration')
-                        print("gamma is", xr)
-                        break
+                        raise RuntimeError(
+                            "Newton-Raphson method did not converge for plastic multiplier."
+                        )
                     # end of Newton iterration
 
                 # compute tangent with converged gamma
-                xg = df(gamma)
+                xg = df(gamma_1)
 
                 # algorithmic parameters
                 xc1 = -1 / xg
-                xc2 = gamma / sigtrn
+                xc2 = gamma_1 / sigtrn
 
                 # ELASTIC STEP
             else:
                 xn = np.zeros(6)
-                gamma = 0
+                gamma_1 = 0
                 xc1 = 0
                 xc2 = 0
 
             # update eps^p_n+1 and alpha
-            eps_n[n] += gamma * xn
-            alpha[n] += np.sqrt(2 / 3) * gamma
+            eps_n[n] += gamma_1 * xn
+            alpha[n] += np.sqrt(2 / 3) * gamma_1
 
             # determine incremental elastic-plastic stresses (with volumetric part)
-            sh = self.p_ka * tr_eps * self.I2 + del_sigtr - 2 * self.p_mu * gamma * xn
+            sh = self.p_ka * tr_eps * self.I2 + del_sigtr - 2 * self.p_mu * gamma_1 * xn
             # update total stresses
             stress_view[n] += sh
 

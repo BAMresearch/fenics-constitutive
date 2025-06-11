@@ -1,12 +1,11 @@
 from __future__ import annotations
 
+import operator
 from dataclasses import dataclass
+from functools import reduce
 
 import dolfinx as df
 import numpy as np
-
-from functools import reduce
-import operator
 
 __all__ = ["SubSpaceMap", "build_subspace_map"]
 
@@ -28,6 +27,7 @@ class SubSpaceMap:
     child: np.ndarray
     sub_mesh: df.mesh.Mesh
     parent_mesh: df.mesh.Mesh
+    cell_map: np.ndarray
 
     @df.common.timed("constitutive: map_to_parent_mesh")
     def map_to_parent(self, sub: df.fem.Function, parent: df.fem.Function) -> None:
@@ -39,9 +39,9 @@ class SubSpaceMap:
             parent: The function in the parent space.
         """
         assert sub.function_space.mesh == self.sub_mesh, "Subspace mesh does not match"
-        assert (
-            parent.function_space.mesh == self.parent_mesh
-        ), "Parent mesh does not match"
+        assert parent.function_space.mesh == self.parent_mesh, (
+            "Parent mesh does not match"
+        )
         assert sub.ufl_shape == parent.ufl_shape, "Shapes do not match"
 
         size = reduce(operator.mul, sub.ufl_shape, 1)
@@ -61,9 +61,9 @@ class SubSpaceMap:
             sub: The function in the subspace.
         """
         assert sub.function_space.mesh == self.sub_mesh, "Subspace mesh does not match"
-        assert (
-            parent.function_space.mesh == self.parent_mesh
-        ), "Parent mesh does not match"
+        assert parent.function_space.mesh == self.parent_mesh, (
+            "Parent mesh does not match"
+        )
         assert sub.ufl_shape == parent.ufl_shape, "Shapes do not match"
 
         size = reduce(operator.mul, sub.ufl_shape, 1)
@@ -114,6 +114,7 @@ def build_subspace_map(
             child=np.hstack(view_child),
             sub_mesh=submesh,
             parent_mesh=V.mesh,
+            cell_map=cell_map,
         )
     else:
         map = SubSpaceMap(
@@ -121,6 +122,7 @@ def build_subspace_map(
             child=np.array([], dtype=np.int32),
             sub_mesh=submesh,
             parent_mesh=V.mesh,
+            cell_map=cell_map,
         )
     if return_subspace:
         return map, submesh, V_sub
