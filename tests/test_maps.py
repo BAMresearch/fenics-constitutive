@@ -1,14 +1,15 @@
 from __future__ import annotations
 
+import basix
 import dolfinx as df
 import numpy as np
-import ufl
+import pytest
 from mpi4py import MPI
-import basix
 
 from fenics_constitutive import build_subspace_map
 
 
+@pytest.mark.mpi
 def test_subspace_vector_map_vector_equals_tensor_map():
     mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 5, 7, 11)
 
@@ -16,7 +17,7 @@ def test_subspace_vector_map_vector_equals_tensor_map():
     num_cells = map_c.size_local
     size_global = map_c.size_global
     cells_global = np.arange(0, size_global, dtype=np.int32)
-    #cells = np.arange(0, num_cells, dtype=np.int32)
+    # cells = np.arange(0, num_cells, dtype=np.int32)
 
     Q = basix.ufl.quadrature_element(
         mesh.topology.cell_name(), value_shape=(1,), degree=2
@@ -38,9 +39,9 @@ def test_subspace_vector_map_vector_equals_tensor_map():
     else:
         cell_sample_global = np.empty(size_global // 2, dtype=np.int32)
     MPI.COMM_WORLD.Bcast(cell_sample_global, root=0)
-    
+
     cell_sample = map_c.global_to_local(cell_sample_global)
-    cell_sample = cell_sample[cell_sample>=0]
+    cell_sample = cell_sample[cell_sample >= 0]
 
     Q_map, _ = build_subspace_map(cell_sample, Q_space)
     QV_map, _ = build_subspace_map(cell_sample, QV_space)
@@ -52,12 +53,15 @@ def test_subspace_vector_map_vector_equals_tensor_map():
     assert np.all(Q_map.child == QT_map.child)
 
 
+@pytest.mark.mpi
 def test_map_evaluation():
-    mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 5, 4, 1, cell_type=df.mesh.CellType.hexahedron)
+    mesh = df.mesh.create_unit_cube(
+        MPI.COMM_WORLD, 5, 4, 1, cell_type=df.mesh.CellType.hexahedron
+    )
 
     map_c = mesh.topology.index_map(mesh.topology.dim)
     num_cells_total = map_c.size_local + map_c.num_ghosts
-    
+
     size_global = map_c.size_global
     cells_global = np.arange(0, size_global, dtype=np.int32)
 
@@ -85,7 +89,6 @@ def test_map_evaluation():
     rng = np.random.default_rng(42)
     scalar_array = rng.random(q.x.array.shape)
 
-    
     q.x.array[:] = scalar_array
     q.x.scatter_forward()
     scalar_array = q.x.array
@@ -102,13 +105,15 @@ def test_map_evaluation():
 
     for _ in range(10):
         if MPI.COMM_WORLD.rank == 0:
-            cell_sample_global = rng.choice(cells_global, size_global // 2, replace=False)
+            cell_sample_global = rng.choice(
+                cells_global, size_global // 2, replace=False
+            )
         else:
             cell_sample_global = np.empty(size_global // 2, dtype=np.int32)
         MPI.COMM_WORLD.Bcast(cell_sample_global, root=0)
-        
+
         cell_sample = map_c.global_to_local(cell_sample_global)
-        cell_sample = cell_sample[cell_sample>=0]
+        cell_sample = cell_sample[cell_sample >= 0]
 
         Q_sub_map, submesh = build_subspace_map(
             cell_sample, Q_space, return_subspace=False
@@ -141,6 +146,7 @@ def test_map_evaluation():
         qt_view = tensor_array.reshape(num_cells_total, -1)
         qt_test_view = qt_test.x.array.reshape(num_cells_total, -1)
         assert np.all(qt_view[cell_sample] == qt_test_view[cell_sample])
+
 
 if __name__ == "__main__":
     test_subspace_vector_map_vector_equals_tensor_map()
