@@ -29,11 +29,19 @@ def test_uniaxial_strain_3d():
     def right(x):
         return np.isclose(x[0], 1.0)
 
+    def upper_boundary(x):
+        return np.isclose(x[1], 0.0)
+
+    def side_boundary(x):
+        return np.isclose(x[2], 0.0)
+
     tdim = mesh.topology.dim
     fdim = tdim - 1
 
     left_facets = df.mesh.locate_entities_boundary(mesh, fdim, left)
     right_facets = df.mesh.locate_entities_boundary(mesh, fdim, right)
+    upper_facets = df.mesh.locate_entities_boundary(mesh, fdim, upper_boundary)
+    side_facets = df.mesh.locate_entities_boundary(mesh, fdim, side_boundary)
     #
     # ### Dirichlet BCs
     zero_scalar = df.fem.Constant(mesh, 0.0)
@@ -48,8 +56,18 @@ def test_uniaxial_strain_3d():
         df.fem.locate_dofs_topological(V.sub(0), fdim, right_facets),
         V.sub(0),
     )
+    fix_uy = df.fem.dirichletbc(
+        zero_scalar,
+        df.fem.locate_dofs_topological(V.sub(1), fdim, upper_facets),
+        V.sub(1),
+    )
+    fix_uz = df.fem.dirichletbc(
+        zero_scalar,
+        df.fem.locate_dofs_topological(V.sub(2), fdim, side_facets),
+        V.sub(2),
+    )
 
-    dirichlet = [fix_ux_left, move_ux_right]
+    dirichlet = [fix_ux_left, move_ux_right, fix_uy, fix_uz]
 
     problem = IncrSmallStrainProblem(law, u, dirichlet, q_degree=1)
 
@@ -124,11 +142,19 @@ def test_uniaxial_cyclic_strain_3d():
     def right(x):
         return np.isclose(x[0], 1.0)
 
+    def upper_boundary(x):
+        return np.isclose(x[1], 0.0)
+
+    def side_boundary(x):
+        return np.isclose(x[2], 0.0)
+
     tdim = mesh.topology.dim
     fdim = tdim - 1
 
     left_facets = df.mesh.locate_entities_boundary(mesh, fdim, left)
     right_facets = df.mesh.locate_entities_boundary(mesh, fdim, right)
+    upper_facets = df.mesh.locate_entities_boundary(mesh, fdim, upper_boundary)
+    side_facets = df.mesh.locate_entities_boundary(mesh, fdim, side_boundary)
     #
     # ### Dirichlet BCs
     zero_scalar = df.fem.Constant(mesh, 0.0)
@@ -143,8 +169,19 @@ def test_uniaxial_cyclic_strain_3d():
         df.fem.locate_dofs_topological(V.sub(0), fdim, right_facets),
         V.sub(0),
     )
+    fix_uy = df.fem.dirichletbc(
+        zero_scalar,
+        df.fem.locate_dofs_topological(V.sub(1), fdim, upper_facets),
+        V.sub(1),
+    )
+    fix_uz = df.fem.dirichletbc(
+        zero_scalar,
+        df.fem.locate_dofs_topological(V.sub(2), fdim, side_facets),
+        V.sub(2),
+    )
 
-    dirichlet = [fix_ux_left, move_ux_right]
+    dirichlet = [fix_ux_left, move_ux_right, fix_uy, fix_uz]
+
     problem = IncrSmallStrainProblem(law, u, dirichlet, q_degree=1)
 
     solver = NewtonSolver(MPI.COMM_WORLD, problem)
