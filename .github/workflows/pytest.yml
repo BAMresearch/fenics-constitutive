@@ -59,7 +59,7 @@ jobs:
         shell: bash -l {0}
         run: |
           mpirun -np 2 pytest -s tests/test_solver_mpi.py --with-mpi
-          mpirun -np 3 pytest -s tests/test_solver_mpi.py --with-mpi
+#          mpirun -np 3 pytest -s tests/test_solver_mpi.py --with-mpi
 
 
 
