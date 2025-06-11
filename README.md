@@ -36,6 +36,7 @@ Since this project is based on FEniCSx, a basic knowledge of using FEniCSx is re
 
 ```python
 import dolfinx as df
+from dolfinx.nls.petsc import NewtonSolver
 from fenics_constitutive import (
     IncrSmallStrainProblem, 
     IncrSmallStrainModel, 
@@ -47,7 +48,7 @@ youngs_modulus = 42.0
 poissons_ratio = 0.3
 
 mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 2, 2, 2)
-V = df.fem.VectorFunctionSpace(mesh, ("CG", 1))
+V = df.fem.functionspace(mesh, ("CG", 2, (2,)))
 u = df.fem.Function(V)
 law = LinearElasticityModel(
    {"E": youngs_modulus, "nu": poissons_ratio},
@@ -86,22 +87,21 @@ Currently the Python package contains the following models:
 
 ## Citing
 
-If you use this package in your research, please cite it using the following bibtex entry:
+If you use this package in your research, please cite it using the following bibtex entry for our paper in _Advances in Engineering Software_:
 
 ```bibtex
-@software{fenics_constitutive2024,
-author       = {Diercks, Philipp and
-                Robens-Radermacher, Annika and
-                Rosenbusch, Sjard Mathis and
-                Unger, Jörg F. and
-                Saif-Ur-Rehman},
-title        = {fenics-constitutive},
-month        = oct,
-year         = 2024,
-publisher    = {Zenodo},
-doi          = {10.5281/zenodo.13364955},
-url          = {https://doi.org/10.5281/zenodo.13364955},
+@Article{Rosenbusch2025AiES,
+  author   = {Sjard Mathis Rosenbusch and Philipp Diercks and Vitaliy Kindrachuk and Jörg F. Unger},
+  journal  = {Advances in Engineering Software},
+  title    = {Integrating custom constitutive models into FEniCSx: A versatile approach and case studies},
+  year     = {2025},
+  issn     = {0965-9978},
+  pages    = {103922},
+  volume   = {206},
+  doi      = {https://doi.org/10.1016/j.advengsoft.2025.103922},
+  keywords = {Finite element method, Constitutive models, FEniCSx, UMAT, Rust, Python, C++},
+  url      = {https://www.sciencedirect.com/science/article/pii/S0965997825000602},
 }
 ```
 
-If you want to cite a specific version, you can find the DOI on the Zenodo page.
+Additionally, if you want to cite a specific version of the software, you can use the published records on [Zenodo](https://doi.org/10.5281/zenodo.13364955).

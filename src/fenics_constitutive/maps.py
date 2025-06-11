@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import operator
 from dataclasses import dataclass
+from functools import reduce
 
 import dolfinx as df
 import numpy as np
@@ -25,6 +27,7 @@ class SubSpaceMap:
     child: np.ndarray
     sub_mesh: df.mesh.Mesh
     parent_mesh: df.mesh.Mesh
+    cell_map: np.ndarray
 
     @df.common.timed("constitutive: map_to_parent_mesh")
     def map_to_parent(self, sub: df.fem.Function, parent: df.fem.Function) -> None:
@@ -36,12 +39,12 @@ class SubSpaceMap:
             parent: The function in the parent space.
         """
         assert sub.function_space.mesh == self.sub_mesh, "Subspace mesh does not match"
-        assert (
-            parent.function_space.mesh == self.parent_mesh
-        ), "Parent mesh does not match"
+        assert parent.function_space.mesh == self.parent_mesh, (
+            "Parent mesh does not match"
+        )
         assert sub.ufl_shape == parent.ufl_shape, "Shapes do not match"
 
-        size = sub.ufl_element().value_size()
+        size = reduce(operator.mul, sub.ufl_shape, 1)
 
         parent_array = parent.x.array.reshape(-1, size)
         sub_array = sub.x.array.reshape(-1, size)
@@ -58,12 +61,12 @@ class SubSpaceMap:
             sub: The function in the subspace.
         """
         assert sub.function_space.mesh == self.sub_mesh, "Subspace mesh does not match"
-        assert (
-            parent.function_space.mesh == self.parent_mesh
-        ), "Parent mesh does not match"
+        assert parent.function_space.mesh == self.parent_mesh, (
+            "Parent mesh does not match"
+        )
         assert sub.ufl_shape == parent.ufl_shape, "Shapes do not match"
 
-        size = sub.ufl_element().value_size()
+        size = reduce(operator.mul, sub.ufl_shape, 1)
 
         parent_array = parent.x.array.reshape(-1, size)
         sub_array = sub.x.array.reshape(-1, size)
@@ -93,23 +96,25 @@ def build_subspace_map(
     mesh = V.mesh
     submesh, cell_map, _, _ = df.mesh.create_submesh(mesh, mesh.topology.dim, cells)
     fe = V.ufl_element()
-    V_sub = df.fem.FunctionSpace(submesh, fe)
+    V_sub = df.fem.functionspace(submesh, fe)
 
     submesh = V_sub.mesh
     view_parent = []
     view_child = []
 
-    num_sub_cells = submesh.topology.index_map(submesh.topology.dim).size_local
+    map_c = submesh.topology.index_map(mesh.topology.dim)
+    num_sub_cells = map_c.size_local + map_c.num_ghosts
     for cell in range(num_sub_cells):
         view_child.append(V_sub.dofmap.cell_dofs(cell))
         view_parent.append(V.dofmap.cell_dofs(cell_map[cell]))
 
-    if view_child:
+    if len(view_child) > 0:
         map = SubSpaceMap(
             parent=np.hstack(view_parent),
             child=np.hstack(view_child),
             sub_mesh=submesh,
             parent_mesh=V.mesh,
+            cell_map=cell_map,
         )
     else:
         map = SubSpaceMap(
@@ -117,6 +122,7 @@ def build_subspace_map(
             child=np.array([], dtype=np.int32),
             sub_mesh=submesh,
             parent_mesh=V.mesh,
+            cell_map=cell_map,
         )
     if return_subspace:
         return map, submesh, V_sub

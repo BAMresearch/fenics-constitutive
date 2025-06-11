@@ -75,23 +75,25 @@ def test_ufl_strain_equals_array_conversion(constraint: StressStrainConstraint):
             def lam(x):
                 return x[0] * 0.1, x[1] * 0.2, x[2] * 0.3
 
-    P1 = df.fem.VectorFunctionSpace(mesh, ("Lagrange", 1))
+    P1 = df.fem.functionspace(mesh, ("CG", 1, (constraint.geometric_dim,)))
     u = df.fem.Function(P1)
     grad_u_ufl = ufl.grad(u)
     mandel_strain_ufl = ufl_mandel_strain(u, constraint)
     u.interpolate(lam)
 
     points, weights = basix.make_quadrature(
-        basix.quadrature.string_to_type("default"),
-        basix.cell.string_to_type(mesh.ufl_cell().cellname()),
+        basix.CellType[mesh.ufl_cell().cellname()],
         1,
+        basix.quadrature.string_to_type("default"),
     )
 
     expr_grad_u = df.fem.Expression(grad_u_ufl, points)
     expr_mandel_strain = df.fem.Expression(mandel_strain_ufl, points)
 
     n_cells = mesh.topology.index_map(mesh.topology.dim).size_local
-    grad_u_array = expr_grad_u.eval(np.arange(n_cells, dtype=np.int32)).flatten()
-    strain_array = expr_mandel_strain.eval(np.arange(n_cells, dtype=np.int32)).flatten()
+    grad_u_array = expr_grad_u.eval(mesh, np.arange(n_cells, dtype=np.int32)).flatten()
+    strain_array = expr_mandel_strain.eval(
+        mesh, np.arange(n_cells, dtype=np.int32)
+    ).flatten()
     strain_array_from_grad_u = strain_from_grad_u(grad_u_array, constraint)
     assert np.allclose(strain_array, strain_array_from_grad_u)

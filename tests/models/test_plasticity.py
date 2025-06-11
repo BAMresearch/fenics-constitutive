@@ -10,8 +10,9 @@ from fenics_constitutive.models import VonMises3D
 
 
 def test_uniaxial_strain_3d():
+    # no MPI, one cell only
     mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 1, 1, 1)
-    V = df.fem.VectorFunctionSpace(mesh, ("CG", 1))
+    V = df.fem.functionspace(mesh, ("CG", 1, (3,)))
     u = df.fem.Function(V)
     matparam = {
         "p_ka": 175000,
@@ -28,11 +29,19 @@ def test_uniaxial_strain_3d():
     def right(x):
         return np.isclose(x[0], 1.0)
 
+    def upper_boundary(x):
+        return np.isclose(x[1], 0.0)
+
+    def side_boundary(x):
+        return np.isclose(x[2], 0.0)
+
     tdim = mesh.topology.dim
     fdim = tdim - 1
 
     left_facets = df.mesh.locate_entities_boundary(mesh, fdim, left)
     right_facets = df.mesh.locate_entities_boundary(mesh, fdim, right)
+    upper_facets = df.mesh.locate_entities_boundary(mesh, fdim, upper_boundary)
+    side_facets = df.mesh.locate_entities_boundary(mesh, fdim, side_boundary)
     #
     # ### Dirichlet BCs
     zero_scalar = df.fem.Constant(mesh, 0.0)
@@ -47,9 +56,20 @@ def test_uniaxial_strain_3d():
         df.fem.locate_dofs_topological(V.sub(0), fdim, right_facets),
         V.sub(0),
     )
+    fix_uy = df.fem.dirichletbc(
+        zero_scalar,
+        df.fem.locate_dofs_topological(V.sub(1), fdim, upper_facets),
+        V.sub(1),
+    )
+    fix_uz = df.fem.dirichletbc(
+        zero_scalar,
+        df.fem.locate_dofs_topological(V.sub(2), fdim, side_facets),
+        V.sub(2),
+    )
 
-    dirichlet = [fix_ux_left, move_ux_right]
-    problem = IncrSmallStrainProblem(law, u, dirichlet, q_degree=2)
+    dirichlet = [fix_ux_left, move_ux_right, fix_uy, fix_uz]
+
+    problem = IncrSmallStrainProblem(law, u, dirichlet, q_degree=1)
 
     solver = NewtonSolver(MPI.COMM_WORLD, problem)
 
@@ -61,7 +81,7 @@ def test_uniaxial_strain_3d():
     load = [0.0]
 
     for inc, time in enumerate(load_steps):
-        print("Load Increment:", inc)
+        # print("Load Increment:", inc)
 
         current_disp = time * max_disp
         scalar_x.value = current_disp
@@ -69,7 +89,7 @@ def test_uniaxial_strain_3d():
         niter, converged = solver.solve(u)
         problem.update()
 
-        print(f"Converged: {converged} in {niter} iterations.")
+        # print(f"Converged: {converged} in {niter} iterations.")
         iterations = np.append(iterations, niter)
 
         stress_values = []
@@ -105,7 +125,7 @@ def test_uniaxial_strain_3d():
 
 def test_uniaxial_cyclic_strain_3d():
     mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 1, 1, 1)
-    V = df.fem.VectorFunctionSpace(mesh, ("CG", 1))
+    V = df.fem.functionspace(mesh, ("CG", 1, (3,)))
     u = df.fem.Function(V)
     matparam = {
         "p_ka": 175000,
@@ -122,11 +142,19 @@ def test_uniaxial_cyclic_strain_3d():
     def right(x):
         return np.isclose(x[0], 1.0)
 
+    def upper_boundary(x):
+        return np.isclose(x[1], 0.0)
+
+    def side_boundary(x):
+        return np.isclose(x[2], 0.0)
+
     tdim = mesh.topology.dim
     fdim = tdim - 1
 
     left_facets = df.mesh.locate_entities_boundary(mesh, fdim, left)
     right_facets = df.mesh.locate_entities_boundary(mesh, fdim, right)
+    upper_facets = df.mesh.locate_entities_boundary(mesh, fdim, upper_boundary)
+    side_facets = df.mesh.locate_entities_boundary(mesh, fdim, side_boundary)
     #
     # ### Dirichlet BCs
     zero_scalar = df.fem.Constant(mesh, 0.0)
@@ -141,9 +169,20 @@ def test_uniaxial_cyclic_strain_3d():
         df.fem.locate_dofs_topological(V.sub(0), fdim, right_facets),
         V.sub(0),
     )
+    fix_uy = df.fem.dirichletbc(
+        zero_scalar,
+        df.fem.locate_dofs_topological(V.sub(1), fdim, upper_facets),
+        V.sub(1),
+    )
+    fix_uz = df.fem.dirichletbc(
+        zero_scalar,
+        df.fem.locate_dofs_topological(V.sub(2), fdim, side_facets),
+        V.sub(2),
+    )
 
-    dirichlet = [fix_ux_left, move_ux_right]
-    problem = IncrSmallStrainProblem(law, u, dirichlet, q_degree=2)
+    dirichlet = [fix_ux_left, move_ux_right, fix_uy, fix_uz]
+
+    problem = IncrSmallStrainProblem(law, u, dirichlet, q_degree=1)
 
     solver = NewtonSolver(MPI.COMM_WORLD, problem)
 
@@ -155,7 +194,7 @@ def test_uniaxial_cyclic_strain_3d():
     load = [0.0]
 
     for inc, time in enumerate(load_steps):
-        print("Load Increment:", inc)
+        # print("Load Increment:", inc)
 
         current_disp = np.sin(time) * max_disp
         scalar_x.value = current_disp
@@ -163,7 +202,7 @@ def test_uniaxial_cyclic_strain_3d():
         niter, converged = solver.solve(u)
         problem.update()
 
-        print(f"Converged: {converged} in {niter} iterations.")
+        # print(f"Converged: {converged} in {niter} iterations.")
         iterations = np.append(iterations, niter)
 
         stress_values = []
