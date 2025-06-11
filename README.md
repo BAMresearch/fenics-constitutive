@@ -36,6 +36,7 @@ Since this project is based on FEniCSx, a basic knowledge of using FEniCSx is re
 
 ```python
 import dolfinx as df
+from dolfinx.nls.petsc import NewtonSolver
 from fenics_constitutive import (
     IncrSmallStrainProblem, 
     IncrSmallStrainModel, 
@@ -47,7 +48,7 @@ youngs_modulus = 42.0
 poissons_ratio = 0.3
 
 mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 2, 2, 2)
-V = df.fem.VectorFunctionSpace(mesh, ("CG", 1))
+V = df.fem.functionspace(mesh, ("CG", 2, (2,)))
 u = df.fem.Function(V)
 law = LinearElasticityModel(
    {"E": youngs_modulus, "nu": poissons_ratio},

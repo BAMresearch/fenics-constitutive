@@ -15,7 +15,7 @@ dependencies:
   #- tqdm
   - pip
   #- meshio
-  - fenics-dolfinx=0.6.0
+  - fenics-dolfinx=0.9.0
   #- libadios2=2.10.1
   - matplotlib
   - pint
