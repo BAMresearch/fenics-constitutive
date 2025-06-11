@@ -52,7 +52,7 @@ def uniaxial_strain_3d_fine_mesh(comm, mesh_path):
     dirichlet = [bc_left, bc_right]
     problem = IncrSmallStrainProblem(law, u, dirichlet, q_degree=1)
 
-    solver = NewtonSolver(MPI.COMM_WORLD, problem)
+    solver = NewtonSolver(comm, problem)
     nTime = 100
     max_disp = 0.05
     load_steps = np.linspace(0, 1, num=nTime + 1)[1:]
