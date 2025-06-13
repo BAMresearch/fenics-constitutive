@@ -6,8 +6,8 @@ import ufl
 from mpi4py import MPI
 
 
-def norm(f, dx, comm=MPI.COMM_WORLD, type="l2"):
-    match type:
+def norm(f, dx, comm=MPI.COMM_WORLD, norm_type="l2"):
+    match norm_type:
         case "l2":
             norm_squared = df.fem.assemble_scalar(df.fem.form(ufl.inner(f, f) * dx))
             return np.sqrt(comm.allreduce(norm_squared, op=MPI.SUM))
