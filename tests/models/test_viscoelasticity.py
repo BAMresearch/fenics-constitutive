@@ -72,8 +72,8 @@ def test_relaxation_uniaxial_stress(mat: IncrSmallStrainModel):
     # store values last element/point
     disp.append(u.x.array[-1])
     stress.append(problem.stress_1.x.array[-1])
-    strain.append(problem._history_1[0]["strain"].x.array[-1])
-    viscostrain.append(problem._history_1[0]["strain_visco"].x.array[-1])
+    strain.append(problem.quadrature_data.history[0]["strain"].x.array[-1])
+    viscostrain.append(problem.quadrature_data.history[0]["strain_visco"].x.array[-1])
 
     # set time step back and solve until total time
     problem._del_t = dt
@@ -89,11 +89,13 @@ def test_relaxation_uniaxial_stress(mat: IncrSmallStrainModel):
         # print(u.x.array)
         disp.append(u.x.array[-1])
         stress.append(problem.stress_1.x.array[-1])
-        strain.append(problem._history_1[0]["strain"].x.array[-1])
-        viscostrain.append(problem._history_1[0]["strain_visco"].x.array[-1])
+        strain.append(problem.quadrature_data.history[0]["strain"].x.array[-1])
+        viscostrain.append(
+            problem.quadrature_data.history[0]["strain_visco"].x.array[-1]
+        )
 
-    #print("0", time[0], disp[0], stress[0], strain[0], viscostrain[0])
-    #print("end", time[-1], disp[-1], stress[-1], strain[-1], viscostrain[-1])
+    # print("0", time[0], disp[0], stress[0], strain[0], viscostrain[0])
+    # print("end", time[-1], disp[-1], stress[-1], strain[-1], viscostrain[-1])
     # analytic solution
     if isinstance(law, SpringKelvinModel):
         # analytic solution for 1D Kelvin model
@@ -235,8 +237,8 @@ def test_relaxation(dim: int, mat: IncrSmallStrainModel):
     problem.update()
     time.append(problem._time)
 
-    strain.append(problem._history_1[0]["strain"].x.array.max())
-    viscostrain.append(problem._history_1[0]["strain_visco"].x.array.max())
+    strain.append(problem.quadrature_data.history[0]["strain"].x.array.max())
+    viscostrain.append(problem.quadrature_data.history[0]["strain_visco"].x.array.max())
     disp.append(u.x.array.max())
     stress.append(problem.stress_1.x.array.max())
 
@@ -251,8 +253,10 @@ def test_relaxation(dim: int, mat: IncrSmallStrainModel):
 
         disp.append(u.x.array.max())
         stress.append(problem.stress_1.x.array.max())
-        strain.append(problem._history_1[0]["strain"].x.array.max())
-        viscostrain.append(problem._history_1[0]["strain_visco"].x.array.max())
+        strain.append(problem.quadrature_data.history[0]["strain"].x.array.max())
+        viscostrain.append(
+            problem.quadrature_data.history[0]["strain_visco"].x.array.max()
+        )
 
     print(disp[-1], stress[0], stress[-1], strain[0], viscostrain[0], viscostrain[-1])
 
@@ -352,7 +356,7 @@ def test_kelvin_vs_maxwell():
             # print(f"time {prob_i._time} Converged: {converged} in {niter} iterations.")
 
             stress.append(prob_i.stress_1.x.array[-1])
-            strain.append(prob_i._history_1[0]["strain"].x.array[-1])
+            strain.append(prob_i.quadrature_data.history[0]["strain"].x.array[-1])
 
         stress_p.append(stress)
         strain_p.append(strain)
@@ -405,7 +409,7 @@ def test_creep(dim: int, mat: IncrSmallStrainModel):
     else:
         raise ValueError(f"Dimension {dim} not supported")
 
-    V = df.fem.functionspace(mesh, ("CG", 1,(dim,)))
+    V = df.fem.functionspace(mesh, ("CG", 1, (dim,)))
     u = df.fem.Function(V)
 
     def left_boundary(x):
@@ -480,8 +484,8 @@ def test_creep(dim: int, mat: IncrSmallStrainModel):
     problem.update()
     time.append(problem._time)
 
-    strain.append(problem._history_1[0]["strain"].x.array.max())
-    viscostrain.append(problem._history_1[0]["strain_visco"].x.array.max())
+    strain.append(problem.quadrature_data.history[0]["strain"].x.array.max())
+    viscostrain.append(problem.quadrature_data.history[0]["strain_visco"].x.array.max())
     disp.append(u.x.array.max())
     stress.append(problem.stress_1.x.array.max())
 
@@ -496,8 +500,10 @@ def test_creep(dim: int, mat: IncrSmallStrainModel):
 
         disp.append(u.x.array.max())
         stress.append(problem.stress_1.x.array.max())
-        strain.append(problem._history_1[0]["strain"].x.array.max())
-        viscostrain.append(problem._history_1[0]["strain_visco"].x.array.max())
+        strain.append(problem.quadrature_data.history[0]["strain"].x.array.max())
+        viscostrain.append(
+            problem.quadrature_data.history[0]["strain_visco"].x.array.max()
+        )
 
     print(disp[-1], stress[0], stress[-1], strain[0], viscostrain[0], viscostrain[-1])
 
@@ -608,7 +614,7 @@ def define_problem(mat: IncrSmallStrainModel, dim: int):
         )
         fixed_vector = np.array([0.0, 0.0, 0.0])
 
-    V = df.fem.functionspace(mesh, ("CG", 1,(dim,)))
+    V = df.fem.functionspace(mesh, ("CG", 1, (dim,)))
     u = df.fem.Function(V)
 
     # boundaries

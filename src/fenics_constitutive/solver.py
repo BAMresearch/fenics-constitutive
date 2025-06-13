@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import basix
@@ -113,54 +115,19 @@ class IncrSmallStrainProblem(NonlinearProblem):
         QV = df.fem.functionspace(mesh, QVe)
         QT = df.fem.functionspace(mesh, QTe)
 
-        self.laws: list[tuple[IncrSmallStrainModel, np.ndarray]] = []
-        self.submesh_maps: list[SubSpaceMap] = []
-
-        self._del_grad_u = []
-        self._stress = []
-        self._history_0 = []
-        self._history_1 = []
-        self._tangent = []
+        self.laws = laws
+        # self.submesh_maps: list[SubSpaceMap] = []
 
         self._del_t = del_t  # time increment
         self._time = 0  # global time will be updated in the update method
 
-        # if len(laws) > 1:
-        for law, cells in laws:
-            self.laws.append((law, cells))
-
-            # default case for homogenous domain
-            submesh = mesh
-
-            if len(laws) > 1:
-                # ### submesh and subspace for strain, stress
-                subspace_map, submesh, QV_subspace = build_subspace_map(
-                    cells, QV, return_subspace=True
-                )
-                self.submesh_maps.append(subspace_map)
-                self._stress.append(df.fem.Function(QV_subspace))
-
-            # subspace for grad u
-            Q_grad_u_subspace = df.fem.functionspace(submesh, Q_grad_u_e)
-            self._del_grad_u.append(df.fem.Function(Q_grad_u_subspace))
-
-            # subspace for tanget
-            QT_subspace = df.fem.functionspace(submesh, QTe)
-            self._tangent.append(df.fem.Function(QT_subspace))
-
-            # subspaces for history
-            history_0 = build_history(law, submesh, q_degree)
-            history_1 = (
-                {key: fn.copy() for key, fn in history_0.items()}
-                if isinstance(history_0, dict)
-                else history_0
-            )
-            self._history_0.append(history_0)
-            self._history_1.append(history_1)
-
         self.stress_0 = df.fem.Function(QV)
         self.stress_1 = df.fem.Function(QV)
         self.tangent = df.fem.Function(QT)
+
+        self.quadrature_data = QuadratureData(
+            laws, u, self.stress_1, q_degree, QVe, Q_grad_u_e, QTe, True
+        )
 
         u_, du = ufl.TestFunction(u.function_space), ufl.TrialFunction(u.function_space)
 
@@ -221,61 +188,27 @@ class IncrSmallStrainProblem(NonlinearProblem):
 
         """
         super().form(x)
-        # this copies the data from the vector x to the function _u
-        x.copy(self._u.x.petsc_vec)
-        self._u.x.petsc_vec.ghostUpdate(
-            addv=PETSc.InsertMode.INSERT, mode=PETSc.ScatterMode.FORWARD
-        )
         # This assertion can fail, even if everything is correct.
         # Left here, because I would like the check to work someday again.
         # assert (
         #    x.array.data == self._u.vector.array.data
         # ), f"The solution vector must be the same as the one passed to the MechanicsProblem. Got {x.array.data} and {self._u.vector.array.data}"
 
-        # if len(self.laws) > 1:
-        for k, (law, cells) in enumerate(self.laws):
-            self._del_grad_u[k].interpolate(
-                self.del_grad_u_expr,
-                cells0=cells,
-                cells1=np.arange(cells.size, dtype=np.int32),
-            )
-            # self.del_grad_u_expr.eval(
-            #    self._del_grad_u[k].function_space.mesh,
-            #    cells,
-            #    self._del_grad_u[k].x.array.reshape(cells.size, -1),
-            # )
-            self._del_grad_u[k].x.scatter_forward()
-            if len(self.laws) > 1:
-                self.submesh_maps[k].map_to_child(self.stress_0, self._stress[k])
-                stress_input = self._stress[k].x.array
-                tangent_input = self._tangent[k].x.array
-            else:
-                self.stress_1.x.array[:] = self.stress_0.x.array
-                self.stress_1.x.scatter_forward()
-                stress_input = self.stress_1.x.array
-                tangent_input = self.tangent.x.array
-
-            history_input = None
-            if law.history_dim is not None:
-                history_input = {}
-                for key in law.history_dim:
-                    self._history_1[k][key].x.array[:] = self._history_0[k][key].x.array
-                    history_input[key] = self._history_1[k][key].x.array
-            with df.common.Timer("constitutive-law-evaluation"):
-                law.evaluate(
-                    self._time,
-                    self._del_t,
-                    self._del_grad_u[k].x.array,
-                    stress_input,
-                    tangent_input,
-                    history_input,
-                )
-            if len(self.laws) > 1:
-                self.submesh_maps[k].map_to_parent(self._stress[k], self.stress_1)
-                self.submesh_maps[k].map_to_parent(self._tangent[k], self.tangent)
-
-        self.stress_1.x.scatter_forward()
-        self.tangent.x.scatter_forward()
+        # this copies the data from the vector x to the function _u
+        x.copy(self._u.x.petsc_vec)
+        self._u.x.petsc_vec.ghostUpdate(
+            addv=PETSc.InsertMode.INSERT, mode=PETSc.ScatterMode.FORWARD
+        )
+        evaluate_model(
+            self.quadrature_data,
+            self.laws,
+            self.del_grad_u_expr,
+            self._time,
+            self._del_t,
+            self.stress_1,
+            self.stress_0,
+            self.tangent,
+        )
 
     def update(self) -> None:
         """
@@ -289,17 +222,22 @@ class IncrSmallStrainProblem(NonlinearProblem):
 
         for k, (law, _) in enumerate(self.laws):
             # law.update()
-            if law.history_dim is not None:
+            if (
+                law.history_dim is not None
+                and self.quadrature_data.history_initial is not None
+            ):
                 for key in law.history_dim:
-                    self._history_0[k][key].x.array[:] = self._history_1[k][key].x.array
-                    self._history_0[k][key].x.scatter_forward()
+                    self.quadrature_data.history_initial[k][key].x.array[:] = (
+                        self.quadrature_data.history[k][key].x.array
+                    )
+                    self.quadrature_data.history_initial[k][key].x.scatter_forward()
 
         # time update
         self._time += self._del_t
 
 
 @dataclass
-class SubmeshDataHandler:
+class QuadratureData:
     """
     A data handler for the constitutive law. This is used to store the data
     for the constitutive law and to update it.
@@ -310,83 +248,301 @@ class SubmeshDataHandler:
             that the domain is homogenous.
         u: The displacement field. This is the unknown in the nonlinear problem.
         q_degree: The quadrature degree (Polynomial degree which the quadrature rule needs to integrate exactly).
-        del_t: The time increment.
     """
 
     history_initial: list[dict[str, df.fem.Function]] | None
     history: list[dict[str, df.fem.Function]] | None
-    stress_initial: list[df.fem.Function] | None
     stress: list[df.fem.Function] | None
     tangent: list[df.fem.Function] | None
     del_grad_u: list[df.fem.Function]
+    supspace_maps: list[SubSpaceMap] | None
 
     def __init__(
-        laws: list[tuple[IncrSmallStrainModel, np.ndarray]] | IncrSmallStrainModel,
+        self,
+        laws: list[tuple[IncrSmallStrainModel, np.ndarray]],
+        u: df.fem.Function,
+        stress: df.fem.Function,
         q_degree: int,
-        use_tangent: bool = True,
+        stress_element: basix.ufl._ElementBase,
+        del_grad_u_element: basix.ufl._ElementBase,
+        tangent_element: basix.ufl._ElementBase | None,
         use_initial_state: bool = True,
-    ):
-        if isinstance(laws, IncrSmallStrainModel):
-            laws = [(laws, None)]
-
-        history_initial = []
-        history = []
-        stress_initial = []
-        stress = []
-        tangent = []
-        del_grad_u = []
-
-        for law, _ in laws:
-            # history =
-            # history_0 = (
-            #    {key: fn.copy() for key, fn in history_0.items()}
-            #    if isinstance(history_0, dict)
-            #    else history_0
-            # )
-            history.append(build_history(law, None, 0))
+    ) -> None:
+        mesh = u.function_space.mesh
+        _submesh_maps = []
+        _stress = [] if len(laws) > 1 else None
+        _del_grad_u = []
+        _tangent = [] if tangent_element is not None else None
+        _history = []
+        _history_initial = [] if use_initial_state else None
+        for law, cells in laws:
+            # default case for homogenous domain
+            submesh = mesh
 
             if len(laws) > 1:
-                stress.append(df.fem.Function(law.constraint.stress_strain_space))
-            else:
-                stress = None
-                stress_initial = None
-
-            if use_initial_state:
-                history_ = (
-                    {key: fn.copy() for key, fn in history[-1].items()}
-                    if isinstance(history[-1], dict)
-                    else history[-1]
+                # ### submesh and subspace for strain, stress
+                subspace_map, submesh, QV_subspace = build_subspace_map(
+                    cells, stress.function_space, return_subspace=True
                 )
-                history_initial.append(history_)
+                _submesh_maps.append(subspace_map)
+                _stress.append(df.fem.Function(QV_subspace))
 
-                stress_initial.append(stress[-1].copy() if stress is not None else None)
+            # subspace for grad u
+            Q_grad_u_subspace = df.fem.functionspace(submesh, del_grad_u_element)
+            _del_grad_u.append(df.fem.Function(Q_grad_u_subspace))
 
-            if use_tangent:
-                tangent.append(df.fem.Function(law.constraint.tangent_space))
+            # subspace for tanget
+            if _tangent is not None:
+                QT_subspace = df.fem.functionspace(submesh, tangent_element)
+                _tangent.append(df.fem.Function(QT_subspace))
 
-            super().__init__(
-                history_initial=history_initial if use_initial_state else None,
-                history=history,
-                stress_initial=stress_initial if use_initial_state else None,
-                stress=stress,
-                tangent=tangent if use_tangent else None,
-                del_grad_u=del_grad_u,
-            )
+            # subspaces for history
+            history = build_history(law, submesh, q_degree)
+            _history.append(history)
+            if use_initial_state:
+                history_initial = (
+                    {key: fn.copy() for key, fn in history.items()}
+                    if isinstance(history, dict)
+                    else history
+                )
+                _history_initial.append(history_initial)
+
+        self.history_initial = _history_initial
+        self.history = _history
+        self.stress = _stress
+        self.tangent = _tangent
+        self.del_grad_u = _del_grad_u
+        self.supspace_maps = _submesh_maps
 
 
 def evaluate_model(
-    models: list[IncrSmallStrainModel],
-    stress: np.ndarray,
+    submesh_data: QuadratureData,
+    laws: list[tuple[IncrSmallStrainModel, np.ndarray]],
+    grad_del_u_expr: df.fem.Expression,
+    time: float,
+    del_t: float,
+    stress: df.fem.Function,
+    stress_initial: df.fem.Function | None,
+    tangent: df.fem.Function | None,
 ) -> None:
-    """Evaluate the models with the given data.
+    """Evaluate the constitutive law for the given quadrature data.
+    This function does not depend on PETSc or the nonlinear solver and can therefore
+    be used in a solver that uses scipy or explicit solvers that only work on the numpy
+    level. It updates the stress, tangent and history functions based on the laws provided.
 
     Args:
-        models: The constitutive models.
-        del_grad_u: The gradient of the displacement.
-        stress: The stress.
-        tangent: The tangent.
-        history: The history.
+        submesh_data: The submesh data containing the history, stress, tangent and del_grad_u.
+        laws: The list of constitutive laws.
+        grad_del_u_expr: The expression for the gradient of the displacement.
+        time: The current time.
+        del_t: The time increment.
+        stress: The stress function to be updated.
+        stress_initial: The initial stress function (if applicable).
+        tangent: The tangent function to be updated.
 
     """
-    for model in models:
-        model.evaluate(del_grad_u, stress, tangent, history)
+    for k, (law, cells) in enumerate(laws):
+        submesh_data.del_grad_u[k].interpolate(
+            grad_del_u_expr,
+            cells0=cells.copy(),
+            cells1=np.arange(cells.size, dtype=np.int32),
+        )
+        submesh_data.del_grad_u[k].x.scatter_forward()
+
+        if len(laws) > 1:
+            submesh_data.supspace_maps[k].map_to_child(
+                stress_initial, submesh_data.stress[k]
+            )
+            stress_input = submesh_data.stress[k].x.array
+            tangent_input = submesh_data.tangent[k].x.array if tangent else None
+        else:
+            stress.x.array[:] = stress_initial.x.array
+            stress.x.scatter_forward()
+            stress_input = stress.x.array
+            tangent_input = tangent.x.array if tangent else None
+
+        history_input = None
+        if law.history_dim is not None and submesh_data.history_initial is not None:
+            history_input = {}
+            for key in law.history_dim:
+                # copy initial history values to current history
+                submesh_data.history[k][key].x.array[:] = submesh_data.history_initial[
+                    k
+                ][key].x.array
+                history_input[key] = submesh_data.history[k][key].x.array
+        elif law.history_dim is not None and submesh_data.history_initial is None:
+            history_input = {}
+            for key in law.history_dim:
+                # directly overwrite values
+                history_input[key] = submesh_data.history[k][key].x.array
+
+        with df.common.Timer("constitutive-law-evaluation"):
+            law.evaluate(
+                time,
+                del_t,
+                submesh_data.del_grad_u[k].x.array,
+                stress_input,
+                tangent_input,
+                history_input,
+            )
+
+        if len(laws) > 1:
+            submesh_data.supspace_maps[k].map_to_parent(submesh_data.stress[k], stress)
+            if tangent is not None:
+                submesh_data.supspace_maps[k].map_to_parent(
+                    submesh_data.tangent[k], tangent
+                )
+
+    stress.x.scatter_forward()
+    if tangent is not None:
+        tangent.x.scatter_forward()
+
+
+@dataclass
+class DynamicSolver(ABC):
+    """
+    An abstract class for a dynamic solver. This class is used to solve the
+    incremental small strain problem using a dynamic solver.
+    """
+
+    laws: list[tuple[IncrSmallStrainModel, np.ndarray]]
+    u: df.fem.Function
+    v: df.fem.Function
+    bcs: list[df.fem.DirichletBC | Callable[[float], df.fem.DirichletBC]]
+    q_degree: int
+    quadrature_data: QuadratureData
+    form_compiler_options: dict | None = None
+    jit_options: dict | None = None
+
+    @abstractmethod
+    def __init__(
+        self,
+        laws: list[tuple[IncrSmallStrainModel, np.ndarray]] | IncrSmallStrainModel,
+        u: df.fem.Function,
+        v: df.fem.Function,
+        bcs: list[df.fem.DirichletBC],
+        q_degree: int,
+        form_compiler_options: dict | None = None,
+        jit_options: dict | None = None,
+    ) -> None:
+        pass
+
+    @abstractmethod
+    def step(self, del_t: float) -> None:
+        pass
+
+
+@dataclass(frozen=True)
+class CDM(DynamicSolver):
+    """
+    A class for the Central Difference Method (CDM) solver for incremental small strain models.
+
+    laws: A list of tuples where the first element is the constitutive law and the second
+            element is the cells for the submesh. If only one law is provided, it is assumed
+            that the domain is homogenous.
+    u: The displacement field. This is the unknown in the nonlinear problem.
+    bcs: The Dirichlet boundary conditions.
+    q_degree: The quadrature degree (Polynomial degree which the quadrature rule needs to integrate exactly).
+    del_t: The time increment.
+    form_compiler_options: The options for the form compiler.
+    jit_options: The options for the JIT compiler.
+    """
+
+    laws: list[tuple[IncrSmallStrainModel, np.ndarray]]
+    u: df.fem.Function
+    v: df.fem.Function
+    bcs: list[df.fem.DirichletBC]
+    q_degree: int
+    quadrature_data: QuadratureData
+    form_compiler_options: dict | None = None
+    jit_options: dict | None = None
+
+    def __init__(
+        self,
+        laws: list[tuple[IncrSmallStrainModel, np.ndarray]] | IncrSmallStrainModel,
+        u: df.fem.Function,
+        v: df.fem.Function,
+        bcs: list[df.fem.DirichletBC],
+        q_degree: int,
+        form_compiler_options: dict | None = None,
+        jit_options: dict | None = None,
+    ) -> None:
+        mesh = u.function_space.mesh
+        map_c = mesh.topology.index_map(mesh.topology.dim)
+        num_cells = map_c.size_local + map_c.num_ghosts
+        if isinstance(laws, IncrSmallStrainModel):
+            cells = np.arange(0, num_cells, dtype=np.int32)
+            laws = [(laws, cells)]
+
+        constraint = laws[0][0].constraint
+        assert all(law[0].constraint == constraint for law in laws), (
+            "All laws must have the same constraint"
+        )
+
+        gdim = mesh.geometry.dim
+        assert constraint.geometric_dim == gdim, (
+            "Geometric dimension mismatch between mesh and laws"
+        )
+
+        stress_element = basix.ufl.quadrature_element(
+            mesh.topology.cell_name(),
+            value_shape=(constraint.stress_strain_dim,),
+            degree=q_degree,
+        )
+        grad_v_element = basix.ufl.quadrature_element(
+            mesh.topology.cell_name(), value_shape=(gdim, gdim), degree=q_degree
+        )
+        Q_stress = df.fem.functionspace(mesh, stress_element)
+
+        self.laws = laws
+        # self.submesh_maps: list[SubSpaceMap] = []
+
+        self.stress = df.fem.Function(Q_stress)
+
+        self.quadrature_data = QuadratureData(
+            laws,
+            u,
+            self.stress,
+            q_degree,
+            stress_element,
+            grad_v_element,
+            None,
+            False,
+        )
+
+        u_, du = ufl.TestFunction(u.function_space), ufl.TrialFunction(u.function_space)
+
+        self.metadata = {"quadrature_degree": q_degree, "quadrature_scheme": "default"}
+        self.dxm = ufl.dx(metadata=self.metadata)
+
+        self.R_form = (
+            ufl.inner(ufl_mandel_strain(u_, constraint), self.stress_1) * self.dxm
+        )
+        self.dR_form = (
+            ufl.inner(
+                ufl_mandel_strain(du, constraint),
+                ufl.dot(self.tangent, ufl_mandel_strain(u_, constraint)),
+            )
+            * self.dxm
+        )
+
+        self._u = u
+        self._u0 = u.copy()
+        self._bcs = bcs
+        self._form_compiler_options = form_compiler_options
+        self._jit_options = jit_options
+
+        basix_celltype = getattr(basix.CellType, mesh.topology.cell_type.name)
+        self.q_points, _ = basix.make_quadrature(basix_celltype, q_degree)
+
+        self.del_grad_u_expr = df.fem.Expression(ufl.nabla_grad(self.v), self.q_points)
+
+    def step(self, del_t: float) -> None:
+        """
+        Perform a single time step using the Central Difference Method (CDM).
+        This method updates the displacement and velocity fields based on the laws
+        and the time increment.
+
+        Args:
+            del_t: The time increment for the step.
+        """

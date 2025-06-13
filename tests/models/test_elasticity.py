@@ -149,8 +149,9 @@ def test_uniaxial_stress_two_laws(factor: float):
 
     # Does the stiffer element have a proportionally lower strain?
     assert abs(
-        problem._del_grad_u[0].x.array[0] - factor * problem._del_grad_u[1].x.array[0]
-    ) < 1e-10 / abs(problem._del_grad_u[0].x.array[0])
+        problem.quadrature_data.del_grad_u[0].x.array[0]
+        - factor * problem.quadrature_data.del_grad_u[1].x.array[0]
+    ) < 1e-10 / abs(problem.quadrature_data.del_grad_u[0].x.array[0])
 
 
 def test_uniaxial_strain():
