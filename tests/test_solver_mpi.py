@@ -110,8 +110,8 @@ def test_mpi_solver():
     diff.x.array[:] = u_self.x.array - u_world.x.array
     diff.x.scatter_forward()
 
-    l_2_norm_diff = norm(diff, ufl.dx, type="l2")
-    l_2_norm_rel = norm(u_self, ufl.dx, type="l2")
+    l_2_norm_diff = norm(diff, ufl.dx, norm_type="l2")
+    l_2_norm_rel = norm(u_self, ufl.dx, norm_type="l2")
     print(f"L2 norm of the difference: {l_2_norm_diff}")
     print(f"Relative L2 norm of the difference: {l_2_norm_diff / l_2_norm_rel}")
     assert l_2_norm_diff < 1e-14 * l_2_norm_rel, (
