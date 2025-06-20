@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-import basix
-import basix.ufl
 import dolfinx as df
 import numpy as np
 import ufl
@@ -16,91 +14,8 @@ from fenics_constitutive.solver._spaces import ElementSpaces
 from fenics_constitutive.stress_strain import ufl_mandel_strain
 from fenics_constitutive.typesafe import fn_for
 
+from ._incrementalunknowns import IncrementalDisplacement, IncrementalStress
 from ._lawonsubmesh import LawOnSubMesh
-
-
-@dataclass(slots=True)
-class DisplacementGradientFunction:
-    cells: np.ndarray
-    displacement_gradient_fn: df.fem.Function
-
-    def evaluate_expression(self, expression: df.fem.Expression) -> None:
-        # expression.eval(self.cells, self.displacement_gradient())
-        self.displacement_gradient_fn.interpolate(
-            expression,
-            cells0=self.cells,
-            cells1=np.arange(self.cells.size, dtype=np.int32),
-        )
-        self.scatter()
-
-    def displacement_gradient(self) -> np.ndarray:
-        return self.displacement_gradient_fn.x.array
-
-    def scatter(self) -> None:
-        self.displacement_gradient_fn.x.scatter_forward()
-
-
-@dataclass
-class IncrementalDisplacement:
-    u: df.fem.Function
-    q_degree: int
-
-    def __post_init__(self) -> None:
-        mesh = self.u.function_space.mesh
-        basix_celltype = getattr(basix.CellType, mesh.topology.cell_type.name)
-        q_points, _ = basix.make_quadrature(basix_celltype, self.q_degree)
-        self.current = self.u
-        self.previous = self.u.copy()
-        self._expr = df.fem.Expression(
-            ufl.nabla_grad(self.current - self.previous), q_points
-        )
-
-    def update_previous(self) -> None:
-        self.previous.x.array[:] = self.current.x.array
-        self.previous.x.scatter_forward()
-
-    def update_current(self, x: np.ndarray) -> None:
-        """Copy the solution vector x into the current displacement and update ghosts."""
-        x.copy(self.current.x.petsc_vec)
-        self.current.x.petsc_vec.ghostUpdate(
-            addv=PETSc.InsertMode.INSERT, mode=PETSc.ScatterMode.FORWARD
-        )
-
-    def evaluate_incremental_gradient(
-        self, displacement_gradient: DisplacementGradientFunction
-    ) -> None:
-        """Evaluate the incremental displacement gradient function"""
-        displacement_gradient.evaluate_expression(self._expr)
-
-
-class IncrementalStress:
-    __slots__ = ("_current", "_previous")
-
-    def __init__(self, function_space) -> None:
-        self._current = fn_for(function_space)
-        self._previous = fn_for(function_space)
-
-    @property
-    def current(self) -> df.fem.Function:
-        return self._current
-
-    @property
-    def previous(self) -> df.fem.Function:
-        return self._previous
-
-    def current_array(self) -> np.ndarray:
-        return self.current.x.array
-
-    def update_previous(self) -> None:
-        self._previous.x.array[:] = self._current.x.array
-        self._previous.x.scatter_forward()
-
-    def update_current(self) -> None:
-        self._current.x.array[:] = self._previous.x.array
-        self._current.x.scatter_forward()
-
-    def scatter_current(self) -> None:
-        self._current.x.scatter_forward()
 
 
 @dataclass(slots=True)
@@ -299,7 +214,4 @@ class IncrSmallStrainProblem(NonlinearProblem):
     @property
     def _del_grad_u(self) -> list[Function]:
         """Return a list of inc_disp_grad Functions for all laws (for backward compatibility)."""
-        return [
-            law.displacement_gradient.displacement_gradient_fn
-            for law in self._law_on_submeshs
-        ]
+        return [law.displacement_gradient_fn for law in self._law_on_submeshs]

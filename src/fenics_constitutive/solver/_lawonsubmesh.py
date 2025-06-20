@@ -11,21 +11,18 @@ from fenics_constitutive.interfaces import IncrSmallStrainModel
 from fenics_constitutive.maps import SpaceMap, build_subspace_map
 
 from ._history import History
+from ._incrementalunknowns import IncrementalDisplacement, IncrementalStress
 from ._spaces import ElementSpaces
 
 if TYPE_CHECKING:
-    from ._solver import (
-        DisplacementGradientFunction,
-        IncrementalDisplacement,
-        IncrementalStress,
-        SimulationTime,
-    )
+    from ._solver import SimulationTime
 
 
 @dataclass
 class LawOnSubMesh:
     law: IncrSmallStrainModel
-    displacement_gradient: DisplacementGradientFunction
+    cells: np.ndarray
+    displacement_gradient_fn: df.fem.Function
     stress: df.fem.Function
     local_tangent: df.fem.Function
     submesh_map: SpaceMap
@@ -35,8 +32,6 @@ class LawOnSubMesh:
     def map_to_cells(
         law: IncrSmallStrainModel, cells: np.ndarray, element_spaces: ElementSpaces
     ) -> LawOnSubMesh:
-        from ._solver import DisplacementGradientFunction
-
         subspace_map, submesh, stress_vector_space = build_subspace_map(
             cells, element_spaces.stress_vector_space
         )
@@ -47,12 +42,12 @@ class LawOnSubMesh:
         inc_disp_grad_fn = typesafe.fn_for(
             element_spaces.displacement_gradient_tensor_space(submesh)
         )
-        disp_grad = DisplacementGradientFunction(cells, inc_disp_grad_fn)
 
         history = History.try_create(law, submesh, element_spaces.q_degree)
         return LawOnSubMesh(
             law=law,
-            displacement_gradient=disp_grad,
+            cells=cells,
+            displacement_gradient_fn=inc_disp_grad_fn,
             stress=stress_fn,
             local_tangent=tangent_fn,
             submesh_map=subspace_map,
@@ -79,13 +74,15 @@ class LawOnSubMesh:
         global_tangent: df.fem.Function,
     ) -> None:
         """Perform a full constitutive update for this law context."""
-        incr_disp.evaluate_incremental_gradient(self.displacement_gradient)
+        incr_disp.evaluate_local_incremental_gradient(
+            self.cells, self.displacement_gradient_fn
+        )
         history_input = self.history.advance() if self.history is not None else None
         with df.common.Timer("constitutive-law-evaluation"):
             self.law.evaluate(
                 sim_time.current,
                 sim_time.dt,
-                self.displacement_gradient.displacement_gradient(),
+                self.displacement_gradient_fn.x.array,
                 self.local_stress(global_stress),
                 self.local_tangent.x.array,
                 history_input,
