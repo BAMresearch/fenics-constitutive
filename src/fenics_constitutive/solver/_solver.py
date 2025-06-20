@@ -12,13 +12,11 @@ from dolfinx.fem.function import Function
 from petsc4py import PETSc
 
 from fenics_constitutive.interfaces import IncrSmallStrainModel
-from fenics_constitutive.maps import SubSpaceMap, build_subspace_map
 from fenics_constitutive.solver._spaces import ElementSpaces
 from fenics_constitutive.stress_strain import ufl_mandel_strain
 from fenics_constitutive.typesafe import fn_for
 
-from ._history import History
-from ._lawcontext import LawContext, MultiLawContext, SingleLawContext
+from ._lawcontext import LawContext
 
 
 @dataclass(slots=True)
@@ -168,7 +166,7 @@ class IncrSmallStrainProblem(NonlinearProblem):
         self.sim_time = SimulationTime(dt=del_t)
 
         self._law_contexts = [
-            MultiLawContext.create(law, local_cells, element_spaces)
+            LawContext.create(law, local_cells, element_spaces)
             for law, local_cells in laws
         ]
 
