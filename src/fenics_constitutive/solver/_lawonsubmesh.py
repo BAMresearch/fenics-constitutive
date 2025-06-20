@@ -8,7 +8,7 @@ import numpy as np
 
 from fenics_constitutive import typesafe
 from fenics_constitutive.interfaces import IncrSmallStrainModel
-from fenics_constitutive.maps import SubSpaceMap, build_subspace_map
+from fenics_constitutive.maps import SpaceMap, build_subspace_map
 
 from ._history import History
 from ._spaces import ElementSpaces
@@ -23,18 +23,18 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class LawContext:
+class LawOnSubMesh:
     law: IncrSmallStrainModel
     displacement_gradient: DisplacementGradientFunction
     stress: df.fem.Function
-    tangent: df.fem.Function
-    submesh_map: SubSpaceMap
+    local_tangent: df.fem.Function
+    submesh_map: SpaceMap
     history: History | None = None
 
     @staticmethod
-    def create(
+    def map_to_cells(
         law: IncrSmallStrainModel, cells: np.ndarray, element_spaces: ElementSpaces
-    ) -> LawContext:
+    ) -> LawOnSubMesh:
         from ._solver import DisplacementGradientFunction
 
         subspace_map, submesh, stress_vector_space = build_subspace_map(
@@ -50,58 +50,47 @@ class LawContext:
         disp_grad = DisplacementGradientFunction(cells, inc_disp_grad_fn)
 
         history = History.try_create(law, submesh, element_spaces.q_degree)
-        return LawContext(
+        return LawOnSubMesh(
             law=law,
             displacement_gradient=disp_grad,
             stress=stress_fn,
-            tangent=tangent_fn,
+            local_tangent=tangent_fn,
             submesh_map=subspace_map,
             history=history,
         )
 
-    def update_stress_and_tangent(
-        self,
-        stress: IncrementalStress,
-        tangent: df.fem.Function,  # noqa: ARG002
-    ) -> tuple[np.ndarray, np.ndarray]:
+    def local_stress(self, stress: IncrementalStress) -> np.ndarray:
         self.submesh_map.map_to_child(stress.previous, self.stress)
-        return self.stress.x.array, self.tangent.x.array
+        return self.stress.x.array
 
     def map_to_parent(
         self,
-        stress: IncrementalStress,
-        tangent: df.fem.Function,
+        global_stress: IncrementalStress,
+        global_tangent: df.fem.Function,
     ) -> None:
-        self.submesh_map.map_to_parent(self.stress, stress.current)
-        self.submesh_map.map_to_parent(self.tangent, tangent)
+        self.submesh_map.map_to_parent(self.stress, global_stress.current)
+        self.submesh_map.map_to_parent(self.local_tangent, global_tangent)
 
-    def displacement_gradient_array(self) -> np.ndarray:
-        return self.displacement_gradient.displacement_gradient()
-
-    def scatter_displacement_gradient(self) -> None:
-        self.displacement_gradient.scatter()
-
-    def step(
+    def evaluate(
         self,
         sim_time: SimulationTime,
         incr_disp: IncrementalDisplacement,
-        stress: IncrementalStress,
-        tangent: df.fem.Function,
+        global_stress: IncrementalStress,
+        global_tangent: df.fem.Function,
     ) -> None:
         """Perform a full constitutive update for this law context."""
         incr_disp.evaluate_incremental_gradient(self.displacement_gradient)
-        stress_input, tangent_input = self.update_stress_and_tangent(stress, tangent)
         history_input = self.history.advance() if self.history is not None else None
         with df.common.Timer("constitutive-law-evaluation"):
             self.law.evaluate(
                 sim_time.current,
                 sim_time.dt,
-                self.displacement_gradient.displacement_gradient_fn.x.array,
-                stress_input,
-                tangent_input,
+                self.displacement_gradient.displacement_gradient(),
+                self.local_stress(global_stress),
+                self.local_tangent.x.array,
                 history_input,
             )
-        self.map_to_parent(stress, tangent)
+        self.map_to_parent(global_stress, global_tangent)
 
     def commit_history(self) -> None:
         """Commit the history for this law context if it exists."""
