@@ -151,9 +151,9 @@ class IncrSmallStrainProblem(NonlinearProblem):
         mesh = u.function_space.mesh
         map_c = mesh.topology.index_map(mesh.topology.dim)
         num_cells = map_c.size_local + map_c.num_ghosts
-        cells = np.arange(0, num_cells, dtype=np.int32)
+        global_cells = np.arange(0, num_cells, dtype=np.int32)
         if isinstance(laws, IncrSmallStrainModel):
-            laws = [(laws, cells)]
+            laws = [(laws, global_cells)]
 
         constraint = laws[0][0].constraint
         assert all(law[0].constraint == constraint for law in laws), (
@@ -167,23 +167,10 @@ class IncrSmallStrainProblem(NonlinearProblem):
         self._law_contexts: list[LawContext] = []
         self.sim_time = SimulationTime(dt=del_t)
 
-        for law, cells in laws:
-            if len(laws) == 1:
-                inc_disp_grad_fn = fn_for(
-                    element_spaces.displacement_gradient_tensor_space(mesh)
-                )
-                disp_grad = DisplacementGradientFunction(cells, inc_disp_grad_fn)
-                self._law_contexts.append(
-                    SingleLawContext(
-                        law=law,
-                        displacement_gradient=disp_grad,
-                        history=History.try_create(law, mesh, element_spaces.q_degree),
-                    )
-                )
-            else:
-                self._law_contexts.append(
-                    MultiLawContext.create(law, cells, element_spaces)
-                )
+        self._law_contexts = [
+            MultiLawContext.create(law, local_cells, element_spaces)
+            for law, local_cells in laws
+        ]
 
         u_, du = ufl.TestFunction(u.function_space), ufl.TrialFunction(u.function_space)
 
