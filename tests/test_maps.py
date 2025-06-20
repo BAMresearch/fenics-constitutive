@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-import basix
+import basix.ufl
 import dolfinx as df
+from fenics_constitutive.maps import SubSpaceMap
 import numpy as np
 import pytest
 from mpi4py import MPI
@@ -43,10 +44,13 @@ def test_subspace_vector_map_vector_equals_tensor_map():
     cell_sample = map_c.global_to_local(cell_sample_global)
     cell_sample = cell_sample[cell_sample >= 0]
 
-    Q_map, _ = build_subspace_map(cell_sample, Q_space)
-    QV_map, _ = build_subspace_map(cell_sample, QV_space)
-    QT_map, _ = build_subspace_map(cell_sample, QT_space)
+    Q_map, *_ = build_subspace_map(cell_sample, Q_space)
+    QV_map, *_ = build_subspace_map(cell_sample, QV_space)
+    QT_map, *_ = build_subspace_map(cell_sample, QT_space)
 
+    assert isinstance(Q_map, SubSpaceMap)
+    assert isinstance(QV_map, SubSpaceMap)
+    assert isinstance(QT_map, SubSpaceMap)
     assert np.all(Q_map.parent == QV_map.parent)
     assert np.all(Q_map.child == QV_map.child)
     assert np.all(Q_map.parent == QT_map.parent)
@@ -115,9 +119,7 @@ def test_map_evaluation():
         cell_sample = map_c.global_to_local(cell_sample_global)
         cell_sample = cell_sample[cell_sample >= 0]
 
-        Q_sub_map, submesh = build_subspace_map(
-            cell_sample, Q_space, return_subspace=False
-        )
+        Q_sub_map, submesh, _ = build_subspace_map(cell_sample, Q_space)
 
         Q_sub = df.fem.functionspace(submesh, Q)
         QV_sub = df.fem.functionspace(submesh, QV)

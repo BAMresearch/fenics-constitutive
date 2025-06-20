@@ -114,10 +114,8 @@ class SubSpaceMap:
 
 @df.common.timed("constitutive: build_subspace_map")
 def build_subspace_map(
-    cells: np.ndarray, V: df.fem.FunctionSpace, return_subspace=False
-) -> (
-    tuple[SpaceMap, df.mesh.Mesh] | tuple[SpaceMap, df.mesh.Mesh, df.fem.FunctionSpace]
-):
+    cells: np.ndarray, V: df.fem.FunctionSpace
+) -> tuple[SpaceMap, df.mesh.Mesh, df.fem.FunctionSpace]:
     """
     Build a map between a subspace and a parent space. This currently needs
     to build a functionspace which can optionally be returned.
@@ -134,10 +132,7 @@ def build_subspace_map(
     map_c = mesh.topology.index_map(mesh.topology.dim)
     num_cells = map_c.size_local + map_c.num_ghosts
     if len(cells) == num_cells:
-        if return_subspace:
-            return IdentityMap(np.zeros(0), np.zeros(0)), V.mesh, V
-        else:
-            return IdentityMap(np.zeros(0), np.zeros(0)), V.mesh
+        return IdentityMap(), V.mesh, V
 
     submesh, cell_map, _, _ = df.mesh.create_submesh(mesh, mesh.topology.dim, cells)
 
@@ -169,8 +164,4 @@ def build_subspace_map(
             parent_mesh=V.mesh,
             cell_map=cell_map,
         )
-    if return_subspace:
-        return map, submesh, V_sub
-
-    del V_sub
-    return map, submesh
+    return map, submesh, V_sub
