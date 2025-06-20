@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import operator
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from functools import reduce
 from typing import Protocol
 
@@ -33,9 +33,6 @@ class IdentityMap:
     This map does not change the values of the functions.
 
     """
-
-    parent: np.ndarray = field(default_factory=lambda: np.zeros(0, dtype=np.int32))
-    child: np.ndarray = field(default_factory=lambda: np.zeros(0, dtype=np.int32))
 
     def map_to_parent(self, sub: df.fem.Function, parent: df.fem.Function) -> None:
         assert sub.ufl_shape == parent.ufl_shape, "Shapes do not match"
