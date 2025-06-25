@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Callable
 from dataclasses import dataclass
 
 import basix
@@ -401,15 +400,16 @@ def evaluate_model(
 @dataclass
 class DynamicSolver(ABC):
     """
-    An abstract class for a dynamic solver. This class is used to solve the
-    incremental small strain problem using a dynamic solver.
+    An abstract class for a dynamic solver (Either explicit or implicit).
     """
 
     laws: list[tuple[IncrSmallStrainModel, np.ndarray]]
     u: df.fem.Function
     v: df.fem.Function
-    bcs: list[df.fem.DirichletBC | Callable[[float], df.fem.DirichletBC]]
-    q_degree: int
+    a: df.fem.Function
+    bcs: list[df.fem.DirichletBC]
+    del_t_min: float = 1.0
+    del_t_max: float = 1.0
     quadrature_data: QuadratureData
     form_compiler_options: dict | None = None
     jit_options: dict | None = None
@@ -428,12 +428,24 @@ class DynamicSolver(ABC):
         pass
 
     @abstractmethod
-    def step(self, del_t: float) -> None:
-        pass
+    def step(self) -> None:
+        """
+        Perform a single time step using the dynamic solver.
+        """
+
+    @abstractmethod
+    def set_timestep(self, del_t_min: float, del_t_max: float | None = None) -> None:
+        """
+        Set the minimum and maximum time step for the dynamic solver.
+
+        Args:
+            del_t_min: The minimum time step.
+            del_t_max: The maximum time step. If `None`, it is set to the same value as del_t_min.
+        """
 
 
 @dataclass(frozen=True)
-class CDM(DynamicSolver):
+class CentralDifferenceMethod(DynamicSolver):
     """
     A class for the Central Difference Method (CDM) solver for incremental small strain models.
 
@@ -451,8 +463,11 @@ class CDM(DynamicSolver):
     laws: list[tuple[IncrSmallStrainModel, np.ndarray]]
     u: df.fem.Function
     v: df.fem.Function
+    a: df.fem.Function
     bcs: list[df.fem.DirichletBC]
-    q_degree: int
+    del_t_min: float = 1.0
+    del_t_max: float = 1.0
+    del_t: df.fem.Constant
     quadrature_data: QuadratureData
     form_compiler_options: dict | None = None
     jit_options: dict | None = None
@@ -510,20 +525,13 @@ class CDM(DynamicSolver):
             False,
         )
 
-        u_, du = ufl.TestFunction(u.function_space), ufl.TrialFunction(u.function_space)
+        u_ = ufl.TestFunction(u.function_space)
 
         self.metadata = {"quadrature_degree": q_degree, "quadrature_scheme": "default"}
         self.dxm = ufl.dx(metadata=self.metadata)
 
         self.R_form = (
-            ufl.inner(ufl_mandel_strain(u_, constraint), self.stress_1) * self.dxm
-        )
-        self.dR_form = (
-            ufl.inner(
-                ufl_mandel_strain(du, constraint),
-                ufl.dot(self.tangent, ufl_mandel_strain(u_, constraint)),
-            )
-            * self.dxm
+            ufl.inner(ufl_mandel_strain(u_, constraint), self.stress) * self.dxm
         )
 
         self._u = u
@@ -534,10 +542,12 @@ class CDM(DynamicSolver):
 
         basix_celltype = getattr(basix.CellType, mesh.topology.cell_type.name)
         self.q_points, _ = basix.make_quadrature(basix_celltype, q_degree)
+        self.del_t = df.fem.Constant(mesh, dtype=np.float64, value=1.0)
+        self.del_grad_u_expr = df.fem.Expression(
+            self.del_t * ufl.nabla_grad(self.v), self.q_points
+        )
 
-        self.del_grad_u_expr = df.fem.Expression(ufl.nabla_grad(self.v), self.q_points)
-
-    def step(self, del_t: float) -> None:
+    def step(self) -> None:
         """
         Perform a single time step using the Central Difference Method (CDM).
         This method updates the displacement and velocity fields based on the laws
@@ -546,3 +556,7 @@ class CDM(DynamicSolver):
         Args:
             del_t: The time increment for the step.
         """
+
+    def set_timestep(self, del_t_min, del_t_max=None) -> None:
+        self.del_t_min = del_t_min
+        self.del_t_max = del_t_max if del_t_max is not None else del_t_min
