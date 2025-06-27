@@ -27,7 +27,7 @@ def test_relaxation_uniaxial_stress(mat: IncrSmallStrainModel):
     """stress relaxation under uniaxial tension test for 1D, displacement controlled"""
 
     mesh = df.mesh.create_unit_interval(MPI.COMM_WORLD, 2)
-    V = df.fem.FunctionSpace(mesh, ("CG", 1))
+    V = df.fem.functionspace(mesh, ("CG", 1))
     u = df.fem.Function(V)
     law = mat(
         parameters={"E0": youngs_modulus, "E1": visco_modulus, "tau": relaxation_time},
@@ -92,8 +92,8 @@ def test_relaxation_uniaxial_stress(mat: IncrSmallStrainModel):
         strain.append(problem._history_1[0]["strain"].x.array[-1])
         viscostrain.append(problem._history_1[0]["strain_visco"].x.array[-1])
 
-    print("0", time[0], disp[0], stress[0], strain[0], viscostrain[0])
-    print("end", time[-1], disp[-1], stress[-1], strain[-1], viscostrain[-1])
+    #print("0", time[0], disp[0], stress[0], strain[0], viscostrain[0])
+    #print("end", time[-1], disp[-1], stress[-1], strain[-1], viscostrain[-1])
     # analytic solution
     if isinstance(law, SpringKelvinModel):
         # analytic solution for 1D Kelvin model
@@ -161,7 +161,7 @@ def test_relaxation(dim: int, mat: IncrSmallStrainModel):
     else:
         raise ValueError(f"Dimension {dim} not supported")
 
-    V = df.fem.VectorFunctionSpace(mesh, ("CG", 1))
+    V = df.fem.functionspace(mesh, ("CG", 1, (dim,)))
     u = df.fem.Function(V)
 
     def left_boundary(x):
@@ -291,7 +291,7 @@ def test_kelvin_vs_maxwell():
     """1D test with uniaxial stress, compare Kelvin and Maxwell model."""
 
     mesh = df.mesh.create_unit_interval(MPI.COMM_WORLD, 2)
-    V = df.fem.FunctionSpace(mesh, ("CG", 1))
+    V = df.fem.functionspace(mesh, ("CG", 1))
     u = df.fem.Function(V)
 
     # Kelvin material
@@ -405,7 +405,7 @@ def test_creep(dim: int, mat: IncrSmallStrainModel):
     else:
         raise ValueError(f"Dimension {dim} not supported")
 
-    V = df.fem.VectorFunctionSpace(mesh, ("CG", 1))
+    V = df.fem.functionspace(mesh, ("CG", 1,(dim,)))
     u = df.fem.Function(V)
 
     def left_boundary(x):
@@ -528,7 +528,7 @@ def test_creep(dim: int, mat: IncrSmallStrainModel):
 
 def create_meshtags(
     domain: df.mesh.Mesh, entity_dim: int, markers: dict[str, tuple[int, Callable]]
-) -> tuple[df.mesh.MeshTagsMetaClass, dict[str, int]]:
+) -> tuple[df.mesh.MeshTags, dict[str, int]]:
     """Creates meshtags for the given markers.
     This code is part of the FEniCSx tutorial
     by Jørgen S. Dokken.
@@ -608,7 +608,7 @@ def define_problem(mat: IncrSmallStrainModel, dim: int):
         )
         fixed_vector = np.array([0.0, 0.0, 0.0])
 
-    V = df.fem.VectorFunctionSpace(mesh, ("CG", 1))
+    V = df.fem.functionspace(mesh, ("CG", 1,(dim,)))
     u = df.fem.Function(V)
 
     # boundaries
