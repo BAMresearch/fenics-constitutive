@@ -124,22 +124,21 @@ class SpringKelvinModel(IncrSmallStrainModel):
 
     def evaluate(
         self,
-        time: float,
+        t: float,
         del_t: float,
         grad_del_u: np.ndarray,
-        mandel_stress: np.ndarray,
-        tangent: np.ndarray,
-        history: np.ndarray | dict[str, np.ndarray] | None,
+        stress: np.ndarray,
+        tangent: np.ndarray | None,
+        history: dict[str, np.ndarray] | None = None,
     ) -> None:
         assert (
             grad_del_u.size // (self.geometric_dim**2)
-            == mandel_stress.size // self.stress_strain_dim
-            == tangent.size // (self.stress_strain_dim**2)
+            == stress.size // self.stress_strain_dim
         )
 
         # reshape gauss point arrays
         n_gauss = grad_del_u.size // (self.geometric_dim**2)
-        mandel_view = mandel_stress.reshape(-1, self.stress_strain_dim)
+        mandel_view = stress.reshape(-1, self.stress_strain_dim)
 
         strain_increment = strain_from_grad_u(grad_del_u, self.constraint).reshape(
             -1, self.stress_strain_dim
@@ -168,9 +167,13 @@ class SpringKelvinModel(IncrSmallStrainModel):
         )
 
         mandel_view += strain_increment @ self.D_0 - 2 * self.mu0 * _deps_visko
-        D = (1 - self.mu0 / (self.tau * self.mu1 * factor)) * self.D_0
+        if tangent is not None:
+            assert grad_del_u.size // (self.geometric_dim**2) == tangent.size // (
+                self.stress_strain_dim**2
+            )
+            D = (1 - self.mu0 / (self.tau * self.mu1 * factor)) * self.D_0
+            tangent[:] = np.tile(D.flatten(), n_gauss)
 
-        tangent[:] = np.tile(D.flatten(), n_gauss)
         strain_visco_n += _deps_visko
         strain_n += strain_increment
 
