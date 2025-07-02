@@ -7,15 +7,17 @@ import numpy as np
 import ufl
 from dolfinx.fem.function import Function
 from dolfinx.fem.petsc import NonlinearProblem
+from dolfinx.mesh import MeshTags
 from petsc4py import PETSc
 
+from fenics_constitutive.boundarycondition import NeumannBC
 from fenics_constitutive.interfaces import IncrSmallStrainModel
-from fenics_constitutive.solver._spaces import ElementSpaces
 from fenics_constitutive.stress_strain import ufl_mandel_strain
 from fenics_constitutive.typesafe import fn_for
 
 from ._incrementalunknowns import IncrementalDisplacement, IncrementalStress
 from ._lawonsubmesh import LawOnSubMesh
+from ._spaces import ElementSpaces
 
 
 @dataclass(slots=True)
@@ -55,12 +57,13 @@ class IncrSmallStrainProblem(NonlinearProblem):
         self,
         laws: list[tuple[IncrSmallStrainModel, np.ndarray]] | IncrSmallStrainModel,
         u: df.fem.Function,
-        bcs: list[df.fem.DirichletBC],
+        bcs: list[df.fem.DirichletBC | NeumannBC],
         q_degree: int,
         del_t: float = 1.0,
         form_compiler_options: dict | None = None,
         jit_options: dict | None = None,
     ) -> None:
+        self.u = u
         mesh = u.function_space.mesh
         map_c = mesh.topology.index_map(mesh.topology.dim)
         num_cells = map_c.size_local + map_c.num_ghosts
@@ -101,30 +104,59 @@ class IncrSmallStrainProblem(NonlinearProblem):
             * self.dxm
         )
 
-        self._bcs = bcs
-        self._form_compiler_options = form_compiler_options
-        self._jit_options = jit_options
+        self._dirichlet_bcs = [bc for bc in bcs if isinstance(bc, df.fem.DirichletBC)]
+        self._neumann_bcs = [bc for bc in bcs if isinstance(bc, NeumannBC)]
+        self._apply_neumann_bcs()
 
         self.incr_disp = IncrementalDisplacement(u, q_degree)
 
-    @property
-    def a(self) -> df.fem.FormMetaClass:
-        """Compiled bilinear form (the Jacobian form)"""
+        super().__init__(
+            self.R_form,
+            self.incr_disp.current,
+            self._dirichlet_bcs,
+            self.dR_form,
+            form_compiler_options=form_compiler_options
+            if form_compiler_options is not None
+            else {},
+            jit_options=jit_options if jit_options is not None else {},
+        )
 
-        if not hasattr(self, "_a"):
-            # ensure compilation of UFL forms
-            super().__init__(
-                self.R_form,
-                self.incr_disp.current,
-                self._bcs,
-                self.dR_form,
-                form_compiler_options=self._form_compiler_options
-                if self._form_compiler_options is not None
-                else {},
-                jit_options=self._jit_options if self._jit_options is not None else {},
-            )
+    def _apply_neumann_bcs(self) -> None:
+        if not self._neumann_bcs:
+            return
 
-        return self._a
+        mesh = self.u.function_space.mesh
+        mesh_tags = self._tag_neumann_boundaries(mesh)
+        dA = ufl.Measure("ds", domain=mesh, subdomain_data=mesh_tags)
+        V = self.u.function_space
+        test_function = ufl.TestFunction(V)
+
+        for bc in self._neumann_bcs:
+            self.R_form -= bc.term(test_function, dA)
+
+    def _tag_neumann_boundaries(self, mesh) -> MeshTags:
+        entity_indices = [self._locate_entities(bc) for bc in self._neumann_bcs]
+        entity_markers = [
+            np.full_like(entities, bc.marker)
+            for bc, entities in zip(self._neumann_bcs, entity_indices, strict=True)
+        ]
+        entity_indices = np.hstack(entity_indices).astype(np.int32)
+        entity_markers = np.hstack(entity_markers).astype(np.int32)
+
+        sorted_facets = np.argsort(entity_indices)
+        entity_dim = mesh.topology.dim - 1
+        return df.mesh.meshtags(
+            mesh,
+            entity_dim,
+            entity_indices[sorted_facets],
+            entity_markers[sorted_facets],
+        )
+
+    def _locate_entities(self, bc: NeumannBC) -> np.ndarray:
+        V = self.u.function_space
+        mesh = V.mesh
+        entity_dim = mesh.topology.dim - 1
+        return df.mesh.locate_entities(mesh, entity_dim, bc.boundary)
 
     @df.common.timed("constitutive-form-evaluation")
     def form(self, x: PETSc.Vec) -> None:

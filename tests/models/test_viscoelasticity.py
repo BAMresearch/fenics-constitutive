@@ -14,6 +14,7 @@ from fenics_constitutive import (
     IncrSmallStrainProblem,
     StressStrainConstraint,
 )
+from fenics_constitutive.boundarycondition import NeumannBC
 from fenics_constitutive.models import SpringKelvinModel, SpringMaxwellModel
 
 youngs_modulus = 42.0
@@ -447,10 +448,11 @@ def test_creep(dim: int, mat: IncrSmallStrainModel):
 
     # loading in x
     neumann_tag = 15
-    neumann_boundary = {"right": (neumann_tag, right_boundary)}
-    facet_tags, _ = create_meshtags(mesh, mesh.topology.dim - 1, neumann_boundary)
-    dA = ufl.Measure("ds", domain=mesh, subdomain_data=facet_tags)
+    # neumann_boundary = {"right": (neumann_tag, right_boundary)}
+    # facet_tags, _ = create_meshtags(mesh, mesh.topology.dim - 1, neumann_boundary)
+    # dA = ufl.Measure("ds", domain=mesh, subdomain_data=facet_tags)
     neumann_data = df.fem.Constant(mesh, load)
+    dirc_bcs.append(NeumannBC(neumann_data, right_boundary, neumann_tag))
 
     # problem and solve
     dt = 2
@@ -462,9 +464,9 @@ def test_creep(dim: int, mat: IncrSmallStrainModel):
         dt,
     )
     # apply load
-    test_function = ufl.TestFunction(V)
-    fext = ufl.inner(neumann_data, test_function) * dA(neumann_tag)
-    problem.R_form -= fext
+    # test_function = ufl.TestFunction(V)
+    # fext = ufl.inner(neumann_data, test_function) * dA(neumann_tag)
+    # problem.R_form -= fext
 
     solver = NewtonSolver(MPI.COMM_WORLD, problem)
 
