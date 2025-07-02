@@ -5,8 +5,8 @@ from dataclasses import dataclass
 import dolfinx as df
 import numpy as np
 import ufl
-from dolfinx.fem.petsc import NonlinearProblem
 from dolfinx.fem.function import Function
+from dolfinx.fem.petsc import NonlinearProblem
 from petsc4py import PETSc
 
 from fenics_constitutive.interfaces import IncrSmallStrainModel

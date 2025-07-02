@@ -145,9 +145,8 @@ class VonMises3D(IncrSmallStrainModel):
                     gamma_1 = gamma_0 - xr / xg
                     # exit Newton algorithm for iteration > nmax
                     if it > nmax:
-                        raise RuntimeError(
-                            "Newton-Raphson method did not converge for plastic multiplier."
-                        )
+                        msg = "Newton-Raphson method did not converge for plastic multiplier."
+                        raise RuntimeError(msg)
                     # end of Newton iterration
 
                 # compute tangent with converged gamma

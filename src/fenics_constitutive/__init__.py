@@ -8,10 +8,10 @@ from __future__ import annotations
 
 # import models
 from ._version import version as __version__
+from .error_estimation import *
 from .interfaces import *
 from .maps import *
 from .solver import *
 from .stress_strain import *
-from .error_estimation import *
 
 __all__ = ["__version__"]

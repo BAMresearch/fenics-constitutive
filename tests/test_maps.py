@@ -1,17 +1,15 @@
 from __future__ import annotations
 
-import basix.ufl
 from collections.abc import Callable
 
+import basix.ufl
 import dolfinx as df
-from fenics_constitutive.maps import SubSpaceMap
 import numpy as np
 import pytest
-import ufl
 from mpi4py import MPI
 
 from fenics_constitutive import build_subspace_map
-from fenics_constitutive.maps import IdentityMap, SubSpaceMap
+from fenics_constitutive.maps import SubSpaceMap
 
 ElementBuilder = Callable[[df.mesh.Mesh], basix.ufl._ElementBase]
 

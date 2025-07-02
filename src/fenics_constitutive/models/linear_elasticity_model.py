@@ -8,10 +8,7 @@ from fenics_constitutive import (
     strain_from_grad_u,
 )
 
-from .elasticity_laws import (
-    ElasticityLaw,
-    get_elasticity_law,
-)
+from .elasticity_laws import get_elasticity_law
 
 
 class LinearElasticityModel(IncrSmallStrainModel):
