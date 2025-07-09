@@ -107,7 +107,6 @@ class IncrSmallStrainProblemDescription:
             self.tangent,
             self.del_t,
             self.R_form,
-            self.incr_disp.current,
             self._dirichlet_bcs,
             self.dR_form,
             form_compiler_options=form_compiler_options or {},
