@@ -55,108 +55,33 @@ class IncrSmallStrainProblem(NonlinearProblem):
 
     def __init__(
         self,
-        laws: list[tuple[IncrSmallStrainModel, np.ndarray]] | IncrSmallStrainModel,
-        u: df.fem.Function,
-        bcs: list[df.fem.DirichletBC | NeumannBC],
-        q_degree: int,
-        del_t: float = 1.0,
-        form_compiler_options: dict | None = None,
-        jit_options: dict | None = None,
+        laws: list[LawOnSubMesh],
+        incremental_displacement: IncrementalDisplacement,
+        global_stress: IncrementalStress,
+        global_tangent: Function,
+        del_t: float,
+        R_form: ufl.Form,
+        bcs: list[df.fem.DirichletBC],
+        dR_form: ufl.Form,
+        form_compiler_options: dict[str, str],
+        jit_options: dict[str, str],
     ) -> None:
-        self.u = u
-        mesh = u.function_space.mesh
-        map_c = mesh.topology.index_map(mesh.topology.dim)
-        num_cells = map_c.size_local + map_c.num_ghosts
-        global_cells = np.arange(0, num_cells, dtype=np.int32)
-        if isinstance(laws, IncrSmallStrainModel):
-            laws = [(laws, global_cells)]
-
-        constraint = laws[0][0].constraint
-        assert all(law[0].constraint == constraint for law in laws), (
-            "All laws must have the same constraint"
+        super().__init__(
+            R_form,
+            incremental_displacement.current,
+            bcs,
+            dR_form,
+            form_compiler_options=form_compiler_options,
+            jit_options=jit_options,
         )
 
-        element_spaces = ElementSpaces.create(mesh, constraint, q_degree)
-        self.stress = IncrementalStress(element_spaces.stress_vector_space)
-        self.tangent = fn_for(element_spaces.stress_tensor_space(mesh))
+        self.stress = global_stress
+        self.tangent = global_tangent
 
-        self._law_on_submeshs: list[LawOnSubMesh] = []
+        self._law_on_submeshs: list[LawOnSubMesh] = laws
         self.sim_time = SimulationTime(dt=del_t)
 
-        self._law_on_submeshs = [
-            LawOnSubMesh.map_to_cells(law, local_cells, element_spaces)
-            for law, local_cells in laws
-        ]
-
-        u_, du = ufl.TestFunction(u.function_space), ufl.TrialFunction(u.function_space)
-
-        self.metadata = {"quadrature_degree": q_degree, "quadrature_scheme": "default"}
-        self.dxm = ufl.dx(metadata=self.metadata)
-
-        self.R_form = (
-            ufl.inner(ufl_mandel_strain(u_, constraint), self.stress.current) * self.dxm
-        )
-        self.dR_form = (
-            ufl.inner(
-                ufl_mandel_strain(du, constraint),
-                ufl.dot(self.tangent, ufl_mandel_strain(u_, constraint)),
-            )
-            * self.dxm
-        )
-
-        self._dirichlet_bcs = [bc for bc in bcs if isinstance(bc, df.fem.DirichletBC)]
-        self._neumann_bcs = [bc for bc in bcs if isinstance(bc, NeumannBC)]
-        self._apply_neumann_bcs()
-
-        self.incr_disp = IncrementalDisplacement(u, q_degree)
-
-        super().__init__(
-            self.R_form,
-            self.incr_disp.current,
-            self._dirichlet_bcs,
-            self.dR_form,
-            form_compiler_options=form_compiler_options
-            if form_compiler_options is not None
-            else {},
-            jit_options=jit_options if jit_options is not None else {},
-        )
-
-    def _apply_neumann_bcs(self) -> None:
-        if not self._neumann_bcs:
-            return
-
-        mesh = self.u.function_space.mesh
-        mesh_tags = self._tag_neumann_boundaries(mesh)
-        dA = ufl.Measure("ds", domain=mesh, subdomain_data=mesh_tags)
-        V = self.u.function_space
-        test_function = ufl.TestFunction(V)
-
-        for bc in self._neumann_bcs:
-            self.R_form -= bc.term(test_function, dA)
-
-    def _tag_neumann_boundaries(self, mesh) -> MeshTags:
-        entity_indices = [self._locate_entities(bc) for bc in self._neumann_bcs]
-        entity_markers = [
-            np.full_like(entities, bc.marker)
-            for bc, entities in zip(self._neumann_bcs, entity_indices, strict=True)
-        ]
-        entity_indices = np.hstack(entity_indices).astype(np.int32)
-        entity_markers = np.hstack(entity_markers).astype(np.int32)
-
-        sorted_facets = np.argsort(entity_indices)
-        entity_dim = mesh.topology.dim - 1
-        return df.mesh.meshtags(
-            mesh,
-            entity_dim,
-            entity_indices[sorted_facets],
-            entity_markers[sorted_facets],
-        )
-
-    def _locate_entities(self, bc: NeumannBC) -> np.ndarray:
-        V = self.u.function_space
-        mesh = V.mesh
-        entity_dim = mesh.topology.dim - 1
-        return df.mesh.locate_entities(mesh, entity_dim, bc.boundary)
+        self.incr_disp = incremental_displacement
 
     @df.common.timed("constitutive-form-evaluation")
     def form(self, x: PETSc.Vec) -> None:
