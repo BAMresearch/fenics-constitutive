@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import TypeAlias
 
 import dolfinx as df
 import numpy as np
@@ -14,17 +15,22 @@ from fenics_constitutive import (
     IncrSmallStrainProblem,
     StressStrainConstraint,
 )
-from fenics_constitutive.boundarycondition import NeumannBC
+from fenics_constitutive.boundarycondition import BoundaryCondition, NeumannBC
 from fenics_constitutive.models import SpringKelvinModel, SpringMaxwellModel
+from fenics_constitutive.solver._problemdescription import (
+    IncrSmallStrainProblemDescription,
+)
 
 youngs_modulus = 42.0
 poissons_ratio = 0.2
 visco_modulus = 10.0
 relaxation_time = 10.0
 
+SpringModelType: TypeAlias = type[SpringKelvinModel] | type[SpringMaxwellModel]
+
 
 @pytest.mark.parametrize("mat", [SpringKelvinModel, SpringMaxwellModel])
-def test_relaxation_uniaxial_stress(mat: IncrSmallStrainModel):
+def test_relaxation_uniaxial_stress(mat: SpringModelType):
     """stress relaxation under uniaxial tension test for 1D, displacement controlled"""
 
     mesh = df.mesh.create_unit_interval(MPI.COMM_WORLD, 2)
@@ -48,13 +54,14 @@ def test_relaxation_uniaxial_stress(mat: IncrSmallStrainModel):
     bc_right = df.fem.dirichletbc(displacement, dofs_right, V)
 
     dt = 2  # time increment
-    problem = IncrSmallStrainProblem(
-        law,
-        u,
-        [bc_left, bc_right],
-        1,
-        dt,
+    description = IncrSmallStrainProblemDescription(
+        laws=law,
+        displacement_field=u,
+        quadrature_degree=1,
+        time_increment=dt,
     )
+    description.add_boundary_conditions(bc_left, bc_right)
+    problem = description.to_problem()
 
     solver = NewtonSolver(MPI.COMM_WORLD, problem)
 
@@ -93,8 +100,8 @@ def test_relaxation_uniaxial_stress(mat: IncrSmallStrainModel):
         strain.append(problem._history_1[0]["strain"].x.array[-1])
         viscostrain.append(problem._history_1[0]["strain_visco"].x.array[-1])
 
-    #print("0", time[0], disp[0], stress[0], strain[0], viscostrain[0])
-    #print("end", time[-1], disp[-1], stress[-1], strain[-1], viscostrain[-1])
+    # print("0", time[0], disp[0], stress[0], strain[0], viscostrain[0])
+    # print("end", time[-1], disp[-1], stress[-1], strain[-1], viscostrain[-1])
     # analytic solution
     if isinstance(law, SpringKelvinModel):
         # analytic solution for 1D Kelvin model
@@ -127,7 +134,7 @@ def test_relaxation_uniaxial_stress(mat: IncrSmallStrainModel):
 
 @pytest.mark.parametrize("mat", [SpringKelvinModel, SpringMaxwellModel])
 @pytest.mark.parametrize("dim", [2, 3])
-def test_relaxation(dim: int, mat: IncrSmallStrainModel):
+def test_relaxation(dim: int, mat: SpringModelType):
     """stress relaxation under uniaxial tension test for 2D and 3D, displacement controlled, symmetric boundaries"""
 
     if dim == 2:
@@ -214,13 +221,14 @@ def test_relaxation(dim: int, mat: IncrSmallStrainModel):
 
     # problem and solve
     dt = 2
-    problem = IncrSmallStrainProblem(
-        law,
-        u,
-        dirc_bcs,
-        1,
-        dt,
+    description = IncrSmallStrainProblemDescription(
+        laws=law,
+        displacement_field=u,
+        quadrature_degree=1,
+        time_increment=dt,
     )
+    description.add_boundary_conditions(*dirc_bcs)
+    problem = description.to_problem()
 
     solver = NewtonSolver(MPI.COMM_WORLD, problem)
 
@@ -330,10 +338,23 @@ def test_kelvin_vs_maxwell():
 
     # solve Kelvin problem without linear step
     dt, q_degree = 0.1, 4
-    problems = [
-        IncrSmallStrainProblem(law_K, u, [bc_left, bc_right], q_degree, dt),
-        IncrSmallStrainProblem(law_M, u, [bc_left, bc_right], q_degree, dt),
-    ]
+    first = IncrSmallStrainProblemDescription(
+        laws=law_K,
+        displacement_field=u,
+        quadrature_degree=q_degree,
+        time_increment=dt,
+    )
+    first.add_boundary_conditions(bc_left, bc_right)
+
+    second = IncrSmallStrainProblemDescription(
+        laws=law_M,
+        displacement_field=u,
+        quadrature_degree=q_degree,
+        time_increment=dt,
+    )
+    second.add_boundary_conditions(bc_left, bc_right)
+
+    problems = [first.to_problem(), second.to_problem()]
 
     stress_p, strain_p = [], []
 
@@ -368,7 +389,7 @@ def test_kelvin_vs_maxwell():
 
 @pytest.mark.parametrize("mat", [SpringKelvinModel, SpringMaxwellModel])
 @pytest.mark.parametrize("dim", [2, 3])
-def test_creep(dim: int, mat: IncrSmallStrainModel):
+def test_creep(dim: int, mat: SpringModelType):
     """creep under uniaxial tension test for 2D and 3D, stress controlled, symmetric boundaries"""
 
     f_max = 0.1
@@ -406,7 +427,7 @@ def test_creep(dim: int, mat: IncrSmallStrainModel):
     else:
         raise ValueError(f"Dimension {dim} not supported")
 
-    V = df.fem.functionspace(mesh, ("CG", 1,(dim,)))
+    V = df.fem.functionspace(mesh, ("CG", 1, (dim,)))
     u = df.fem.Function(V)
 
     def left_boundary(x):
@@ -435,7 +456,7 @@ def test_creep(dim: int, mat: IncrSmallStrainModel):
         df.fem.locate_dofs_topological(V.sub(1), fdim, bc_y_f),
         V.sub(1),
     )
-    dirc_bcs = [fix_ux, fix_uy]
+    dirc_bcs: list[BoundaryCondition] = [fix_ux, fix_uy]
 
     if dim == 3:
         bc_z_f = df.mesh.locate_entities_boundary(mesh, fdim, z_boundary)
@@ -456,13 +477,15 @@ def test_creep(dim: int, mat: IncrSmallStrainModel):
 
     # problem and solve
     dt = 2
-    problem = IncrSmallStrainProblem(
-        law,
-        u,
-        dirc_bcs,
-        1,
-        dt,
+    description = IncrSmallStrainProblemDescription(
+        laws=law,
+        displacement_field=u,
+        quadrature_degree=1,
+        time_increment=dt,
     )
+    description.add_boundary_conditions(*dirc_bcs)
+    problem = description.to_problem()
+
     # apply load
     # test_function = ufl.TestFunction(V)
     # fext = ufl.inner(neumann_data, test_function) * dA(neumann_tag)
@@ -562,7 +585,7 @@ def create_meshtags(
     return mesh_tags, marked
 
 
-def define_problem(mat: IncrSmallStrainModel, dim: int):
+def define_problem(mat: SpringModelType, dim: int):
     """define problem set up for test_plane_strain"""
 
     def left_boundary(x):
@@ -610,7 +633,7 @@ def define_problem(mat: IncrSmallStrainModel, dim: int):
         )
         fixed_vector = np.array([0.0, 0.0, 0.0])
 
-    V = df.fem.functionspace(mesh, ("CG", 1,(dim,)))
+    V = df.fem.functionspace(mesh, ("CG", 1, (dim,)))
     u = df.fem.Function(V)
 
     # boundaries
@@ -658,12 +681,20 @@ def define_problem(mat: IncrSmallStrainModel, dim: int):
 
     # problem
     dt = 5
-    problem = IncrSmallStrainProblem(law, u, bc_list, 1, dt)
+    description = IncrSmallStrainProblemDescription(
+        laws=law,
+        displacement_field=u,
+        quadrature_degree=1,
+        time_increment=dt,
+    )
+    description.add_boundary_conditions(*bc_list)
+    problem = description.to_problem()
+
     return u, problem
 
 
 @pytest.mark.parametrize("mat", [SpringKelvinModel, SpringMaxwellModel])
-def test_plane_strain(mat: IncrSmallStrainModel):
+def test_plane_strain(mat: SpringModelType):
     """compare 3D with fixed z direction with 2D plane strain"""
 
     u_2D, problem_2D = define_problem(mat, 2)

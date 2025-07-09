@@ -2,14 +2,19 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import TypeAlias
 
 import dolfinx as df
 import numpy as np
 import numpy.typing as npt
 import ufl
 
-BoundaryDescription = Callable[[npt.NDArray[np.number]], npt.NDArray[np.bool]]
-TestFunction = ufl.Coargument | ufl.Argument
+BoundaryDescription: TypeAlias = Callable[
+    [npt.NDArray[np.number]], npt.NDArray[np.bool]
+]
+TestFunction: TypeAlias = ufl.Coargument | ufl.Argument
+
+BoundaryCondition: TypeAlias = "df.fem.DirichletBC | NeumannBC"
 
 
 @dataclass(slots=True)
