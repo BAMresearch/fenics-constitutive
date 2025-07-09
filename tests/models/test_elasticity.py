@@ -17,9 +17,7 @@ from fenics_constitutive import (
 )
 from fenics_constitutive.interfaces import IncrSmallStrainModel
 from fenics_constitutive.models import LinearElasticityModel
-from fenics_constitutive.solver._problemdescription import (
-    IncrSmallStrainProblemDescription,
-)
+from fenics_constitutive.solver import IncrSmallStrainProblemDescription
 
 youngs_modulus = 42.0
 poissons_ratio = 0.3
