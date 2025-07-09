@@ -10,6 +10,9 @@ from mpi4py import MPI
 
 from fenics_constitutive import IncrSmallStrainProblem, norm
 from fenics_constitutive.models import VonMises3D
+from fenics_constitutive.solver._problemdescription import (
+    IncrSmallStrainProblemDescription,
+)
 
 
 def uniaxial_strain_3d_fine_mesh(comm, mesh_path):
@@ -50,7 +53,13 @@ def uniaxial_strain_3d_fine_mesh(comm, mesh_path):
     bc_left = df.fem.dirichletbc(zero_scalar, dofs_left, V)
     bc_right = df.fem.dirichletbc(scalar_x, dofs_right, V)
     dirichlet = [bc_left, bc_right]
-    problem = IncrSmallStrainProblem(law, u, dirichlet, q_degree=1)
+    description = IncrSmallStrainProblemDescription(
+        laws=law,
+        displacement_field=u,
+        quadrature_degree=1,
+    )
+    description.add_boundary_conditions(*dirichlet)
+    problem = description.to_problem()
 
     solver = NewtonSolver(comm, problem)
     nTime = 100
