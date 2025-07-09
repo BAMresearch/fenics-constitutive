@@ -6,20 +6,13 @@ from typing import TypeAlias
 import dolfinx as df
 import numpy as np
 import pytest
-import ufl
 from dolfinx.nls.petsc import NewtonSolver
 from mpi4py import MPI
 
-from fenics_constitutive import (
-    IncrSmallStrainModel,
-    IncrSmallStrainProblem,
-    StressStrainConstraint,
-)
+from fenics_constitutive import StressStrainConstraint
 from fenics_constitutive.boundarycondition import BoundaryCondition, NeumannBC
 from fenics_constitutive.models import SpringKelvinModel, SpringMaxwellModel
-from fenics_constitutive.solver._problemdescription import (
-    IncrSmallStrainProblemDescription,
-)
+from fenics_constitutive.solver import IncrSmallStrainProblemDescription
 
 youngs_modulus = 42.0
 poissons_ratio = 0.2

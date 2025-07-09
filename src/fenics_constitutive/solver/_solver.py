@@ -3,21 +3,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import dolfinx as df
-import numpy as np
 import ufl
 from dolfinx.fem.function import Function
 from dolfinx.fem.petsc import NonlinearProblem
-from dolfinx.mesh import MeshTags
 from petsc4py import PETSc
-
-from fenics_constitutive.boundarycondition import NeumannBC
-from fenics_constitutive.interfaces import IncrSmallStrainModel
-from fenics_constitutive.stress_strain import ufl_mandel_strain
-from fenics_constitutive.typesafe import fn_for
 
 from ._incrementalunknowns import IncrementalDisplacement, IncrementalStress
 from ._lawonsubmesh import LawOnSubMesh
-from ._spaces import ElementSpaces
 
 
 @dataclass(slots=True)
