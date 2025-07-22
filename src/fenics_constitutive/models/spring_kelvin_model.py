@@ -7,8 +7,9 @@ from fenics_constitutive import (
     StressStrainConstraint,
     strain_from_grad_u,
 )
+from fenics_constitutive.models.identity_submatrix import get_identity_submatrix
 
-from .elasticity_laws import get_elasticity_law
+from .materialtensor import get_material_tensor
 from .utils import lame_parameters
 
 
@@ -41,9 +42,9 @@ class SpringKelvinModel(IncrSmallStrainModel):
         else:
             self.nu = parameters["nu"]  # Poisson's ratio
 
-        law = get_elasticity_law(constraint)
-        self.D_0 = law.get_D(self.E0, self.nu)
-        self.I2 = law.get_I2(self.stress_strain_dim)
+        material_tensor = get_material_tensor(constraint)
+        self.D_0 = material_tensor.get(self.E0, self.nu)
+        self.I2 = get_identity_submatrix(self.constraint)
         self.mu0, self.lam0 = lame_parameters(self.E0, self.nu)
         self.mu1, _ = lame_parameters(self.E1, self.nu)
 

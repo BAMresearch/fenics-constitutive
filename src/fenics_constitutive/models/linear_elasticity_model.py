@@ -8,7 +8,7 @@ from fenics_constitutive import (
     strain_from_grad_u,
 )
 
-from .elasticity_laws import get_elasticity_law
+from .materialtensor import get_material_tensor
 
 
 class LinearElasticityModel(IncrSmallStrainModel):
@@ -26,8 +26,8 @@ class LinearElasticityModel(IncrSmallStrainModel):
         self._constraint = constraint
         E = parameters["E"]
         nu = parameters["nu"]
-        law = get_elasticity_law(constraint)
-        self.D = law.get_D(E, nu)
+        material_tensor = get_material_tensor(constraint)
+        self.D = material_tensor.get(E, nu)
 
     def evaluate(
         self,
