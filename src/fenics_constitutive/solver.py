@@ -406,7 +406,9 @@ class DynamicSolver(ABC):
     laws: list[tuple[IncrSmallStrainModel, np.ndarray]]
     u: df.fem.Function
     v: df.fem.Function
-    a: df.fem.Function
+    f: df.fem.Function
+    f_form: df.fem.Form
+    del_grad_u_expr: df.fem.Expression
     bcs: list[df.fem.DirichletBC]
     del_t_min: float = 1.0
     del_t_max: float = 1.0
@@ -463,26 +465,31 @@ class CentralDifferenceMethod(DynamicSolver):
     laws: list[tuple[IncrSmallStrainModel, np.ndarray]]
     u: df.fem.Function
     v: df.fem.Function
-    a: df.fem.Function
+    f: df.fem.Function
+    f_form: df.fem.Form
+    del_grad_u_expr: df.fem.Expression
     bcs: list[df.fem.DirichletBC]
     del_t_min: float = 1.0
     del_t_max: float = 1.0
     del_t: df.fem.Constant
     quadrature_data: QuadratureData
+    diagonal_mass: df.fem.Function
     form_compiler_options: dict | None = None
     jit_options: dict | None = None
 
     def __init__(
         self,
         laws: list[tuple[IncrSmallStrainModel, np.ndarray]] | IncrSmallStrainModel,
-        u: df.fem.Function,
-        v: df.fem.Function,
+        u0: df.fem.Function,
+        v0: df.fem.Function,
         bcs: list[df.fem.DirichletBC],
         q_degree: int,
+        del_t_min: float,
+        del_t_max: float | None = None,
         form_compiler_options: dict | None = None,
         jit_options: dict | None = None,
     ) -> None:
-        mesh = u.function_space.mesh
+        mesh = u0.function_space.mesh
         map_c = mesh.topology.index_map(mesh.topology.dim)
         num_cells = map_c.size_local + map_c.num_ghosts
         if isinstance(laws, IncrSmallStrainModel):
@@ -516,7 +523,7 @@ class CentralDifferenceMethod(DynamicSolver):
 
         self.quadrature_data = QuadratureData(
             laws,
-            u,
+            u0,
             self.stress,
             q_degree,
             stress_element,
@@ -525,7 +532,7 @@ class CentralDifferenceMethod(DynamicSolver):
             False,
         )
 
-        u_ = ufl.TestFunction(u.function_space)
+        u_ = ufl.TestFunction(u0.function_space)
 
         self.metadata = {"quadrature_degree": q_degree, "quadrature_scheme": "default"}
         self.dxm = ufl.dx(metadata=self.metadata)
@@ -534,15 +541,17 @@ class CentralDifferenceMethod(DynamicSolver):
             ufl.inner(ufl_mandel_strain(u_, constraint), self.stress) * self.dxm
         )
 
-        self._u = u
-        self._u0 = u.copy()
-        self._bcs = bcs
-        self._form_compiler_options = form_compiler_options
-        self._jit_options = jit_options
+        self.u = u0
+
+        self.bcs = bcs
+        self.form_compiler_options = form_compiler_options
+        self.jit_options = jit_options
 
         basix_celltype = getattr(basix.CellType, mesh.topology.cell_type.name)
         self.q_points, _ = basix.make_quadrature(basix_celltype, q_degree)
-        self.del_t = df.fem.Constant(mesh, dtype=np.float64, value=1.0)
+        self.del_t_min = del_t_min
+        self.del_t_max = del_t_max if del_t_max is not None else del_t_min
+        self.del_t = df.fem.Constant(mesh, dtype=np.float64, value=del_t_min)
         self.del_grad_u_expr = df.fem.Expression(
             self.del_t * ufl.nabla_grad(self.v), self.q_points
         )
@@ -552,10 +561,58 @@ class CentralDifferenceMethod(DynamicSolver):
         Perform a single time step using the Central Difference Method (CDM).
         This method updates the displacement and velocity fields based on the laws
         and the time increment.
-
-        Args:
-            del_t: The time increment for the step.
         """
+
+        with self.["f"].vector.localForm() as f_local:
+            f_local.set(0.0)´
+        df.fem.petsc.assemble_vector(self.fields["f"].vector, self.f_int_form)
+        self.fields["f"].x.scatter_reverse(ScatterMode.add)
+
+        if self.external_forces is not None:
+            external_forces = self.external_forces(self.t)
+            self.fields["f"].vector.array[:] += external_forces.vector.array
+            self.fields["f"].x.scatter_forward()
+
+        self.fields["v"].vector.array[:] += del_t_mid * self.M.vector.array * self.fields["f"].vector.array
+        self.fields["v"].x.scatter_forward()
+
+        df.fem.set_bc(self.fields["v"].vector, self.bcs)
+        # ghost entries are needed
+        self.fields["v"].x.scatter_forward()
+        # use v.x instead of v.vector, since mesh update requires ghost entries
+
+        du_half = (0.5 * self.del_t) * self.fields["v"].x.array
+
+        set_mesh_coordinates(self.function_space.mesh, du_half, mode="add")
+
+        # basically, evaluate the nonlocal variable here
+        if intermediate_step is not None:
+            intermediate_step(h)
+
+        self.stress_update(self.del_t)
+
+        self.fields["u"].x.array[:] += 2.0 * du_half
+        self.fields["u"].x.scatter_forward()
+
+        set_mesh_coordinates(self.function_space.mesh, du_half, mode="add")
+
+        if self.total_energy is not None:
+            external_forces_0 = external_forces.vector.array.copy()
+
+            # undo mesh update
+            # set_mesh_coordinates(self.function_space.mesh, -du_half, mode="add")
+            external_forces = self.external_forces(self.t + self.del_t)
+
+            external_forces.vector.array[:] = 0.5 * (external_forces_0 + external_forces.vector.array)
+
+            # energy_form = df.fem.form(ufl.inner(external_forces, self.fields["v"]) * ufl.ds)
+            # energy_increment = df.fem.assemble_scalar(energy_form)
+            energy_increment = np.inner(external_forces.vector.array, self.fields["v"].vector.array)
+            self.total_energy += self.del_t * energy_increment
+            # redo mesh update
+            # set_mesh_coordinates(self.function_space.mesh, du_half, mode="add")
+        #
+        self.t += self.del_t
 
     def set_timestep(self, del_t_min, del_t_max=None) -> None:
         self.del_t_min = del_t_min

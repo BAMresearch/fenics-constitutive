@@ -45,6 +45,9 @@ class StressStrainConstraint(Enum):
                 return 4
             case StressStrainConstraint.FULL:
                 return 6
+            case _:
+                msg = f"Unknown constraint {self.name}"
+                raise ValueError(msg)
 
     @property
     def geometric_dim(self) -> int:
@@ -65,6 +68,9 @@ class StressStrainConstraint(Enum):
                 return 2
             case StressStrainConstraint.FULL:
                 return 3
+            case _:
+                msg = f"Unknown constraint {self.name}"
+                raise ValueError(msg)
 
 
 class IncrSmallStrainModel(ABC):
