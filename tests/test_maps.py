@@ -1,12 +1,29 @@
 from __future__ import annotations
 
-import basix
+from collections.abc import Callable
+
+import basix.ufl
 import dolfinx as df
 import numpy as np
 import pytest
 from mpi4py import MPI
 
 from fenics_constitutive import build_subspace_map
+from fenics_constitutive.maps import SubSpaceMap
+
+ElementBuilder = Callable[[df.mesh.Mesh], basix.ufl._ElementBase]
+
+ELEMENT_BUILDERS = [
+    lambda mesh: basix.ufl.quadrature_element(
+        mesh.topology.cell_name(), value_shape=(1,), degree=1
+    ),
+    lambda mesh: basix.ufl.quadrature_element(
+        mesh.topology.cell_name(), value_shape=(3,), degree=1
+    ),
+    lambda mesh: basix.ufl.quadrature_element(
+        mesh.topology.cell_name(), value_shape=(3, 3), degree=1
+    ),
+]
 
 
 @pytest.mark.mpi
@@ -43,10 +60,13 @@ def test_subspace_vector_map_vector_equals_tensor_map():
     cell_sample = map_c.global_to_local(cell_sample_global)
     cell_sample = cell_sample[cell_sample >= 0]
 
-    Q_map, _ = build_subspace_map(cell_sample, Q_space)
-    QV_map, _ = build_subspace_map(cell_sample, QV_space)
-    QT_map, _ = build_subspace_map(cell_sample, QT_space)
+    Q_map, *_ = build_subspace_map(cell_sample, Q_space)
+    QV_map, *_ = build_subspace_map(cell_sample, QV_space)
+    QT_map, *_ = build_subspace_map(cell_sample, QT_space)
 
+    assert isinstance(Q_map, SubSpaceMap)
+    assert isinstance(QV_map, SubSpaceMap)
+    assert isinstance(QT_map, SubSpaceMap)
     assert np.all(Q_map.parent == QV_map.parent)
     assert np.all(Q_map.child == QV_map.child)
     assert np.all(Q_map.parent == QT_map.parent)
@@ -54,10 +74,9 @@ def test_subspace_vector_map_vector_equals_tensor_map():
 
 
 @pytest.mark.mpi
-def test_map_evaluation():
-    mesh = df.mesh.create_unit_cube(
-        MPI.COMM_WORLD, 5, 4, 1, cell_type=df.mesh.CellType.hexahedron
-    )
+@pytest.mark.parametrize("element_builder", ELEMENT_BUILDERS)
+def test_subspace_map_evaluation(element_builder: ElementBuilder) -> None:
+    mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 5, 7, 11, cell_type=df.mesh.CellType.hexahedron)
 
     map_c = mesh.topology.index_map(mesh.topology.dim)
     num_cells_total = map_c.size_local + map_c.num_ghosts
@@ -65,43 +84,17 @@ def test_map_evaluation():
     size_global = map_c.size_global
     cells_global = np.arange(0, size_global, dtype=np.int32)
 
-    Q = basix.ufl.quadrature_element(
-        mesh.topology.cell_name(), value_shape=(1,), degree=1
-    )
-    QV = basix.ufl.quadrature_element(
-        mesh.topology.cell_name(), value_shape=(3,), degree=1
-    )
-    QT = basix.ufl.quadrature_element(
-        mesh.topology.cell_name(), value_shape=(3, 3), degree=1
-    )
-
+    Q = element_builder(mesh)
     Q_space = df.fem.functionspace(mesh, Q)
-    QV_space = df.fem.functionspace(mesh, QV)
-    QT_space = df.fem.functionspace(mesh, QT)
 
     q = df.fem.Function(Q_space)
     q_test = q.copy()
-    qv = df.fem.Function(QV_space)
-    qv_test = qv.copy()
-    qt = df.fem.Function(QT_space)
-    qt_test = qt.copy()
 
     rng = np.random.default_rng(42)
-    scalar_array = rng.random(q.x.array.shape)
-
-    q.x.array[:] = scalar_array
+    value_array = rng.random(q.x.array.shape)
+    q.x.array[:] = value_array
     q.x.scatter_forward()
-    scalar_array = q.x.array
-
-    vector_array = rng.random(qv.x.array.shape)
-    qv.x.array[:] = vector_array
-    qv.x.scatter_forward()
-    vector_array = qv.x.array
-
-    tensor_array = rng.random(qt.x.array.shape)
-    qt.x.array[:] = tensor_array
-    qt.x.scatter_forward()
-    tensor_array = qt.x.array
+    value_array = q.x.array
 
     for _ in range(10):
         if MPI.COMM_WORLD.rank == 0:
@@ -115,39 +108,48 @@ def test_map_evaluation():
         cell_sample = map_c.global_to_local(cell_sample_global)
         cell_sample = cell_sample[cell_sample >= 0]
 
-        Q_sub_map, submesh = build_subspace_map(
-            cell_sample, Q_space, return_subspace=False
-        )
-
+        Q_sub_map, submesh, _ = build_subspace_map(cell_sample, Q_space)
         Q_sub = df.fem.functionspace(submesh, Q)
-        QV_sub = df.fem.functionspace(submesh, QV)
-        QT_sub = df.fem.functionspace(submesh, QT)
-
         q_sub = df.fem.Function(Q_sub)
-        qv_sub = df.fem.Function(QV_sub)
-        qt_sub = df.fem.Function(QT_sub)
 
         Q_sub_map.map_to_child(q, q_sub)
-        Q_sub_map.map_to_child(qv, qv_sub)
-        Q_sub_map.map_to_child(qt, qt_sub)
-
         Q_sub_map.map_to_parent(q_sub, q_test)
-        Q_sub_map.map_to_parent(qv_sub, qv_test)
-        Q_sub_map.map_to_parent(qt_sub, qt_test)
 
-        q_view = scalar_array.reshape(num_cells_total, -1)
+        q_view = value_array.reshape(num_cells_total, -1)
         q_test_view = q_test.x.array.reshape(num_cells_total, -1)
         assert np.all(q_view[cell_sample] == q_test_view[cell_sample])
 
-        qv_view = vector_array.reshape(num_cells_total, -1)
-        qv_test_view = qv_test.x.array.reshape(num_cells_total, -1)
-        assert np.all(qv_view[cell_sample] == qv_test_view[cell_sample])
 
-        qt_view = tensor_array.reshape(num_cells_total, -1)
-        qt_test_view = qt_test.x.array.reshape(num_cells_total, -1)
-        assert np.all(qt_view[cell_sample] == qt_test_view[cell_sample])
+@pytest.mark.parametrize("element_builder", ELEMENT_BUILDERS)
+def test__identity_map_evaluation(element_builder: ElementBuilder) -> None:
+    mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 5, 7, 11)
+
+    map_c = mesh.topology.index_map(mesh.topology.dim)
+    num_cells = map_c.size_local + map_c.num_ghosts
+    cells = np.arange(0, num_cells, dtype=np.int32)
+
+    Q = element_builder(mesh)
+    Q_space = df.fem.functionspace(mesh, Q)
+
+    q = df.fem.Function(Q_space)
+    q_test = q.copy()
+
+    rng = np.random.default_rng(42)
+    value_array = rng.random(q.x.array.shape)
+    q.x.array[:] = value_array
+
+    identity_map, _, Q_sub = build_subspace_map(cells, Q_space)
+    q_sub = df.fem.Function(Q_sub)
+
+    identity_map.map_to_child(q, q_sub)
+    identity_map.map_to_parent(q_sub, q_test)
+
+    q_view = value_array.reshape(num_cells, -1)
+    q_test_view = q_test.x.array.reshape(num_cells, -1)
+    assert np.all(q_view == q_test_view)
 
 
 if __name__ == "__main__":
     test_subspace_vector_map_vector_equals_tensor_map()
-    test_map_evaluation()
+    for builder in ELEMENT_BUILDERS:
+        test_subspace_map_evaluation(builder)

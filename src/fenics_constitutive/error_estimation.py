@@ -15,4 +15,5 @@ def norm(f, dx, comm=MPI.COMM_WORLD, norm_type="l2"):
             norm_max = np.linalg.norm(f.x.array, ord=np.inf)
             return comm.allreduce(norm_max, op=MPI.MAX)
         case _:
-            raise ValueError(f"Unknown norm type: {type}")
+            msg = f"Unknown norm type: {type}"
+            raise ValueError(msg)
