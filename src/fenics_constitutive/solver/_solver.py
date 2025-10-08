@@ -108,7 +108,7 @@ class IncrSmallStrainProblem(NonlinearProblem):
         self.incr_disp = IncrementalDisplacement(u, q_degree)
 
     @property
-    def a(self) -> df.fem.FormMetaClass:
+    def a(self) -> df.fem.Form:
         """Compiled bilinear form (the Jacobian form)"""
 
         if not hasattr(self, "_a"):

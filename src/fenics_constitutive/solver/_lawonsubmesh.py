@@ -55,7 +55,7 @@ class LawOnSubMesh:
         )
 
     def local_stress(self, stress: IncrementalStress) -> np.ndarray:
-        self.submesh_map.map_to_child(stress.previous, self.stress)
+        self.submesh_map.map_to_sub(stress.previous, self.stress)
         return self.stress.x.array
 
     def map_to_parent(
