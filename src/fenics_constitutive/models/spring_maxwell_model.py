@@ -8,7 +8,7 @@ from fenics_constitutive import (
     strain_from_grad_u,
 )
 
-from .utils import lame_parameters, get_identity, get_elastic_tangent
+from .utils import get_elastic_tangent, lame_parameters
 
 
 class SpringMaxwellModel(IncrSmallStrainModel):

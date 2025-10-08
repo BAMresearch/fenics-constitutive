@@ -8,7 +8,7 @@ from fenics_constitutive import (
     strain_from_grad_u,
 )
 
-from .utils import lame_parameters, get_elastic_tangent, get_identity
+from .utils import get_elastic_tangent, get_identity, lame_parameters
 
 
 class SpringKelvinModel(IncrSmallStrainModel):

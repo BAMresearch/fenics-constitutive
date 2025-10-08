@@ -1,7 +1,9 @@
 from __future__ import annotations
+
 import numpy as np
 
 from fenics_constitutive import StressStrainConstraint
+
 
 def lame_parameters(E: float, nu: float) -> tuple[float, float]:
     """Compute Lame parameters (mu, lam) from Young's modulus and Poisson's ratio."""
