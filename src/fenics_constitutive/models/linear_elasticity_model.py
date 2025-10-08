@@ -8,7 +8,7 @@ from fenics_constitutive import (
     strain_from_grad_u,
 )
 
-from .elasticity_laws import get_elasticity_law
+from .utils import get_identity, get_elastic_tangent
 
 
 class LinearElasticityModel(IncrSmallStrainModel):
@@ -26,8 +26,7 @@ class LinearElasticityModel(IncrSmallStrainModel):
         self._constraint = constraint
         E = parameters["E"]
         nu = parameters["nu"]
-        law = get_elasticity_law(constraint)
-        self.D = law.get_D(E, nu)
+        self.D = get_elastic_tangent(E, nu, constraint)
 
     def evaluate(
         self,
