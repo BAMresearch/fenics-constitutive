@@ -153,7 +153,7 @@ class IncrSmallStrainProblem(NonlinearProblem):
         self.stress.update_previous()
 
         for law in self._law_on_submeshs:
-            law.commit_history()
+            law.update_history()
 
         self.sim_time.advance()
 

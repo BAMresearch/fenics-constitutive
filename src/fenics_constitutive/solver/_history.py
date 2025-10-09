@@ -61,15 +61,15 @@ class History:
             _history_dim=law.history_dim,
         )
 
-    def advance(self) -> dict[str, np.ndarray]:
+    def reset_trial_state(self) -> dict[str, np.ndarray]:
         """Advance the history for all keys."""
-        return {key: self._advance_key(key) for key in self._history_dim}
+        return {key: self._reset_trial_state_key(key) for key in self._history_dim}
 
-    def commit(self) -> dict[str, np.ndarray]:
+    def update(self) -> dict[str, np.ndarray]:
         """Commit the history for all keys."""
-        return {key: self._commit_key(key) for key in self._history_dim}
+        return {key: self._update_key(key) for key in self._history_dim}
 
-    def _advance_key(self, key: str) -> np.ndarray:
+    def _reset_trial_state_key(self, key: str) -> np.ndarray:
         """
         Advance the history for the given key: copy from previous (history_0) to current (history_1)
         and scatter the result.
@@ -78,7 +78,7 @@ class History:
         self.history_1[key].x.scatter_forward()
         return self.history_1[key].x.array
 
-    def _commit_key(self, key: str) -> np.ndarray:
+    def _update_key(self, key: str) -> np.ndarray:
         """
         Commit the history for the given key: copy from current (history_1) to previous (history_0)
         and scatter the result.

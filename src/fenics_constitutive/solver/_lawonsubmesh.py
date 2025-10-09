@@ -77,7 +77,7 @@ class LawOnSubMesh:
         incr_disp.evaluate_local_incremental_gradient(
             self.cells, self.displacement_gradient_fn
         )
-        history_input = self.history.advance() if self.history is not None else None
+        history_input = self.history.reset_trial_state() if self.history is not None else None
         with df.common.Timer("constitutive-law-evaluation"):
             self.law.evaluate(
                 sim_time.current,
@@ -89,7 +89,7 @@ class LawOnSubMesh:
             )
         self.map_to_parent(global_stress, global_tangent)
 
-    def commit_history(self) -> None:
+    def update_history(self) -> None:
         """Commit the history for this law context if it exists."""
         if self.history is not None:
-            self.history.commit()
+            self.history.update()

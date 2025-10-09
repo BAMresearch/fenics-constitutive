@@ -89,7 +89,7 @@ def test_subspace_map_evaluation(element_builder: ElementBuilder) -> None:
     Q = element_builder(mesh)
     Q_space = df.fem.functionspace(mesh, Q)
 
-    q = df.fem.Function(Q_space)
+    q: df.fem.Function = df.fem.Function(Q_space)
     q_test = q.copy()
 
     rng = np.random.default_rng(42)
@@ -133,7 +133,7 @@ def test__identity_map_evaluation(element_builder: ElementBuilder) -> None:
     Q = element_builder(mesh)
     Q_space = df.fem.functionspace(mesh, Q)
 
-    q = df.fem.Function(Q_space)
+    q: df.fem.Function = df.fem.Function(Q_space)
     q_test = q.copy()
 
     rng = np.random.default_rng(42)
