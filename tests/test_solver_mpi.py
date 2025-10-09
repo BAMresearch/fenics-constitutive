@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import adios4dolfinx
+import adios4dolfinx.adios2_helpers
 import dolfinx as df
 import numpy as np
 import pytest
