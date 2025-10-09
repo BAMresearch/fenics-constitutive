@@ -8,7 +8,7 @@ from typing import Protocol
 import dolfinx as df
 import numpy as np
 
-__all__ = ["SubSpaceMap", "build_subspace_map"]
+__all__ = ["IdentityMap", "SpaceMap", "SubSpaceMap", "build_subspace_map"]
 
 
 class SpaceMap(Protocol):
@@ -146,7 +146,7 @@ def build_subspace_map(
         view_parent.append(V.dofmap.cell_dofs(cell_map[cell]))
 
     if len(view_child) > 0:
-        map = SubSpaceMap(
+        _map = SubSpaceMap(
             parent=np.hstack(view_parent),
             sub=np.hstack(view_child),
             sub_mesh=submesh,
@@ -154,11 +154,11 @@ def build_subspace_map(
             cell_map=cell_map,
         )
     else:
-        map = SubSpaceMap(
+        _map = SubSpaceMap(
             parent=np.array([], dtype=np.int32),
             sub=np.array([], dtype=np.int32),
             sub_mesh=submesh,
             parent_mesh=V.mesh,
             cell_map=cell_map,
         )
-    return map, submesh, V_sub
+    return _map, submesh, V_sub
