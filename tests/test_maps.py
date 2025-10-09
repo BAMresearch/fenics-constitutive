@@ -128,8 +128,7 @@ def test_identity_map_evaluation(element_builder: ElementBuilder) -> None:
 
     map_c = mesh.topology.index_map(mesh.topology.dim)
     num_cells = map_c.size_local + map_c.num_ghosts
-    size_global = map_c.size_global
-    cells = np.arange(0, size_global, dtype=np.int32)
+    cells = np.arange(0, num_cells, dtype=np.int32)
 
     Q = element_builder(mesh)
     Q_space = df.fem.functionspace(mesh, Q)
@@ -144,15 +143,15 @@ def test_identity_map_evaluation(element_builder: ElementBuilder) -> None:
     value_array = q.x.array
 
     identity_map, _, Q_sub = build_subspace_map(cells, Q_space)
+    # test that the created map is an identity map
     assert isinstance(identity_map, IdentityMap)
-    q_sub = df.fem.Function(Q_sub)
+    q_sub: df.fem.Function = df.fem.Function(Q_sub)
 
     identity_map.map_to_sub(q, q_sub)
     identity_map.map_to_parent(q_sub, q_test)
 
     q_view = value_array.reshape(num_cells, -1)
     q_test_view = q_test.x.array.reshape(num_cells, -1)
-    print(np.max(np.abs(q_view-q_test_view)))
     assert np.all(q_view == q_test_view)
 
 

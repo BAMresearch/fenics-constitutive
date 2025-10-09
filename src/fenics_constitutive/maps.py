@@ -128,8 +128,7 @@ def build_subspace_map(
     mesh = V.mesh
     map_c = mesh.topology.index_map(mesh.topology.dim)
     num_cells = map_c.size_local + map_c.num_ghosts
-    num_cells_global = map_c.size_global
-    if len(cells) == num_cells_global:
+    if len(cells) == num_cells:
         return IdentityMap(), V.mesh, V
 
     submesh, cell_map, _, _ = df.mesh.create_submesh(mesh, mesh.topology.dim, cells)
