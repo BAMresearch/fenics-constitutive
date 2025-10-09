@@ -9,7 +9,7 @@ import pytest
 from mpi4py import MPI
 
 from fenics_constitutive import build_subspace_map
-from fenics_constitutive.maps import SubSpaceMap
+from fenics_constitutive.maps import SubSpaceMap, IdentityMap
 
 ElementBuilder = Callable[[df.mesh.Mesh], basix.ufl._ElementBase]
 
@@ -123,12 +123,13 @@ def test_subspace_map_evaluation(element_builder: ElementBuilder) -> None:
 
 
 @pytest.mark.parametrize("element_builder", ELEMENT_BUILDERS)
-def test__identity_map_evaluation(element_builder: ElementBuilder) -> None:
+def test_identity_map_evaluation(element_builder: ElementBuilder) -> None:
     mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 5, 7, 11)
 
     map_c = mesh.topology.index_map(mesh.topology.dim)
     num_cells = map_c.size_local + map_c.num_ghosts
-    cells = np.arange(0, num_cells, dtype=np.int32)
+    size_global = map_c.size_global
+    cells = np.arange(0, size_global, dtype=np.int32)
 
     Q = element_builder(mesh)
     Q_space = df.fem.functionspace(mesh, Q)
@@ -139,8 +140,11 @@ def test__identity_map_evaluation(element_builder: ElementBuilder) -> None:
     rng = np.random.default_rng(42)
     value_array = rng.random(q.x.array.shape)
     q.x.array[:] = value_array
+    q.x.scatter_forward()
+    value_array = q.x.array
 
     identity_map, _, Q_sub = build_subspace_map(cells, Q_space)
+    assert isinstance(identity_map, IdentityMap)
     q_sub = df.fem.Function(Q_sub)
 
     identity_map.map_to_sub(q, q_sub)
@@ -148,6 +152,7 @@ def test__identity_map_evaluation(element_builder: ElementBuilder) -> None:
 
     q_view = value_array.reshape(num_cells, -1)
     q_test_view = q_test.x.array.reshape(num_cells, -1)
+    print(np.max(np.abs(q_view-q_test_view)))
     assert np.all(q_view == q_test_view)
 
 
