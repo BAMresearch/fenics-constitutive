@@ -8,8 +8,7 @@ from fenics_constitutive import (
     strain_from_grad_u,
 )
 
-from .elasticity_laws import get_elasticity_law
-from .utils import lame_parameters
+from .utils import get_elastic_tangent, lame_parameters
 
 
 class SpringMaxwellModel(IncrSmallStrainModel):
@@ -40,9 +39,9 @@ class SpringMaxwellModel(IncrSmallStrainModel):
         else:
             self.nu = parameters["nu"]  # Poisson's ratio
 
-        law = get_elasticity_law(constraint)
-        self.D_0 = law.get_D(self.E0, self.nu)
-        self.D_1 = law.get_D(self.E1, self.nu)
+        self.D_0 = get_elastic_tangent(self.E0, self.nu, constraint)
+        self.D_1 = get_elastic_tangent(self.E1, self.nu, constraint)
+        self.mu1, _ = lame_parameters(self.E1, self.nu)
 
     def evaluate(
         self,
@@ -75,20 +74,18 @@ class SpringMaxwellModel(IncrSmallStrainModel):
 
         assert del_t > 0, "Time step must be defined and positive."
 
-        mu1, _ = lame_parameters(self.E1, self.nu)
-
         strain_total = strain_n + strain_increment
         factor = 1 / del_t + 1 / self.tau
         _deps_visko = (
             1
             / factor
             * (
-                1 / (self.tau * 2 * mu1) * strain_total @ self.D_1
+                1 / (self.tau * 2 * self.mu1) * strain_total @ self.D_1
                 - 1 / self.tau * strain_visco_n
             )
         )
 
-        dstress = strain_increment @ (self.D_0 + self.D_1) - 2 * mu1 * _deps_visko
+        dstress = strain_increment @ (self.D_0 + self.D_1) - 2 * self.mu1 * _deps_visko
         mandel_view += dstress
         D = self.D_0 + (1 - 1 / (self.tau * factor)) * self.D_1
 

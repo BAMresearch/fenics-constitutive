@@ -8,7 +8,7 @@ from fenics_constitutive import (
     strain_from_grad_u,
 )
 
-from .elasticity_laws import get_elasticity_law
+from .utils import get_identity
 
 
 class VonMises3D(IncrSmallStrainModel):
@@ -46,8 +46,7 @@ class VonMises3D(IncrSmallStrainModel):
             ]
         )
 
-        law = get_elasticity_law(self.constraint)
-        self.I2 = law.get_I2(self.stress_strain_dim)
+        self.I2 = get_identity(self.stress_strain_dim, self.constraint)
 
         self.I4 = np.eye(
             self.stress_strain_dim, dtype=np.float64

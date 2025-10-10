@@ -15,7 +15,7 @@ from fenics_constitutive.stress_strain import ufl_mandel_strain
 from fenics_constitutive.typesafe import fn_for
 
 from ._incrementalunknowns import IncrementalDisplacement, IncrementalStress
-from ._lawonsubmesh import LawOnSubMesh
+from ._lawonsubmesh import LawOnSubMesh, create_law_on_submesh
 
 
 @dataclass(slots=True)
@@ -35,7 +35,7 @@ class IncrSmallStrainProblem(NonlinearProblem):
     Args:
         laws: A list of tuples where the first element is the constitutive law and the second
             element is the cells for the submesh. If only one law is provided, it is assumed
-            that the domain is homogenous.
+            that the domain is homogenous. The cell indices should be local indices of the MPI-process.
         u: The displacement field. This is the unknown in the nonlinear problem.
         bcs: The Dirichlet boundary conditions.
         q_degree: The quadrature degree (Polynomial degree which the quadrature rule needs to integrate exactly).
@@ -64,9 +64,8 @@ class IncrSmallStrainProblem(NonlinearProblem):
         mesh = u.function_space.mesh
         map_c = mesh.topology.index_map(mesh.topology.dim)
         num_cells = map_c.size_local + map_c.num_ghosts
-        global_cells = np.arange(0, num_cells, dtype=np.int32)
         if isinstance(laws, IncrSmallStrainModel):
-            laws = [(laws, global_cells)]
+            laws = [(laws, np.arange(0, num_cells, dtype=np.int32))]
 
         constraint = laws[0][0].constraint
         assert all(law[0].constraint == constraint for law in laws), (
@@ -81,7 +80,7 @@ class IncrSmallStrainProblem(NonlinearProblem):
         self.sim_time = SimulationTime(dt=del_t)
 
         self._law_on_submeshs = [
-            LawOnSubMesh.map_to_cells(law, local_cells, element_spaces)
+            create_law_on_submesh(law, local_cells, element_spaces)
             for law, local_cells in laws
         ]
 
@@ -108,7 +107,7 @@ class IncrSmallStrainProblem(NonlinearProblem):
         self.incr_disp = IncrementalDisplacement(u, q_degree)
 
     @property
-    def a(self) -> df.fem.FormMetaClass:
+    def a(self) -> df.fem.Form:
         """Compiled bilinear form (the Jacobian form)"""
 
         if not hasattr(self, "_a"):
@@ -153,7 +152,7 @@ class IncrSmallStrainProblem(NonlinearProblem):
         self.stress.update_previous()
 
         for law in self._law_on_submeshs:
-            law.commit_history()
+            law.update_history()
 
         self.sim_time.advance()
 

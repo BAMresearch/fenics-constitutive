@@ -8,7 +8,7 @@ from typing import Protocol
 import dolfinx as df
 import numpy as np
 
-__all__ = ["SubSpaceMap", "build_subspace_map"]
+__all__ = ["IdentityMap", "SpaceMap", "SubSpaceMap", "build_subspace_map"]
 
 
 class SpaceMap(Protocol):
@@ -21,7 +21,7 @@ class SpaceMap(Protocol):
     def map_to_parent(self, sub: df.fem.Function, parent: df.fem.Function) -> None:
         """Map values from the subspace to the parent space."""
 
-    def map_to_child(self, parent: df.fem.Function, sub: df.fem.Function) -> None:
+    def map_to_sub(self, parent: df.fem.Function, sub: df.fem.Function) -> None:
         """Map values from the parent space to the subspace."""
 
 
@@ -35,11 +35,25 @@ class IdentityMap:
     """
 
     def map_to_parent(self, sub: df.fem.Function, parent: df.fem.Function) -> None:
+        """
+        Map the values from the subspace to the parent space.
+
+        Args:
+            sub: The function in the subspace.
+            parent: The function in the parent space.
+        """
         assert sub.ufl_shape == parent.ufl_shape, "Shapes do not match"
         parent.x.array[:] = sub.x.array[:]
         parent.x.scatter_forward()
 
-    def map_to_child(self, parent: df.fem.Function, sub: df.fem.Function) -> None:
+    def map_to_sub(self, parent: df.fem.Function, sub: df.fem.Function) -> None:
+        """
+        Map the values from the parent space to the subspace.
+
+        Args:
+            parent: The function in the parent space.
+            sub: The function in the subspace.
+        """
         assert sub.ufl_shape == parent.ufl_shape, "Shapes do not match"
         sub.x.array[:] = parent.x.array[:]
         sub.x.scatter_forward()
@@ -59,7 +73,7 @@ class SubSpaceMap:
     """
 
     parent: np.ndarray
-    child: np.ndarray
+    sub: np.ndarray
     sub_mesh: df.mesh.Mesh
     parent_mesh: df.mesh.Mesh
     cell_map: np.ndarray
@@ -83,11 +97,11 @@ class SubSpaceMap:
 
         parent_array = parent.x.array.reshape(-1, size)
         sub_array = sub.x.array.reshape(-1, size)
-        parent_array[self.parent] = sub_array[self.child]
+        parent_array[self.parent] = sub_array[self.sub]
         parent.x.scatter_forward()
 
-    @df.common.timed("constitutive: map_to_child_mesh")
-    def map_to_child(self, parent: df.fem.Function, sub: df.fem.Function) -> None:
+    @df.common.timed("constitutive: map_to_sub_mesh")
+    def map_to_sub(self, parent: df.fem.Function, sub: df.fem.Function) -> None:
         """
         Map the values from the parent space to the subspace.
 
@@ -105,7 +119,7 @@ class SubSpaceMap:
 
         parent_array = parent.x.array.reshape(-1, size)
         sub_array = sub.x.array.reshape(-1, size)
-        sub_array[self.child] = parent_array[self.parent]
+        sub_array[self.sub] = parent_array[self.parent]
         sub.x.scatter_forward()
 
 
@@ -146,19 +160,19 @@ def build_subspace_map(
         view_parent.append(V.dofmap.cell_dofs(cell_map[cell]))
 
     if len(view_child) > 0:
-        map = SubSpaceMap(
+        _map = SubSpaceMap(
             parent=np.hstack(view_parent),
-            child=np.hstack(view_child),
+            sub=np.hstack(view_child),
             sub_mesh=submesh,
             parent_mesh=V.mesh,
             cell_map=cell_map,
         )
     else:
-        map = SubSpaceMap(
+        _map = SubSpaceMap(
             parent=np.array([], dtype=np.int32),
-            child=np.array([], dtype=np.int32),
+            sub=np.array([], dtype=np.int32),
             sub_mesh=submesh,
             parent_mesh=V.mesh,
             cell_map=cell_map,
         )
-    return map, submesh, V_sub
+    return _map, submesh, V_sub

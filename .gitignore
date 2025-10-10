@@ -10,3 +10,4 @@ site/
 *.xdmf
 *.bak
 README.rst 
+src/fenics_constitutive/_version.py

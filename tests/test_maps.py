@@ -9,7 +9,7 @@ import pytest
 from mpi4py import MPI
 
 from fenics_constitutive import build_subspace_map
-from fenics_constitutive.maps import SubSpaceMap
+from fenics_constitutive.maps import SubSpaceMap, IdentityMap
 
 ElementBuilder = Callable[[df.mesh.Mesh], basix.ufl._ElementBase]
 
@@ -68,15 +68,17 @@ def test_subspace_vector_map_vector_equals_tensor_map():
     assert isinstance(QV_map, SubSpaceMap)
     assert isinstance(QT_map, SubSpaceMap)
     assert np.all(Q_map.parent == QV_map.parent)
-    assert np.all(Q_map.child == QV_map.child)
+    assert np.all(Q_map.sub == QV_map.sub)
     assert np.all(Q_map.parent == QT_map.parent)
-    assert np.all(Q_map.child == QT_map.child)
+    assert np.all(Q_map.sub == QT_map.sub)
 
 
 @pytest.mark.mpi
 @pytest.mark.parametrize("element_builder", ELEMENT_BUILDERS)
 def test_subspace_map_evaluation(element_builder: ElementBuilder) -> None:
-    mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 5, 7, 11, cell_type=df.mesh.CellType.hexahedron)
+    mesh = df.mesh.create_unit_cube(
+        MPI.COMM_WORLD, 5, 7, 11, cell_type=df.mesh.CellType.hexahedron
+    )
 
     map_c = mesh.topology.index_map(mesh.topology.dim)
     num_cells_total = map_c.size_local + map_c.num_ghosts
@@ -87,7 +89,7 @@ def test_subspace_map_evaluation(element_builder: ElementBuilder) -> None:
     Q = element_builder(mesh)
     Q_space = df.fem.functionspace(mesh, Q)
 
-    q = df.fem.Function(Q_space)
+    q: df.fem.Function = df.fem.Function(Q_space)
     q_test = q.copy()
 
     rng = np.random.default_rng(42)
@@ -112,7 +114,7 @@ def test_subspace_map_evaluation(element_builder: ElementBuilder) -> None:
         Q_sub = df.fem.functionspace(submesh, Q)
         q_sub = df.fem.Function(Q_sub)
 
-        Q_sub_map.map_to_child(q, q_sub)
+        Q_sub_map.map_to_sub(q, q_sub)
         Q_sub_map.map_to_parent(q_sub, q_test)
 
         q_view = value_array.reshape(num_cells_total, -1)
@@ -121,7 +123,7 @@ def test_subspace_map_evaluation(element_builder: ElementBuilder) -> None:
 
 
 @pytest.mark.parametrize("element_builder", ELEMENT_BUILDERS)
-def test__identity_map_evaluation(element_builder: ElementBuilder) -> None:
+def test_identity_map_evaluation(element_builder: ElementBuilder) -> None:
     mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 5, 7, 11)
 
     map_c = mesh.topology.index_map(mesh.topology.dim)
@@ -131,17 +133,21 @@ def test__identity_map_evaluation(element_builder: ElementBuilder) -> None:
     Q = element_builder(mesh)
     Q_space = df.fem.functionspace(mesh, Q)
 
-    q = df.fem.Function(Q_space)
+    q: df.fem.Function = df.fem.Function(Q_space)
     q_test = q.copy()
 
     rng = np.random.default_rng(42)
     value_array = rng.random(q.x.array.shape)
     q.x.array[:] = value_array
+    q.x.scatter_forward()
+    value_array = q.x.array
 
     identity_map, _, Q_sub = build_subspace_map(cells, Q_space)
-    q_sub = df.fem.Function(Q_sub)
+    # test that the created map is an identity map
+    assert isinstance(identity_map, IdentityMap)
+    q_sub: df.fem.Function = df.fem.Function(Q_sub)
 
-    identity_map.map_to_child(q, q_sub)
+    identity_map.map_to_sub(q, q_sub)
     identity_map.map_to_parent(q_sub, q_test)
 
     q_view = value_array.reshape(num_cells, -1)
