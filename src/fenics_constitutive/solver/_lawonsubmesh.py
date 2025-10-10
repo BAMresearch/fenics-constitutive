@@ -18,6 +18,32 @@ if TYPE_CHECKING:
     from ._solver import SimulationTime
 
 
+def create_law_on_submesh(
+    law: IncrSmallStrainModel, cells: np.ndarray, element_spaces: ElementSpaces
+) -> LawOnSubMesh:
+    subspace_map, submesh, stress_vector_space = build_subspace_map(
+        cells, element_spaces.stress_vector_space
+    )
+    stress_fn = typesafe.fn_for(stress_vector_space)
+    tangent_fn: df.fem.Function = typesafe.fn_for(
+        element_spaces.stress_tensor_space(submesh)
+    )
+    inc_disp_grad_fn = typesafe.fn_for(
+        element_spaces.displacement_gradient_tensor_space(submesh)
+    )
+
+    history = History.try_create(law, submesh, element_spaces.q_degree)
+    return LawOnSubMesh(
+        law=law,
+        cells=cells,
+        displacement_gradient_fn=inc_disp_grad_fn,
+        stress=stress_fn,
+        local_tangent=tangent_fn,
+        submesh_map=subspace_map,
+        history=history,
+    )
+
+
 @dataclass
 class LawOnSubMesh:
     law: IncrSmallStrainModel
@@ -27,32 +53,6 @@ class LawOnSubMesh:
     local_tangent: df.fem.Function
     submesh_map: SpaceMap
     history: History | None = None
-
-    @staticmethod
-    def map_to_cells(
-        law: IncrSmallStrainModel, cells: np.ndarray, element_spaces: ElementSpaces
-    ) -> LawOnSubMesh:
-        subspace_map, submesh, stress_vector_space = build_subspace_map(
-            cells, element_spaces.stress_vector_space
-        )
-        stress_fn = typesafe.fn_for(stress_vector_space)
-        tangent_fn: df.fem.Function = typesafe.fn_for(
-            element_spaces.stress_tensor_space(submesh)
-        )
-        inc_disp_grad_fn = typesafe.fn_for(
-            element_spaces.displacement_gradient_tensor_space(submesh)
-        )
-
-        history = History.try_create(law, submesh, element_spaces.q_degree)
-        return LawOnSubMesh(
-            law=law,
-            cells=cells,
-            displacement_gradient_fn=inc_disp_grad_fn,
-            stress=stress_fn,
-            local_tangent=tangent_fn,
-            submesh_map=subspace_map,
-            history=history,
-        )
 
     def local_stress(self, stress: IncrementalStress) -> np.ndarray:
         self.submesh_map.map_to_sub(stress.previous, self.stress)
@@ -77,7 +77,9 @@ class LawOnSubMesh:
         incr_disp.evaluate_local_incremental_gradient(
             self.cells, self.displacement_gradient_fn
         )
-        history_input = self.history.reset_trial_state() if self.history is not None else None
+        history_input = (
+            self.history.reset_trial_state() if self.history is not None else None
+        )
         with df.common.Timer("constitutive-law-evaluation"):
             self.law.evaluate(
                 sim_time.current,

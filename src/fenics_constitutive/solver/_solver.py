@@ -15,7 +15,7 @@ from fenics_constitutive.stress_strain import ufl_mandel_strain
 from fenics_constitutive.typesafe import fn_for
 
 from ._incrementalunknowns import IncrementalDisplacement, IncrementalStress
-from ._lawonsubmesh import LawOnSubMesh
+from ._lawonsubmesh import LawOnSubMesh, create_law_on_submesh
 
 
 @dataclass(slots=True)
@@ -65,7 +65,7 @@ class IncrSmallStrainProblem(NonlinearProblem):
         map_c = mesh.topology.index_map(mesh.topology.dim)
         num_cells = map_c.size_local + map_c.num_ghosts
         if isinstance(laws, IncrSmallStrainModel):
-            laws = [(laws, np.arange(0,num_cells, dtype=np.int32))]
+            laws = [(laws, np.arange(0, num_cells, dtype=np.int32))]
 
         constraint = laws[0][0].constraint
         assert all(law[0].constraint == constraint for law in laws), (
@@ -80,7 +80,7 @@ class IncrSmallStrainProblem(NonlinearProblem):
         self.sim_time = SimulationTime(dt=del_t)
 
         self._law_on_submeshs = [
-            LawOnSubMesh.map_to_cells(law, local_cells, element_spaces)
+            create_law_on_submesh(law, local_cells, element_spaces)
             for law, local_cells in laws
         ]
 
