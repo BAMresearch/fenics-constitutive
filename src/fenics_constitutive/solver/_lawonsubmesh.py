@@ -21,6 +21,7 @@ if TYPE_CHECKING:
 def create_law_on_submesh(
     law: IncrSmallStrainModel, cells: np.ndarray, element_spaces: ElementSpaces
 ) -> LawOnSubMesh:
+    """Create a `LawOnSubMesh`"""
     subspace_map, submesh, stress_vector_space = build_subspace_map(
         cells, element_spaces.stress_vector_space
     )
@@ -55,6 +56,7 @@ class LawOnSubMesh:
     history: History | None = None
 
     def local_stress(self, stress: IncrementalStress) -> np.ndarray:
+        """Map the global stress to the submesh"""
         self.submesh_map.map_to_sub(stress.previous, self.stress)
         return self.stress.x.array
 
@@ -63,6 +65,7 @@ class LawOnSubMesh:
         global_stress: IncrementalStress,
         global_tangent: df.fem.Function,
     ) -> None:
+        """Map stresses and tangents back to the main mesh"""
         self.submesh_map.map_to_parent(self.stress, global_stress.current)
         self.submesh_map.map_to_parent(self.local_tangent, global_tangent)
 
@@ -73,7 +76,7 @@ class LawOnSubMesh:
         global_stress: IncrementalStress,
         global_tangent: df.fem.Function,
     ) -> None:
-        """Perform a full constitutive update for this law context."""
+        """Perform a full constitutive model evaluation for this law context."""
         incr_disp.evaluate_local_incremental_gradient(
             self.cells, self.displacement_gradient_fn
         )
@@ -92,6 +95,6 @@ class LawOnSubMesh:
         self.map_to_parent(global_stress, global_tangent)
 
     def update_history(self) -> None:
-        """Commit the history for this law context if it exists."""
+        """Update the history for this law context if it exists."""
         if self.history is not None:
             self.history.update()

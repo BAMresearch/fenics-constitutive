@@ -35,11 +35,25 @@ class IdentityMap:
     """
 
     def map_to_parent(self, sub: df.fem.Function, parent: df.fem.Function) -> None:
+        """
+        Map the values from the subspace to the parent space.
+
+        Args:
+            sub: The function in the subspace.
+            parent: The function in the parent space.
+        """
         assert sub.ufl_shape == parent.ufl_shape, "Shapes do not match"
         parent.x.array[:] = sub.x.array[:]
         parent.x.scatter_forward()
 
     def map_to_sub(self, parent: df.fem.Function, sub: df.fem.Function) -> None:
+        """
+        Map the values from the parent space to the subspace.
+
+        Args:
+            parent: The function in the parent space.
+            sub: The function in the subspace.
+        """
         assert sub.ufl_shape == parent.ufl_shape, "Shapes do not match"
         sub.x.array[:] = parent.x.array[:]
         sub.x.scatter_forward()
