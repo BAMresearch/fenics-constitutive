@@ -8,7 +8,7 @@ import numpy as np
 import ufl
 from petsc4py import PETSc
 
-from fenics_constitutive import typesafe
+from fenics_constitutive.solver.typesafe import typesafe
 
 
 @dataclass

@@ -7,7 +7,7 @@ import pytest
 import ufl
 from mpi4py import MPI
 
-from fenics_constitutive import (
+from fenics_constitutive.constitutive import (
     StressStrainConstraint,
     strain_from_grad_u,
     ufl_mandel_strain,

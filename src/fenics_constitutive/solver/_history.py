@@ -6,7 +6,7 @@ import basix.ufl
 import dolfinx as df
 import numpy as np
 
-from fenics_constitutive.interfaces import IncrSmallStrainModel
+from fenics_constitutive.constitutive.interfaces import IncrSmallStrainModel
 
 
 def build_history(

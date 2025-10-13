@@ -6,9 +6,9 @@ from typing import TYPE_CHECKING
 import dolfinx as df
 import numpy as np
 
-from fenics_constitutive import typesafe
-from fenics_constitutive.interfaces import IncrSmallStrainModel
-from fenics_constitutive.maps import SpaceMap, build_subspace_map
+from fenics_constitutive.solver.typesafe import typesafe
+from fenics_constitutive.constitutive.interfaces import IncrSmallStrainModel
+from fenics_constitutive.solver.maps import SpaceMap, build_subspace_map
 
 from ._history import History
 from ._incrementalunknowns import IncrementalDisplacement, IncrementalStress

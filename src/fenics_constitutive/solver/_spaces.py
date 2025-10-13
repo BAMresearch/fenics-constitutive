@@ -5,7 +5,7 @@ from dataclasses import dataclass
 import basix.ufl
 import dolfinx as df
 
-from fenics_constitutive.interfaces import StressStrainConstraint
+from fenics_constitutive.constitutive.interfaces import StressStrainConstraint
 
 
 @dataclass(frozen=True, slots=True)

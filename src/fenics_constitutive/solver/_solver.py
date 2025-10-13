@@ -9,11 +9,11 @@ from dolfinx.fem.function import Function
 from dolfinx.fem.petsc import NonlinearProblem
 from petsc4py import PETSc
 
-from fenics_constitutive.interfaces import IncrSmallStrainModel
+from fenics_constitutive.constitutive.interfaces import IncrSmallStrainModel
 from fenics_constitutive.solver._spaces import ElementSpaces
-from fenics_constitutive.stress_strain import ufl_mandel_strain
-from fenics_constitutive.typesafe import fn_for
+from fenics_constitutive.constitutive.stress_strain import ufl_mandel_strain
 
+from fenics_constitutive.solver.typesafe import fn_for
 from ._incrementalunknowns import IncrementalDisplacement, IncrementalStress
 from ._lawonsubmesh import LawOnSubMesh, create_law_on_submesh
 
