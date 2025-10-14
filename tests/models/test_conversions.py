@@ -7,11 +7,8 @@ import pytest
 import ufl
 from mpi4py import MPI
 
-from fenics_constitutive.constitutive import (
-    StressStrainConstraint,
-    strain_from_grad_u,
-    ufl_mandel_strain,
-)
+from fenics_constitutive.models import StressStrainConstraint, strain_from_grad_u
+from fenics_constitutive.solver.utils import ufl_mandel_strain
 
 
 def test_strain_from_grad_u():
@@ -64,11 +61,13 @@ def test_ufl_strain_equals_array_conversion(constraint: StressStrainConstraint):
 
             def lam(x):
                 return x[0] * 0.1
+
         case 2:
             mesh = df.mesh.create_unit_square(MPI.COMM_WORLD, 2, 2)
 
             def lam(x):
                 return x[0] * 0.1, x[1] * 0.2
+
         case 3:
             mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 2, 2, 2)
 

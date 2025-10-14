@@ -47,7 +47,7 @@ jobs:
         id: pytest_mpi
         shell: bash -l {0}
         run: |
-          mpirun -np 2 pytest -s tests/test_maps.py --with-mpi
+          mpirun -np 2 pytest -s tests/solver/test_maps.py --with-mpi
 
 
 

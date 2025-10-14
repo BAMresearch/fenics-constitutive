@@ -9,8 +9,9 @@ import ufl
 from dolfinx.nls.petsc import NewtonSolver
 from mpi4py import MPI
 
-from fenics_constitutive.solver import IncrSmallStrainProblem, norm
-from fenics_constitutive.constitutive.models import VonMises3D
+from fenics_constitutive.solver import IncrSmallStrainProblem
+from fenics_constitutive.models import VonMises3D
+from fenics_constitutive.postprocessing import norm
 
 
 def uniaxial_strain_3d_fine_mesh(comm, mesh_path):

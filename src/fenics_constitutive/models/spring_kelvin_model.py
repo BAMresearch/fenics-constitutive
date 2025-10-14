@@ -2,13 +2,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from fenics_constitutive import (
-    IncrSmallStrainModel,
-    StressStrainConstraint,
-    strain_from_grad_u,
-)
-
-from .utils import get_elastic_tangent, get_identity, lame_parameters
+from .interfaces import IncrSmallStrainModel, StressStrainConstraint
+from .utils import strain_from_grad_u, get_elastic_tangent, get_identity, lame_parameters
 
 
 class SpringKelvinModel(IncrSmallStrainModel):
