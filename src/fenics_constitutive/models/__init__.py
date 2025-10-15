@@ -1,7 +1,12 @@
-"""This submodule contains a selection of constitutive models written in Python."""
+"""
+fenics-constitutive: Interfaces for constitutive models for dolfinx
+"""
 
 from __future__ import annotations
 
+# import models
+from .interfaces import *
+from .utils import *
 from .linear_elasticity_model import LinearElasticityModel
 from .mises_plasticity_isotropic_hardening import VonMises3D
 from .spring_kelvin_model import SpringKelvinModel

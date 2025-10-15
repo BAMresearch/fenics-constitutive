@@ -8,8 +8,7 @@ import numpy as np
 import pytest
 from mpi4py import MPI
 
-from fenics_constitutive import build_subspace_map
-from fenics_constitutive.maps import SubSpaceMap, IdentityMap
+from fenics_constitutive.solver.maps import SubSpaceMap, IdentityMap, build_subspace_map
 
 ElementBuilder = Callable[[df.mesh.Mesh], basix.ufl._ElementBase]
 

@@ -6,10 +6,10 @@ from typing import TYPE_CHECKING
 import dolfinx as df
 import numpy as np
 
-from fenics_constitutive import typesafe
-from fenics_constitutive.interfaces import IncrSmallStrainModel
-from fenics_constitutive.maps import SpaceMap, build_subspace_map
+from fenics_constitutive.models.interfaces import IncrSmallStrainModel
 
+from .typesafe import fn_for
+from .maps import SpaceMap, build_subspace_map
 from ._history import History
 from ._incrementalunknowns import IncrementalDisplacement, IncrementalStress
 from ._spaces import ElementSpaces
@@ -25,11 +25,11 @@ def create_law_on_submesh(
     subspace_map, submesh, stress_vector_space = build_subspace_map(
         cells, element_spaces.stress_vector_space
     )
-    stress_fn = typesafe.fn_for(stress_vector_space)
-    tangent_fn: df.fem.Function = typesafe.fn_for(
+    stress_fn = fn_for(stress_vector_space)
+    tangent_fn: df.fem.Function = fn_for(
         element_spaces.stress_tensor_space(submesh)
     )
-    inc_disp_grad_fn = typesafe.fn_for(
+    inc_disp_grad_fn = fn_for(
         element_spaces.displacement_gradient_tensor_space(submesh)
     )
 

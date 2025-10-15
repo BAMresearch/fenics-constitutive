@@ -5,6 +5,8 @@ import numpy as np
 import ufl
 from mpi4py import MPI
 
+__all__ = ["norm"]
+
 
 def norm(f, dx, comm=MPI.COMM_WORLD, norm_type="l2"):
     match norm_type:

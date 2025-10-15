@@ -9,14 +9,14 @@ from dolfinx.nls.petsc import NewtonSolver
 # from linear_elasticity_model import LinearElasticityModel
 from mpi4py import MPI
 
-from fenics_constitutive import (
-    IncrSmallStrainProblem,
+from fenics_constitutive.models import (
+    LinearElasticityModel,
     PlaneStrainFrom3D,
     StressStrainConstraint,
     UniaxialStrainFrom3D,
-    norm,
 )
-from fenics_constitutive.models import LinearElasticityModel
+from fenics_constitutive.postprocessing import norm
+from fenics_constitutive.solver import IncrSmallStrainProblem
 
 youngs_modulus = 42.0
 poissons_ratio = 0.3
@@ -393,6 +393,12 @@ def test_3d():
     assert norm(diff, problem.dxm) < 1e-8 / norm(u, problem.dxm)
 
 
+if __name__ == "__main__":
+    test_uniaxial_stress()
+    test_uniaxial_strain()
+    test_plane_stress()
+    test_plane_strain()
+    test_3d()
 if __name__ == "__main__":
     test_uniaxial_stress()
     test_uniaxial_strain()

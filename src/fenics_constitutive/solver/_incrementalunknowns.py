@@ -8,7 +8,7 @@ import numpy as np
 import ufl
 from petsc4py import PETSc
 
-from fenics_constitutive import typesafe
+from fenics_constitutive.solver.typesafe import fn_for
 
 
 @dataclass
@@ -53,8 +53,8 @@ class IncrementalStress:
     __slots__ = ("_current", "_previous")
 
     def __init__(self, function_space) -> None:
-        self._current = typesafe.fn_for(function_space)
-        self._previous = typesafe.fn_for(function_space)
+        self._current = fn_for(function_space)
+        self._previous = fn_for(function_space)
 
     @property
     def current(self) -> df.fem.Function:
