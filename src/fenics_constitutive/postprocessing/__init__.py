@@ -1,6 +1,5 @@
 """
-
-fenics-constitutive: Interfaces for constitutive models for dolfinx
+fenics-constitutive: Interfaces for postprocessing routines with dolfinx
 """
 
 from __future__ import annotations
