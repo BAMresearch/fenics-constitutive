@@ -10,12 +10,12 @@ from dolfinx.fem.petsc import NonlinearProblem
 from petsc4py import PETSc
 
 from fenics_constitutive.models.interfaces import IncrSmallStrainModel
-from fenics_constitutive.models.stress_strain import ufl_mandel_strain
 
-from .typesafe import fn_for
-from ._spaces import ElementSpaces
 from ._incrementalunknowns import IncrementalDisplacement, IncrementalStress
 from ._lawonsubmesh import LawOnSubMesh, create_law_on_submesh
+from ._spaces import ElementSpaces
+from .typesafe import fn_for
+from .utils import ufl_mandel_strain
 
 
 @dataclass(slots=True)
@@ -68,9 +68,9 @@ class IncrSmallStrainProblem(NonlinearProblem):
             laws = [(laws, np.arange(0, num_cells, dtype=np.int32))]
 
         constraint = laws[0][0].constraint
-        assert all(law[0].constraint == constraint for law in laws), (
-            "All laws must have the same constraint"
-        )
+        assert all(
+            law[0].constraint == constraint for law in laws
+        ), "All laws must have the same constraint"
 
         element_spaces = ElementSpaces.create(mesh, constraint, q_degree)
         self.stress = IncrementalStress(element_spaces.stress_vector_space)
@@ -117,9 +117,11 @@ class IncrSmallStrainProblem(NonlinearProblem):
                 self.incr_disp.current,
                 self._bcs,
                 self.dR_form,
-                form_compiler_options=self._form_compiler_options
-                if self._form_compiler_options is not None
-                else {},
+                form_compiler_options=(
+                    self._form_compiler_options
+                    if self._form_compiler_options is not None
+                    else {}
+                ),
                 jit_options=self._jit_options if self._jit_options is not None else {},
             )
 
