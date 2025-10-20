@@ -1,0 +1,6 @@
+[workspace]
+members = [
+    "comfe-rs",
+    "rust"
+]
+resolver = "3"

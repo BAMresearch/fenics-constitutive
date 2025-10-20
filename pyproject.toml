@@ -1,6 +1,15 @@
 [build-system]
-requires = ["hatchling", "hatch-vcs"]
-build-backend = "hatchling.build"
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[tool.maturin]
+# Point to the Rust extension crate, relative to pyproject.toml location
+bindings = "pyo3"
+module-name = "fenics_constitutive.bindings"
+#module-name = "fenics_constitutive"  # This is the name you will import
+#manifest-path = "bindings/Cargo.toml"
+features = ["pyo3/extension-module"]
+#python-source = "src"
 
 
 [project]
