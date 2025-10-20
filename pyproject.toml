@@ -1,5 +1,7 @@
 [build-system]
-requires = ["maturin>=1.0,<2.0"]
+requires = [
+  "maturin>=1.0,<2.0",
+]
 build-backend = "maturin"
 
 [tool.maturin]
@@ -10,7 +12,7 @@ module-name = "fenics_constitutive._bindings"
 manifest-path = "bindings/Cargo.toml"
 features = ["pyo3/extension-module"]
 python-source = "src"
-
+version = "0.1.2"
 
 [project]
 name = "fenics-constitutive"
@@ -36,7 +38,7 @@ classifiers = [
   "Topic :: Scientific/Engineering",
   "Typing :: Typed",
 ]
-dynamic = ["version"]
+dynamic = []
 dependencies = []
 
 [project.optional-dependencies]
@@ -63,13 +65,14 @@ Discussions = "https://github.com/BAMResearch/fenics-constitutive/discussions"
 Changelog = "https://github.com/BAMResearch/fenics-constitutive/releases"
 
 
-[tool.hatch]
-version.source = "vcs"
-build.hooks.vcs.version-file = "src/fenics_constitutive/_version.py"
+#[tool.hatch]
+#version.source = "vcs"
+#build.hooks.vcs.version-file = "src/fenics_constitutive/_version.py"
 
-[tool.hatch.env.default]
-features = ["test"]
-scripts.test = "pytest {args}"
+#[tool.hatch.env.default]
+#features = ["test"]
+#scripts.test = "pytest {args}"
+
 
 
 [tool.pytest.ini_options]
