@@ -9,6 +9,6 @@ name = "bindings"
 crate-type = ["cdylib"]
 
 [dependencies]
-comfe-rs = { path = "../comfe-rs" , features = ["python-bindings"]}
+comfe-rs = { path = "../comfe-rs"}
 pyo3 = {version = "*", features = ["extension-module", "abi3-py38"]}
 numpy = "*"

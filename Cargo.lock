@@ -38,8 +38,6 @@ version = "0.1.0"
 dependencies = [
  "konst",
  "nalgebra",
- "numpy",
- "pyo3",
 ]
 
 [[package]]

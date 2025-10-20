@@ -8,13 +8,6 @@ nalgebra = "0.32.0"
 konst = "*"
 
 
-# Optional dependencies
-pyo3 = { version = "*", optional = true }
-numpy = { version = "*", optional = true }
-
 [lib]
 name = "comfe"
 crate-type = ["cdylib", "rlib"]
-
-[features]
-python-bindings = ["pyo3", "numpy"]
