@@ -1,6 +1,6 @@
 [workspace]
 members = [
     "comfe-rs",
-    "rust"
+    "bindings"
 ]
 resolver = "3"

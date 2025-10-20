@@ -5,11 +5,11 @@ build-backend = "maturin"
 [tool.maturin]
 # Point to the Rust extension crate, relative to pyproject.toml location
 bindings = "pyo3"
-module-name = "fenics_constitutive.bindings"
+module-name = "fenics_constitutive._bindings"
 #module-name = "fenics_constitutive"  # This is the name you will import
-#manifest-path = "bindings/Cargo.toml"
+manifest-path = "bindings/Cargo.toml"
 features = ["pyo3/extension-module"]
-#python-source = "src"
+python-source = "src"
 
 
 [project]

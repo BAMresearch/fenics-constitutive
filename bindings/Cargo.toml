@@ -1,10 +1,11 @@
 [package]
-name = "fenics-constitutive"
+#name = "fenics-constitutive"
+name = "bindings"
 version = "0.1.0"
 edition = "2024"
 
 [lib]
-name = "fenics_constitutive"
+name = "bindings"
 crate-type = ["cdylib"]
 
 [dependencies]

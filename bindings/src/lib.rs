@@ -135,7 +135,7 @@ macro_rules! implement_python_model {
 }
 
 #[pymodule]
-fn bindings(m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn _bindings(m: &Bound<'_, PyModule>) -> PyResult<()> {
     implement_python_model!(
         m,
         PyLinearElasticity3D,
