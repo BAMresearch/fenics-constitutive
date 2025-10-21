@@ -92,7 +92,12 @@ def fenics_constitutive_wrapper(rust_model):
 
 @fenics_constitutive_wrapper(PyLinearElasticity3D)
 class LinearElasticity3D(IncrSmallStrainModel):
-    pass
+    """
+    A linear elasticity model written in Rust.
+
+    Args:
+       parameters (np.ndarray): [mu, kappa] an array containing the shear modulus and the bulk modulus.
+    """
 
 
 @fenics_constitutive_wrapper(PyDruckerPrager3D)

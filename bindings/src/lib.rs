@@ -79,16 +79,28 @@ macro_rules! implement_python_model {
                 del_grad_u: PyReadonlyArray1<f64>,
                 mut stress: PyReadwriteArray1<f64>,
                 mut tangent: Option<PyReadwriteArray1<f64>>,
-                mut history: HashMap<String, PyReadwriteArray1<f64>>,
+                mut history: Option<HashMap<String, PyReadwriteArray1<f64>>>,
             ) {
                 //let strain = strain.as_slice().unwrap();
                 let del_grad_u = del_grad_u.as_slice().unwrap();
                 let mut stress = stress.as_slice_mut().unwrap();
-                let mut history = history
-                    .get_mut("history")
-                    .expect("'history' entry not found in input")
-                    .as_slice_mut()
-                    .unwrap();
+                let history = history.as_mut();
+                let mut history = {
+                    let default: &mut [f64] = &mut [];
+                    match history {
+                        Some(history_map) => history_map
+                            .get_mut("history")
+                            .expect("'history' entry not found in input")
+                            .as_slice_mut()
+                            .unwrap(),
+                        None => default,
+                    }
+                };
+                //history.as_mut();
+                //.get_mut("history")
+                //.expect("'history' entry not found in input")
+                //.as_slice_mut()
+                //.unwrap();
                 let parameters = self.parameters.as_array();
                 let tangent = tangent.as_mut();
                 let tangent = match tangent {
@@ -114,8 +126,11 @@ macro_rules! implement_python_model {
                 );
             }
             #[getter]
-            pub fn history_dim(&self) -> HashMap<String, usize> {
-                HashMap::from([("history".to_string(), <$model>::HISTORY)])
+            pub fn history_dim(&self) -> Option<HashMap<String, usize>> {
+                match <$model>::HISTORY {
+                    0 => None,
+                    _ => Some(HashMap::from([("history".to_string(), <$model>::HISTORY)])),
+                }
             }
             #[getter]
             pub fn stress_strain_dim(&self) -> usize {

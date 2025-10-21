@@ -3,11 +3,10 @@ use std::num::NonZeroUsize;
 
 use crate::{
     consts::*,
-    mandel::{nonsymmetric_tensor_to_mandel, MandelView, MandelViewMut},
+    mandel::{MandelView, MandelViewMut, nonsymmetric_tensor_to_mandel},
 };
 use konst::{const_eq, eq_str};
 use nalgebra::{SMatrix, SMatrixViewMut, SVector, SVectorView, SVectorViewMut, Scalar};
-
 
 pub enum StressStrainConstraint {
     UNIAXIAL_STRAIN = 1,
@@ -200,13 +199,12 @@ pub trait ConstitutiveModelFn<
     const HISTORY: usize,
     const N_PARAMETERS: usize,
     const PARAMETERS: usize,
->
-where 
+> where
     Self: Sized,
 {
     type History: ArrayEquivalent<HISTORY> + StaticMap<N_HISTORY, QDim>;
     type Parameters: ArrayEquivalent<PARAMETERS> + StaticMap<N_PARAMETERS, QDim>;
-    
+
     const STRESS_STRAIN: usize = STRESS_STRAIN;
     const N_HISTORY: usize = N_HISTORY;
     const HISTORY: usize = HISTORY;
@@ -246,13 +244,12 @@ trait SmallStrainConstitutiveModel<
     const HISTORY: usize,
     const N_PARAMETERS: usize,
     const PARAMETERS: usize,
->
-where 
+> where
     Self: Sized,
 {
     type History: ArrayEquivalent<HISTORY> + StaticMap<N_HISTORY, QDim>;
     type Parameters: ArrayEquivalent<PARAMETERS> + StaticMap<N_PARAMETERS, QDim>;
-    
+
     const STRESS_STRAIN: usize = STRESS_STRAIN;
     const N_HISTORY: usize = N_HISTORY;
     const HISTORY: usize = HISTORY;
@@ -264,8 +261,8 @@ where
         del_time: f64,
         //strain: &SVector<f64, STRESS_STRAIN>,
         del_strain: &SVector<f64, STRESS_STRAIN>,
-        stress: &mut SVector<f64,STRESS_STRAIN>,
-        tangent: Option<&mut SMatrix<f64,STRESS_STRAIN,STRESS_STRAIN>>,
+        stress: &mut SVector<f64, STRESS_STRAIN>,
+        tangent: Option<&mut SMatrix<f64, STRESS_STRAIN, STRESS_STRAIN>>,
         history: &mut Self::History,
         parameters: &Self::Parameters,
     );
@@ -281,7 +278,6 @@ where
         parameters: &[f64],
     );
 }
-
 
 /// A function that checks if the combined length of the history and the parameters is equal to `HISTORY` and `PARAMETERS`.
 /// This is needed because both the number of history values and parameters and the size of both (which are different if we have
@@ -342,12 +338,13 @@ pub fn evaluate_model<
     let (del_grad_u_, del_grad_u_rest) = del_grad_u.as_chunks::<GEOMETRY>();
     let (del_grad_u_, del_grad_u_rest) = del_grad_u_.as_chunks::<GEOMETRY>();
 
-    let (history_, history_rest) = history.as_chunks_mut::<HISTORY>();
     let mut tangent_ = {
         match tangent {
             Some(t) => {
                 let (tangent_, tangent_rest_1) = t.as_chunks_mut::<STRESS_STRAIN>();
+                
                 let (tangent_, tangent_rest_2) = tangent_.as_chunks_mut::<STRESS_STRAIN>();
+                assert!(tangent_rest_1.is_empty() && tangent_rest_2.is_empty());
                 Some(tangent_)
             }
             None => None,
@@ -357,38 +354,55 @@ pub fn evaluate_model<
     let stress_len = stress_.len();
     //let del_strain_len = del_strain_.len();
     let del_grad_u_len = del_grad_u_.len();
-    let history_len = history_.len();
+    //let history_len = history_.len();
     let tangent_len = tangent_.as_ref().map_or(0, |t| t.len());
 
     assert!(
         stress_len == del_grad_u_len
             //&& stress_len == strain_len
-            && stress_len == history_len
+            //&& stress_len == history_len
             && (stress_len == tangent_len || tangent_.is_none()),
-        "Stress, strain, history, and tangent lengths do not match: \
-        stress_len: {}, del_grad_u_len: {}, history_len: {}, tangent_len: {}",
+        "Stress, strain, and tangent lengths do not match: \
+        stress_len: {}, del_grad_u_len: {}, tangent_len: {}",
         stress_len,
         //strain_len,
         del_grad_u_len,
-        history_len,
+        //history_len,
         tangent_len
     );
+
+    //deal with special case that history is zero-sized
+    let mut zero_history: Vec<[f64; HISTORY]> = vec![];
+    if HISTORY == 0 {
+        zero_history.resize(stress_len, [0.0; HISTORY]);
+    }
+    let (history_, history_rest) = {
+        if HISTORY == 0 {
+            //let history_chunks : &mut [[f64; HISTORY];0] =  &mut[];
+            let history_rest: &mut [f64] = &mut [];
+            (zero_history.as_mut_slice(), history_rest)
+        } else {
+            history.as_chunks_mut::<HISTORY>()
+        }
+    };
+    assert!(stress_len== history_.len());
+
+
     assert!(
         stress_rest.is_empty()
             && del_grad_u_rest.is_empty()
-            && history_rest.is_empty()
-            && tangent_.as_ref().map_or(true, |t| t.is_empty()),
+            && history_rest.is_empty(),
         "Input slices are not of the correct length: \
         stress_rest: {:?}, del_grad_u_rest: {:?}, history_rest: {:?}",
-        stress_rest,
-        del_grad_u_rest,
-        history_rest
+        stress_rest.len(),
+        del_grad_u_rest.len(),
+        history_rest.len()
     );
 
     for i in 0..stress_len {
         let tangent_chunk: Option<&mut [[f64; STRESS_STRAIN]; STRESS_STRAIN]> =
             tangent_.as_mut().map(|t| &mut t[i]);
-        let del_strain_chunk: [f64;STRESS_STRAIN] = nonsymmetric_tensor_to_mandel(del_grad_u_[i]);
+        let del_strain_chunk: [f64; STRESS_STRAIN] = nonsymmetric_tensor_to_mandel(del_grad_u_[i]);
         MODEL::evaluate(
             time,
             del_time,
