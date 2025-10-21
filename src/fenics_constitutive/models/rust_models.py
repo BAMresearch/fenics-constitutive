@@ -20,8 +20,19 @@ def fenics_constitutive_wrapper(rust_model):
         )
 
         # Overwrite __init__
-        def __init__(self: cls, parameters: np.ndarray) -> None:
+        def __init__(self, parameters: np.ndarray) -> None:
             self.model = rust_model(parameters)
+            self._constraint = StressStrainConstraint[
+                str(self.model.constraint).split(".")[-1]
+            ]
+            assert (
+                self._constraint.stress_strain_dim
+                == self.model.constraint.stress_strain_dim
+            )
+            assert (
+                self._constraint.geometric_dim == self.model.geometric_dim
+            )
+
 
         # Add evaluate method
         def evaluate(
@@ -44,17 +55,7 @@ def fenics_constitutive_wrapper(rust_model):
 
         # Add constraint property
         def constraint(self) -> StressStrainConstraint:
-            python_constraint = StressStrainConstraint[
-                str(self.model.constraint).split(".")[-1]
-            ]
-            assert (
-                python_constraint.stress_strain_dim
-                == self.model.constraint.stress_strain_dim
-            )
-            assert (
-                python_constraint.geometric_dim == self.model.geometric_dim
-            )
-            return StressStrainConstraint[str(self.model.constraint).split(".")[-1]]
+            return self._constraint
 
         # Add history_dim property
         def history_dim(self) -> dict[str, int | tuple[int, int]] | None:
