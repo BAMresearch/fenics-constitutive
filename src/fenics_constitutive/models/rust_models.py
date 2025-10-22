@@ -10,7 +10,7 @@ from fenics_constitutive._bindings import (
 
 from .interfaces import IncrSmallStrainModel, StressStrainConstraint
 
-__all__ = ["DruckerPrager3D", "LinearElasticity3D", "MisesPlasticity3D"]
+__all__ = ["LinearElasticity3D", "MisesPlasticity3D"]
 
 
 def fenics_constitutive_wrapper(rust_model):
