@@ -1,9 +1,9 @@
 use crate::consts::*;
-use crate::impl_array_equivalent;
+//use crate::impl_array_equivalent;
 use crate::interfaces::*;
 use crate::mandel::*;
 use crate::plasticity::*;
-use crate::{create_history_parameter_struct, q_dim_data_type};
+use crate::create_history_parameter_struct;//, q_dim_data_type};
 //use crate::impl_from_array;
 use nalgebra::{SMatrix, SVector};
 
@@ -80,6 +80,9 @@ impl Plasticity<6, 5, 5, 1> for DruckerPrager3D {
         const SYM_ID: SVector<f64, 6> = const { sym_id::<6>() };
         // Implementation of setting model state
         let (i_1, s) = sigma_1.trace_dev();
+
+        assert!(i_1 < self.parameters.a/self.parameters.b , "non-differentiable tip of Drucker-Prager surface reached");
+
         let j_2 = 0.5 * s.norm_squared();
         self.f = j_2.sqrt() + self.parameters.b * i_1 - self.parameters.a;
         let df_di_1 = self.parameters.b;
@@ -101,16 +104,11 @@ impl Plasticity<6, 5, 5, 1> for DruckerPrager3D {
         self.dg_dsigma = &s * df_dj_2j_2 * &s.transpose() + df_dj_2 * &PROJECTION_DEV;
 
         self.del_plastic_strain = del_eps - &self.elastic_tangent_inv * (sigma_1 - sigma_0);
-        let pl_norm = self.del_plastic_strain.norm();
-        self.k = SMatrix::from_element(f64::sqrt(2. / 3.) * pl_norm);
-        self.dk_dsigma = {
-            if pl_norm == 0.0 {
-                SMatrix::zeros()
-            } else {
-                (-f64::sqrt(2. / 3.) * &self.elastic_tangent_inv * &self.del_plastic_strain / pl_norm)
-                    .transpose()
-            }
-        };
+        //let pl_norm = self.del_plastic_strain.norm();
+        let g_norm = self.g.norm();
+        self.k = SVector::from_element((2_f64/3_f64).sqrt()*g_norm);
+        self.dk_dsigma = ((2_f64/3_f64).sqrt()/g_norm)* self.g.transpose() * &self.dg_dsigma;
+        self.dk_dkappa = ((2_f64/3_f64).sqrt()/g_norm)* self.g.transpose() * &self.dg_dkappa;
     }
 
     fn f(&self) -> f64 {

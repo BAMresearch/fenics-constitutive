@@ -84,6 +84,31 @@ macro_rules! q_dim_data_type {
         SMatrix<f64, $size, $size>
     };
 }
+#[macro_export]
+macro_rules! q_dim_try_from {
+    ((QDim::Scalar), $data:expr) => {
+        *$data.get(0)?
+    };
+    ((QDim::Vector($size:expr)), $data:expr) => {{
+        let temp: &[f64; $size] = $data.try_into().ok()?;
+        SVector::<f64, $size>::from_column_slice(temp)
+    }};
+    ((QDim::RotatableVector($size:expr)),$data:expr) => {{
+        let temp: &[f64; $size] = $data.try_into().ok()?;
+        SVector::<f64, $size>::from_column_slice(temp)
+    }};
+    ((QDim::Matrix($size:expr)),$data:expr) => {{
+        let temp: [f64; $size] = $data.try_into().ok()?;
+        SMatrix::<f64, $size, $size>::from_array_storage(ArrayStorage { temp })
+    }};
+    ((QDim::RotatableMatrix($size:expr)),$data:expr) => {{
+        //let temp: [f64; $size] = $data.try_into().ok()?;
+        if $data.len()==$size*$size {
+            return None
+        }
+        SMatrix::<f64, $size, $size>::from_column_slice($data)
+    }};
+}
 pub trait ArrayEquivalent<const N: usize>: Sized {
     fn from_array(array: &[f64; N]) -> &Self;
     fn from_array_mut(array: &mut [f64; N]) -> &mut Self;
@@ -114,6 +139,9 @@ where
         }
         None
     }
+    fn from_hashmap(h: HashMap<&str, &[f64]>) -> Option<Self>
+    where
+        Self: Sized;
 }
 
 impl<const N: usize> ArrayEquivalent<N> for [f64; N] {
@@ -139,6 +167,11 @@ impl<const N: usize> ArrayEquivalent<N> for [f64; N] {
 }
 impl<const N: usize> StaticMap<1, QDim> for [f64; N] {
     const MAP: [(&'static str, QDim); 1] = [("all_fields", QDim::Vector(N))];
+    fn from_hashmap(h: HashMap<&str, &[f64]>) -> Option<Self> {
+        let mut output: [f64; N] = [0.0; N];
+        output.copy_from_slice(*h.get("all_fields")?);
+        Some(output)
+    }
 }
 
 #[macro_export]
@@ -149,7 +182,7 @@ macro_rules! create_history_parameter_struct {
         #[derive(Copy, Clone, Debug, Default)]
         pub struct $struct_name {
             $(
-                pub $field_name: q_dim_data_type!($qdim),
+                pub $field_name: crate::q_dim_data_type!($qdim),
             )*
         }
 
@@ -157,8 +190,17 @@ macro_rules! create_history_parameter_struct {
             const MAP: [(&'static str, QDim); $n] = [
                 $((stringify!($field_name), $qdim)),*
             ];
+            fn from_hashmap(h:std::collections::HashMap<&str,&[f64]>) -> Option<Self> {
+                Some(
+                    Self {
+                        $(
+                        $field_name: crate::q_dim_try_from!($qdim,*h.get(stringify!($field_name))?),
+                        )*
+                    }
+                )
+            }
         }
-        impl_array_equivalent!($struct_name, $size);
+        crate::impl_array_equivalent!($struct_name, $size);
     };
 }
 
@@ -342,7 +384,7 @@ pub fn evaluate_model<
         match tangent {
             Some(t) => {
                 let (tangent_, tangent_rest_1) = t.as_chunks_mut::<STRESS_STRAIN>();
-                
+
                 let (tangent_, tangent_rest_2) = tangent_.as_chunks_mut::<STRESS_STRAIN>();
                 assert!(tangent_rest_1.is_empty() && tangent_rest_2.is_empty());
                 Some(tangent_)
@@ -385,13 +427,10 @@ pub fn evaluate_model<
             history.as_chunks_mut::<HISTORY>()
         }
     };
-    assert!(stress_len== history_.len());
-
+    assert!(stress_len == history_.len());
 
     assert!(
-        stress_rest.is_empty()
-            && del_grad_u_rest.is_empty()
-            && history_rest.is_empty(),
+        stress_rest.is_empty() && del_grad_u_rest.is_empty() && history_rest.is_empty(),
         "Input slices are not of the correct length: \
         stress_rest: {:?}, del_grad_u_rest: {:?}, history_rest: {:?}",
         stress_rest.len(),
