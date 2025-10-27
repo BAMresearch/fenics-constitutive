@@ -1,12 +1,11 @@
+use std::marker::PhantomData;
+
 use crate::QDim; // Ensure QDim is imported from the correct module
-use crate::consts::id;
-use crate::mandel::*;
 use crate::{
-    create_history_parameter_struct, impl_array_equivalent,
+    create_history_parameter_struct,
     interfaces::{ArrayEquivalent, ConstitutiveModelFn, StaticMap},
-    q_dim_data_type,
 };
-use nalgebra::{SMatrix, SVector,};
+use nalgebra::{SMatrix, SVector};
 pub trait Plasticity<
     const STRESS_STRAIN: usize,
     const N_PARAMETERS: usize,
@@ -36,6 +35,41 @@ pub trait Plasticity<
     fn elastic_tangent(&self) -> &SMatrix<f64, STRESS_STRAIN, STRESS_STRAIN>;
     fn elastic_tangent_inv(&self) -> &SMatrix<f64, STRESS_STRAIN, STRESS_STRAIN>;
     fn del_plastic_strain(&self) -> &SVector<f64, STRESS_STRAIN>;
+    fn update_newton_matrix<const N: usize>(&self, dres: &mut SMatrix<f64, N, N>, del_lambda: f64) {
+        assert!(N == STRESS_STRAIN + KAPPA + 1);
+        // fill dres_sigma_dsigma
+        dres.fixed_view_mut::<STRESS_STRAIN, STRESS_STRAIN>(0, 0)
+            .copy_from(
+                &(-SMatrix::<f64, STRESS_STRAIN, STRESS_STRAIN>::identity()
+                    - self.elastic_tangent() * del_lambda * self.dg_dsigma()),
+            );
+        //let mut dres_sigma_dkappa = dres.fixed_view_mut::<6, 1>(0, 6);
+        dres.fixed_view_mut::<STRESS_STRAIN, KAPPA>(0, STRESS_STRAIN)
+            .copy_from(&(-self.elastic_tangent() * del_lambda * self.dg_dkappa()));
+        //let mut dres_sigma_dlambda = dres.fixed_view_mut::<6, 1>(0, 7);
+        dres.fixed_view_mut::<STRESS_STRAIN, 1>(0, STRESS_STRAIN + 1)
+            .copy_from(&(-self.elastic_tangent() * self.g()));
+
+        //let mut dres_kappa_dsigma = dres.fixed_view_mut::<1, 6>(6, 0);
+        dres.fixed_view_mut::<KAPPA, STRESS_STRAIN>(STRESS_STRAIN, 0)
+            .copy_from(&((-del_lambda)*self.dk_dsigma()));
+        //let mut dres_kappa_dkappa = dres.fixed_view_mut::<1, 1>(6, 6);
+        dres.fixed_view_mut::<KAPPA, KAPPA>(STRESS_STRAIN, STRESS_STRAIN)
+            .copy_from(&(SMatrix::<f64, KAPPA, KAPPA>::identity() - del_lambda * self.dk_dkappa()));
+        //let mut dres_kappa_dlambda = dres.fixed_view_mut::<1, 1>(6, 7);
+        dres.fixed_view_mut::<KAPPA, 1>(STRESS_STRAIN, STRESS_STRAIN + 1)
+            .copy_from(self.k());
+
+        //let mut dres_f_dsigma = dres.fixed_view_mut::<1, 6>(7, 0);
+        dres.fixed_view_mut::<1, STRESS_STRAIN>(STRESS_STRAIN + 1, 0)
+            .copy_from(&self.df_dsigma().transpose());
+        //let mut dres_f_dkappa = dres.fixed_view_mut::<1, 1>(7, 6);
+        dres.fixed_view_mut::<1, KAPPA>(STRESS_STRAIN + 1, STRESS_STRAIN)
+            .copy_from(&self.df_dkappa().transpose());
+        //let mut dres_f_dlambda = dres.fixed_view_mut::<1, 1>(7, 7);
+        dres.fixed_view_mut::<1, 1>(STRESS_STRAIN + 1, STRESS_STRAIN + 1)
+            .copy_from_slice(&[0.0]);
+    }
 }
 
 pub struct IsotropicPlasticityModel3D<
@@ -43,7 +77,7 @@ pub struct IsotropicPlasticityModel3D<
     const PARAMETERS: usize,
     MODEL: Plasticity<6, N_PARAMETERS, PARAMETERS, 1>,
 > {
-    model: MODEL,
+    phantom: PhantomData<MODEL>,
 }
 
 create_history_parameter_struct!(
@@ -76,7 +110,6 @@ impl<
         history: &mut [f64; 7],
         parameters: &[f64; PARAMETERS],
     ) {
-        const I_6: SMatrix<f64, 6, 6> = const { id::<6>() };
         let parameters_ = Self::Parameters::from_array(parameters);
         let history_ = IsotropicPlasticityHistory3D::from_array_mut(history);
         let mut model = MODEL::new(parameters_);
@@ -87,7 +120,7 @@ impl<
 
         let alpha_0 = SVector::<f64, 1>::from_element(history_.alpha);
         let mut alpha_1 = alpha_0.clone();
-        let mut sigma_1 = sigma_tr.clone();
+        let mut sigma_1: SVector<f64,6>;
         model.set_model_state(&sigma_0, &sigma_tr, &del_eps, &alpha_0);
 
         let f = model.f();
@@ -99,7 +132,7 @@ impl<
             return;
         } else {
             let mut del_lambda = 0.0;
-            let mut sol_0 = SVector::<f64, 8>::from_element(0.0); //make first test fail
+            let mut sol_0: SVector<f64, 8>;
             let mut sol_1 = SVector::<f64, 8>::from([
                 sigma_tr[0],
                 sigma_tr[1],
@@ -112,10 +145,11 @@ impl<
             ]);
             let mut res_sigma =
                 sigma_tr - sigma_0 - del_lambda * model.elastic_tangent() * model.g();
-            let mut res_kappa = alpha_1 - alpha_0 - model.k();
+            let mut res_kappa = alpha_1 - alpha_0 - del_lambda * model.k();
             let mut res_f = model.f();
 
             let mut dres = SMatrix::<f64, 8, 8>::zeros();
+            model.update_newton_matrix(&mut dres, 0.0);
 
             let mut res = SVector::<f64, 8>::from([
                 res_sigma[0],
@@ -134,38 +168,9 @@ impl<
             //println!("residual: {}", res);
             let mut sigma_prev: SVector<f64, 6>;
             let mut alpha_prev: SVector<f64, 1>;
-            let mut del_lambda_prev:f64;
-            loop
-            {
+            let mut del_lambda_prev: f64;
+            loop {
                 sol_0 = sol_1;
-
-                // fill dres_sigma_dsigma
-                dres.fixed_view_mut::<6, 6>(0, 0)
-                    .copy_from(&(-I_6 - model.elastic_tangent() * del_lambda * model.dg_dsigma()));
-                //let mut dres_sigma_dkappa = dres.fixed_view_mut::<6, 1>(0, 6);
-                dres.fixed_view_mut::<6, 1>(0, 6)
-                    .copy_from(&(-model.elastic_tangent() * del_lambda * model.dg_dkappa()));
-                //let mut dres_sigma_dlambda = dres.fixed_view_mut::<6, 1>(0, 7);
-                dres.fixed_view_mut::<6, 1>(0, 7)
-                    .copy_from(&(-model.elastic_tangent() * model.g()));
-
-                //let mut dres_kappa_dsigma = dres.fixed_view_mut::<1, 6>(6, 0);
-                dres.fixed_view_mut::<1, 6>(6, 0)
-                    .copy_from(&(-model.dk_dsigma()));
-                //let mut dres_kappa_dkappa = dres.fixed_view_mut::<1, 1>(6, 6);
-                dres.fixed_view_mut::<1, 1>(6, 6)
-                    .copy_from(&(SVector::<f64, 1>::from_element(1.0) - model.dk_dkappa()));
-                //let mut dres_kappa_dlambda = dres.fixed_view_mut::<1, 1>(6, 7);
-                dres.fixed_view_mut::<1, 1>(6, 7).copy_from_slice(&[0.0]);
-
-                //let mut dres_f_dsigma = dres.fixed_view_mut::<1, 6>(7, 0);
-                dres.fixed_view_mut::<1, 6>(7, 0)
-                    .copy_from(&model.df_dsigma().transpose());
-                //let mut dres_f_dkappa = dres.fixed_view_mut::<1, 1>(7, 6);
-                dres.fixed_view_mut::<1, 1>(7, 6)
-                    .copy_from(model.df_dkappa());
-                //let mut dres_f_dlambda = dres.fixed_view_mut::<1, 1>(7, 7);
-                dres.fixed_view_mut::<1, 1>(7, 7).copy_from_slice(&[0.0]);
 
                 let lu = dres.lu();
                 let result = lu.solve(&res);
@@ -189,10 +194,12 @@ impl<
                 del_lambda_prev = sol_0[7];
 
                 model.set_model_state(&sigma_0, &sigma_1, &del_eps, &alpha_1);
+                model.update_newton_matrix(&mut dres, del_lambda);
 
-                res_sigma = sigma_tr - sigma_1 - del_lambda * model.elastic_tangent() * model.g();
-                res_kappa = alpha_1 - alpha_0 - model.k();
+                res_sigma = &sigma_tr - &sigma_1 - del_lambda * model.elastic_tangent() * model.g();
+                res_kappa = &alpha_1 - &alpha_0 - model.k();
                 res_f = model.f();
+
                 res = SVector::<f64, 8>::from([
                     res_sigma[0],
                     res_sigma[1],
@@ -203,16 +210,17 @@ impl<
                     res_kappa[0],
                     res_f,
                 ]);
-                let converged_res: bool = res_sigma.norm() < atol && res_kappa[0].abs() < atol && res_f.abs() < atol;
-                let converged_incr: bool = (sigma_1 - sigma_prev).norm() < atol + rtol * sigma_1.norm()
+                let converged_res: bool =
+                    res_sigma.norm() < atol && res_kappa[0].abs() < atol && res_f.abs() < atol;
+                let converged_incr: bool = (sigma_1 - sigma_prev).norm()
+                    < atol + rtol * sigma_1.norm()
                     && (alpha_1 - alpha_prev)[0].abs() < atol + rtol * alpha_1[0].abs()
                     && (del_lambda - del_lambda_prev).abs() < atol + rtol * del_lambda.abs();
-                if  converged_res {
-                   break;
+                if converged_res {
+                    break;
                 }
-                if converged_incr
-                {
-                   break;
+                if converged_incr {
+                    break;
                 }
                 if i > maxit {
                     panic!(
@@ -231,7 +239,10 @@ impl<
                 let inverse = dres
                     .try_inverse()
                     .expect("Plasticity3D: Failed to calculate tangent");
-                let plastic_tangent: SMatrix<f64, 6, 6> = inverse.fixed_view::<6, 6>(0, 0).into();
+                let mut plastic_tangent: SMatrix<f64, 6, 6> =
+                    inverse.fixed_view::<6, 6>(0, 0) * 
+                    model.elastic_tangent();
+                plastic_tangent.transpose_mut();
                 *tangent = plastic_tangent.data.0;
             }
         }
