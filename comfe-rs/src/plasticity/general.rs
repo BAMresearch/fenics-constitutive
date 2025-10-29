@@ -5,7 +5,7 @@ use crate::{
     create_history_parameter_struct,
     interfaces::{ArrayEquivalent, ConstitutiveModelFn, StaticMap},
 };
-use nalgebra::{SMatrix, SVector};
+use nalgebra::{SMatrix, SVector, RowSVector};
 pub trait Plasticity<
     const STRESS_STRAIN: usize,
     const N_PARAMETERS: usize,
@@ -24,8 +24,8 @@ pub trait Plasticity<
         kappa: &SVector<f64, KAPPA>,
     );
     fn f(&self) -> f64;
-    fn df_dsigma(&self) -> &SVector<f64, STRESS_STRAIN>;
-    fn df_dkappa(&self) -> &SVector<f64, KAPPA>;
+    fn df_dsigma(&self) -> &RowSVector<f64, STRESS_STRAIN>;
+    fn df_dkappa(&self) -> &RowSVector<f64, KAPPA>;
     fn g(&self) -> &SVector<f64, STRESS_STRAIN>;
     fn dg_dkappa(&self) -> &SMatrix<f64, STRESS_STRAIN, KAPPA>;
     fn dg_dsigma(&self) -> &SMatrix<f64, STRESS_STRAIN, STRESS_STRAIN>;
@@ -40,35 +40,37 @@ pub trait Plasticity<
         // fill dres_sigma_dsigma
         dres.fixed_view_mut::<STRESS_STRAIN, STRESS_STRAIN>(0, 0)
             .copy_from(
-                &(-SMatrix::<f64, STRESS_STRAIN, STRESS_STRAIN>::identity()
-                    - self.elastic_tangent() * del_lambda * self.dg_dsigma()),
+                &(SMatrix::<f64, STRESS_STRAIN, STRESS_STRAIN>::identity()
+                    + self.elastic_tangent() * del_lambda * self.dg_dsigma()),
             );
-        //let mut dres_sigma_dkappa = dres.fixed_view_mut::<6, 1>(0, 6);
-        dres.fixed_view_mut::<STRESS_STRAIN, KAPPA>(0, STRESS_STRAIN)
-            .copy_from(&(-self.elastic_tangent() * del_lambda * self.dg_dkappa()));
         //let mut dres_sigma_dlambda = dres.fixed_view_mut::<6, 1>(0, 7);
-        dres.fixed_view_mut::<STRESS_STRAIN, 1>(0, STRESS_STRAIN + 1)
-            .copy_from(&(-self.elastic_tangent() * self.g()));
-
-        //let mut dres_kappa_dsigma = dres.fixed_view_mut::<1, 6>(6, 0);
-        dres.fixed_view_mut::<KAPPA, STRESS_STRAIN>(STRESS_STRAIN, 0)
-            .copy_from(&((-del_lambda)*self.dk_dsigma()));
-        //let mut dres_kappa_dkappa = dres.fixed_view_mut::<1, 1>(6, 6);
-        dres.fixed_view_mut::<KAPPA, KAPPA>(STRESS_STRAIN, STRESS_STRAIN)
-            .copy_from(&(SMatrix::<f64, KAPPA, KAPPA>::identity() - del_lambda * self.dk_dkappa()));
-        //let mut dres_kappa_dlambda = dres.fixed_view_mut::<1, 1>(6, 7);
-        dres.fixed_view_mut::<KAPPA, 1>(STRESS_STRAIN, STRESS_STRAIN + 1)
-            .copy_from(self.k());
+        dres.fixed_view_mut::<STRESS_STRAIN, 1>(0, STRESS_STRAIN)
+            .copy_from(&(self.elastic_tangent() * self.g()));
+        //let mut dres_sigma_dkappa = dres.fixed_view_mut::<6, 1>(0, 6);
+        dres.fixed_view_mut::<STRESS_STRAIN, KAPPA>(0, STRESS_STRAIN+1)
+            .copy_from(&(self.elastic_tangent() * del_lambda * self.dg_dkappa()));
 
         //let mut dres_f_dsigma = dres.fixed_view_mut::<1, 6>(7, 0);
-        dres.fixed_view_mut::<1, STRESS_STRAIN>(STRESS_STRAIN + 1, 0)
-            .copy_from(&self.df_dsigma().transpose());
-        //let mut dres_f_dkappa = dres.fixed_view_mut::<1, 1>(7, 6);
-        dres.fixed_view_mut::<1, KAPPA>(STRESS_STRAIN + 1, STRESS_STRAIN)
-            .copy_from(&self.df_dkappa().transpose());
+        dres.fixed_view_mut::<1, STRESS_STRAIN>(STRESS_STRAIN, 0)
+            .copy_from(self.df_dsigma());
         //let mut dres_f_dlambda = dres.fixed_view_mut::<1, 1>(7, 7);
-        dres.fixed_view_mut::<1, 1>(STRESS_STRAIN + 1, STRESS_STRAIN + 1)
+        dres.fixed_view_mut::<1, 1>(STRESS_STRAIN, STRESS_STRAIN)
             .copy_from_slice(&[0.0]);
+        //let mut dres_f_dkappa = dres.fixed_view_mut::<1, 1>(7, 6);
+        dres.fixed_view_mut::<1, KAPPA>(STRESS_STRAIN, STRESS_STRAIN+1)
+            .copy_from(self.df_dkappa());
+
+
+        //let mut dres_kappa_dsigma = dres.fixed_view_mut::<1, 6>(6, 0);
+        dres.fixed_view_mut::<KAPPA, STRESS_STRAIN>(STRESS_STRAIN+1, 0)
+            .copy_from(&((-del_lambda)*self.dk_dsigma()));
+        //let mut dres_kappa_dlambda = dres.fixed_view_mut::<1, 1>(6, 7);
+        dres.fixed_view_mut::<KAPPA, 1>(STRESS_STRAIN+1, STRESS_STRAIN)
+            .copy_from(&(-self.k()));
+        //let mut dres_kappa_dkappa = dres.fixed_view_mut::<1, 1>(6, 6);
+        dres.fixed_view_mut::<KAPPA, KAPPA>(STRESS_STRAIN+1, STRESS_STRAIN+1)
+            .copy_from(&(&SMatrix::<f64, KAPPA, KAPPA>::identity() - del_lambda * self.dk_dkappa()));
+
     }
 }
 
@@ -140,12 +142,13 @@ impl<
                 sigma_tr[3],
                 sigma_tr[4],
                 sigma_tr[5],
-                alpha_0[0],
                 0.0,
+                alpha_0[0],
             ]);
             let mut res_sigma =
-                sigma_tr - sigma_0 - del_lambda * model.elastic_tangent() * model.g();
-            let mut res_kappa = alpha_1 - alpha_0 - del_lambda * model.k();
+                //sigma_tr - sigma_0 - del_lambda * model.elastic_tangent() * model.g();
+                SVector::<f64,6>::zeros();
+            let mut res_kappa = SVector::<f64,1>::zeros();
             let mut res_f = model.f();
 
             let mut dres = SMatrix::<f64, 8, 8>::zeros();
@@ -158,8 +161,8 @@ impl<
                 res_sigma[3],
                 res_sigma[4],
                 res_sigma[5],
-                res_kappa[0],
                 res_f,
+                res_kappa[0],
             ]);
             let mut i = 0;
             let maxit = 25;
@@ -169,6 +172,9 @@ impl<
             let mut sigma_prev: SVector<f64, 6>;
             let mut alpha_prev: SVector<f64, 1>;
             let mut del_lambda_prev: f64;
+            let mut res_sigma_norm: Vec<f64> = vec![res_sigma.norm()];
+            let mut res_kappa_norm: Vec<f64> = vec![res_kappa.norm()];
+            let mut res_f_norm: Vec<f64> = vec![res_f];
             loop {
                 sol_0 = sol_1;
 
@@ -186,17 +192,17 @@ impl<
 
                 // extract solution and calcualte new residual
                 sigma_1 = sol_1.fixed_view::<6, 1>(0, 0).into();
-                alpha_1 = sol_1.fixed_view::<1, 1>(6, 0).into();
-                del_lambda = sol_1[7];
+                alpha_1 = sol_1.fixed_view::<1, 1>(7, 0).into();
+                del_lambda = sol_1[6];
 
                 sigma_prev = sol_0.fixed_view::<6, 1>(0, 0).into();
-                alpha_prev = sol_0.fixed_view::<1, 1>(6, 0).into();
-                del_lambda_prev = sol_0[7];
+                alpha_prev = sol_0.fixed_view::<1, 1>(7, 0).into();
+                del_lambda_prev = sol_0[6];
 
                 model.set_model_state(&sigma_0, &sigma_1, &del_eps, &alpha_1);
                 model.update_newton_matrix(&mut dres, del_lambda);
 
-                res_sigma = &sigma_tr - &sigma_1 - del_lambda * model.elastic_tangent() * model.g();
+                res_sigma = &sigma_1 - &sigma_tr + del_lambda * model.elastic_tangent() * model.g();
                 res_kappa = &alpha_1 - &alpha_0 - model.k();
                 res_f = model.f();
 
@@ -207,9 +213,13 @@ impl<
                     res_sigma[3],
                     res_sigma[4],
                     res_sigma[5],
-                    res_kappa[0],
                     res_f,
+                    res_kappa[0],
                 ]);
+                res_sigma_norm.push(res_sigma.norm());
+                res_kappa_norm.push(res_kappa.norm());
+                res_f_norm.push(res_f.abs());
+
                 let converged_res: bool =
                     res_sigma.norm() < atol && res_kappa[0].abs() < atol && res_f.abs() < atol;
                 let converged_incr: bool = (sigma_1 - sigma_prev).norm()
@@ -224,9 +234,15 @@ impl<
                 }
                 if i > maxit {
                     panic!(
-                        "Plasticity3D: Newton-Raphson did not converge. residual: {}, solution change: {}",
-                        res.norm(),
-                        (sol_1 - sol_0).norm() / sol_1.norm()
+                        "Plasticity3D: Newton-Raphson did not converge. res_sigma: {:?},\n
+                        res_f: {:?}\n
+                        res_kappa: {:?}\n
+                        solution change: {}\n
+                        trial stress: {}, g: {}",
+                        res_sigma_norm,
+                        res_f_norm,
+                        res_kappa_norm,
+                        (sol_1 - sol_0).norm() / sol_1.norm(), sigma_tr, model.g()
                     );
                 }
                 i += 1;

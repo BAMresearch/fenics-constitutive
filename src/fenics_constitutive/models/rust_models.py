@@ -4,6 +4,7 @@ import numpy as np
 
 from fenics_constitutive._bindings import (
     PyDruckerPrager3D,
+    PyDruckerPragerHyperbolic3D,
     PyLinearElasticity3D,
     PyMisesPlasticity3D,
 )
@@ -103,6 +104,10 @@ class LinearElasticity3D(IncrSmallStrainModel):
 
 @fenics_constitutive_wrapper(PyDruckerPrager3D)
 class DruckerPrager3D(IncrSmallStrainModel):
+    pass
+
+@fenics_constitutive_wrapper(PyDruckerPragerHyperbolic3D)
+class DruckerPragerHyperbolic3D(IncrSmallStrainModel):
     pass
 
 

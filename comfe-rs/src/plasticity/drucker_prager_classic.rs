@@ -3,7 +3,9 @@ use crate::consts::*;
 use crate::interfaces::*;
 use crate::mandel::*;
 use crate::plasticity::*;
-use crate::create_history_parameter_struct;//, q_dim_data_type};
+use crate::create_history_parameter_struct;
+use nalgebra::RowSVector;
+//, q_dim_data_type};
 //use crate::impl_from_array;
 use nalgebra::{SMatrix, SVector};
 
@@ -46,8 +48,8 @@ pub struct DruckerPrager3D {
     elastic_tangent: SMatrix<f64, 6, 6>,
     elastic_tangent_inv: SMatrix<f64, 6, 6>,
     f: f64,
-    df_dsigma: SVector<f64, 6>,
-    df_dkappa: SVector<f64, 1>,
+    df_dsigma: RowSVector<f64, 6>,
+    df_dkappa: RowSVector<f64, 1>,
     g: SVector<f64, 6>,
     dg_dkappa: SMatrix<f64, 6, 1>,
     dg_dsigma: SMatrix<f64, 6, 6>,
@@ -90,11 +92,13 @@ impl Plasticity<6, 5, 5, 1> for DruckerPrager3D {
         let _df_di_1i_1 = 0.0;
         let df_dj_2j_2 = -0.25 / (j_2 * j_2.sqrt());
 
-        self.df_dsigma = df_di_1 * &SYM_ID + df_dj_2 * &s;
+        let df_dsigma = df_di_1 * &SYM_ID + df_dj_2 * &s;
+        self.df_dsigma = df_dsigma.transpose();
+        
         self.g = {
             if self.parameters.b == self.parameters.b_flow {
                 // associated flow
-                self.df_dsigma.clone()
+                df_dsigma
             } else {
                 //non-associated flow
                 self.parameters.b_flow * &SYM_ID + df_dj_2 * &s
@@ -115,11 +119,11 @@ impl Plasticity<6, 5, 5, 1> for DruckerPrager3D {
         // Implementation of f function
         self.f
     }
-    fn df_dsigma(&self) -> &SVector<f64, 6> {
+    fn df_dsigma(&self) -> &RowSVector<f64, 6> {
         // Implementation of df_dsigma
         &self.df_dsigma
     }
-    fn df_dkappa(&self) -> &SVector<f64, 1> {
+    fn df_dkappa(&self) -> &RowSVector<f64, 1> {
         // Implementation of df_dkappa
         &self.df_dkappa
     }
