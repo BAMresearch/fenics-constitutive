@@ -2,11 +2,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from fenics_constitutive import (
-    IncrSmallStrainModel,
-    StressStrainConstraint,
-    strain_from_grad_u,
-)
+from .interfaces import IncrSmallStrainModel, StressStrainConstraint
+from .utils import strain_from_grad_u, get_elastic_tangent, get_identity, lame_parameters
 
 
 class SpringKelvinModel(IncrSmallStrainModel):
@@ -38,124 +35,42 @@ class SpringKelvinModel(IncrSmallStrainModel):
         else:
             self.nu = parameters["nu"]  # Poisson's ratio
 
-        # lame constants (need to be updated if time dependent material parameters are used)
-        self.mu0 = self.E0 / (2.0 * (1.0 + self.nu))
-        self.lam0 = self.E0 * self.nu / ((1.0 + self.nu) * (1.0 - 2.0 * self.nu))
-        self.mu1 = self.E1 / (2.0 * (1.0 + self.nu))
-
-        self.I2 = np.zeros(
-            self.stress_strain_dim, dtype=np.float64
-        )  # Identity of rank 2 tensor
-        self.compute_elasticity()  # initialize elasticity tensor
-
-    def compute_elasticity(self):
-        match self._constraint:
-            case StressStrainConstraint.FULL:
-                self.D_0 = np.array(
-                    [
-                        [
-                            2.0 * self.mu0 + self.lam0,
-                            self.lam0,
-                            self.lam0,
-                            0.0,
-                            0.0,
-                            0.0,
-                        ],
-                        [
-                            self.lam0,
-                            2.0 * self.mu0 + self.lam0,
-                            self.lam0,
-                            0.0,
-                            0.0,
-                            0.0,
-                        ],
-                        [
-                            self.lam0,
-                            self.lam0,
-                            2.0 * self.mu0 + self.lam0,
-                            0.0,
-                            0.0,
-                            0.0,
-                        ],
-                        [0.0, 0.0, 0.0, 2.0 * self.mu0, 0.0, 0.0],
-                        [0.0, 0.0, 0.0, 0.0, 2.0 * self.mu0, 0.0],
-                        [0.0, 0.0, 0.0, 0.0, 0.0, 2.0 * self.mu0],
-                    ]
-                )
-                self.I2[0] = 1.0
-                self.I2[1] = 1.0
-                self.I2[2] = 1.0
-
-            case StressStrainConstraint.PLANE_STRAIN:
-                self.D_0 = np.array(
-                    [
-                        [2.0 * self.mu0 + self.lam0, self.lam0, self.lam0, 0.0],
-                        [self.lam0, 2.0 * self.mu0 + self.lam0, self.lam0, 0.0],
-                        [self.lam0, self.lam0, 2.0 * self.mu0 + self.lam0, 0.0],
-                        [0.0, 0.0, 0.0, 2.0 * self.mu0],
-                    ]
-                )
-                self.I2[0] = 1.0
-                self.I2[1] = 1.0
-                self.I2[2] = 1.0
-
-            case StressStrainConstraint.PLANE_STRESS:
-                self.D_0 = (
-                    self.E0
-                    / (1 - self.nu**2.0)
-                    * np.array(
-                        [
-                            [1.0, self.nu, 0.0, 0.0],
-                            [self.nu, 1.0, 0.0, 0.0],
-                            [0.0, 0.0, 0.0, 0.0],
-                            [0.0, 0.0, 0.0, (1.0 - self.nu)],
-                        ]
-                    )
-                )
-                self.I2[0] = 1.0
-                self.I2[1] = 1.0
-
-            case StressStrainConstraint.UNIAXIAL_STRESS:
-                self.D_0 = np.array([[self.E0]])
-                self.I2[0] = 1.0
-            case _:
-                msg = "Constraint not implemented"
-                raise NotImplementedError(msg)
+        self.D_0 = get_elastic_tangent(self.E0, self.nu, constraint)
+        self.I2 = get_identity(self.stress_strain_dim, constraint)
+        self.mu0, self.lam0 = lame_parameters(self.E0, self.nu)
+        self.mu1, _ = lame_parameters(self.E1, self.nu)
 
     def evaluate(
         self,
-        time: float,
+        t: float,
         del_t: float,
         grad_del_u: np.ndarray,
-        mandel_stress: np.ndarray,
+        stress: np.ndarray,
         tangent: np.ndarray,
         history: np.ndarray | dict[str, np.ndarray] | None,
     ) -> None:
+        _ = t
         assert (
             grad_del_u.size // (self.geometric_dim**2)
-            == mandel_stress.size // self.stress_strain_dim
+            == stress.size // self.stress_strain_dim
             == tangent.size // (self.stress_strain_dim**2)
         )
-
-        # reshape gauss point arrays
         n_gauss = grad_del_u.size // (self.geometric_dim**2)
-        mandel_view = mandel_stress.reshape(-1, self.stress_strain_dim)
-
+        mandel_view = stress.reshape(-1, self.stress_strain_dim)
         strain_increment = strain_from_grad_u(grad_del_u, self.constraint).reshape(
             -1, self.stress_strain_dim
         )
+        if history is None:
+            msg = "history must not be None"
+            raise ValueError(msg)
         strain_visco_n = history["strain_visco"].reshape(-1, self.stress_strain_dim)
         strain_n = history["strain"].reshape(-1, self.stress_strain_dim)
-
         I2 = np.tile(self.I2, n_gauss).reshape(-1, self.stress_strain_dim)
         tr_eps = np.sum(strain_increment[:, : self.geometric_dim], axis=1)[
             :, np.newaxis
         ]
-
         assert del_t > 0, "Time step must be defined and positive."
-
         factor = 1 / del_t + 1 / self.tau + self.mu0 / (self.tau * self.mu1)
-
         _deps_visko = (
             1
             / factor
@@ -166,10 +81,8 @@ class SpringKelvinModel(IncrSmallStrainModel):
                 + self.lam0 / (self.tau * 2 * self.mu1) * tr_eps * I2
             )
         )
-
         mandel_view += strain_increment @ self.D_0 - 2 * self.mu0 * _deps_visko
         D = (1 - self.mu0 / (self.tau * self.mu1 * factor)) * self.D_0
-
         tangent[:] = np.tile(D.flatten(), n_gauss)
         strain_visco_n += _deps_visko
         strain_n += strain_increment
@@ -179,7 +92,7 @@ class SpringKelvinModel(IncrSmallStrainModel):
         return self._constraint
 
     @property
-    def history_dim(self) -> None:
+    def history_dim(self) -> dict[str, int | tuple[int, int]] | None:
         return {
             "strain_visco": self.stress_strain_dim,
             "strain": self.stress_strain_dim,

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import adios4dolfinx
+import adios4dolfinx.adios2_helpers
 import dolfinx as df
 import numpy as np
 import pytest
@@ -8,8 +9,9 @@ import ufl
 from dolfinx.nls.petsc import NewtonSolver
 from mpi4py import MPI
 
-from fenics_constitutive import IncrSmallStrainProblem, norm
+from fenics_constitutive.solver import IncrSmallStrainProblem
 from fenics_constitutive.models import VonMises3D
+from fenics_constitutive.postprocessing import norm
 
 
 def uniaxial_strain_3d_fine_mesh(comm, mesh_path):

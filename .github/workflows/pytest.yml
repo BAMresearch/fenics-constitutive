@@ -20,9 +20,6 @@ jobs:
   tests:
     runs-on: ubuntu-latest
 
-    #outputs:
-    #  branch_coverage: ${{ steps.pytest.outputs.coverage }}
-    #  coverage_report: ${{ steps.pytest.outputs.report }}
 
     steps:
       - name: checkout repo content
@@ -31,7 +28,6 @@ jobs:
       - name: Setup Mambaforge
         uses: conda-incubator/setup-miniconda@v3
         with:
-            #miniforge-variant: Mambaforge
             miniforge-version: latest
             activate-environment: fenics-constitutive
             use-mamba: true
@@ -39,15 +35,8 @@ jobs:
       - name: Set cache date
         run: echo "DATE=$(date +'%Y%m%d')" >> $GITHUB_ENV
 
-      #- uses: actions/cache@v2
-      #  with:
-      #    path: "/usr/share/miniconda3/envs/fenics-constitutive"
-      #    key: conda-${{ hashFiles('environment.yml') }}-${{ env.DATE }}-${{ env.CACHE_NUMBER }}
-      #  id: cache
-
       - name: Update environment
         run: mamba env update -n fenics-constitutive -f environment.yml
-        #if: steps.cache.outputs.cache-hit != 'true'
 
       - name: pytest
         id : pytest
@@ -58,9 +47,8 @@ jobs:
         id: pytest_mpi
         shell: bash -l {0}
         run: |
-          mpirun -np 2 pytest -s tests/test_solver_mpi.py --with-mpi
-          mpirun -np 2 pytest -s tests/test_maps.py --with-mpi
-#          mpirun -np 3 pytest -s tests/test_solver_mpi.py --with-mpi
+          mpirun -np 2 pytest -s tests/solver/test_maps.py --with-mpi
+
 
 
 

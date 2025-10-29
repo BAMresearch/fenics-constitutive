@@ -9,12 +9,13 @@ import ufl
 from dolfinx.nls.petsc import NewtonSolver
 from mpi4py import MPI
 
-from fenics_constitutive import (
+from fenics_constitutive.models import (
     IncrSmallStrainModel,
-    IncrSmallStrainProblem,
+    SpringKelvinModel,
+    SpringMaxwellModel,
     StressStrainConstraint,
 )
-from fenics_constitutive.models import SpringKelvinModel, SpringMaxwellModel
+from fenics_constitutive.solver import IncrSmallStrainProblem
 
 youngs_modulus = 42.0
 poissons_ratio = 0.2
@@ -92,8 +93,8 @@ def test_relaxation_uniaxial_stress(mat: IncrSmallStrainModel):
         strain.append(problem._history_1[0]["strain"].x.array[-1])
         viscostrain.append(problem._history_1[0]["strain_visco"].x.array[-1])
 
-    #print("0", time[0], disp[0], stress[0], strain[0], viscostrain[0])
-    #print("end", time[-1], disp[-1], stress[-1], strain[-1], viscostrain[-1])
+    # print("0", time[0], disp[0], stress[0], strain[0], viscostrain[0])
+    # print("end", time[-1], disp[-1], stress[-1], strain[-1], viscostrain[-1])
     # analytic solution
     if isinstance(law, SpringKelvinModel):
         # analytic solution for 1D Kelvin model
@@ -405,7 +406,7 @@ def test_creep(dim: int, mat: IncrSmallStrainModel):
     else:
         raise ValueError(f"Dimension {dim} not supported")
 
-    V = df.fem.functionspace(mesh, ("CG", 1,(dim,)))
+    V = df.fem.functionspace(mesh, ("CG", 1, (dim,)))
     u = df.fem.Function(V)
 
     def left_boundary(x):
@@ -608,7 +609,7 @@ def define_problem(mat: IncrSmallStrainModel, dim: int):
         )
         fixed_vector = np.array([0.0, 0.0, 0.0])
 
-    V = df.fem.functionspace(mesh, ("CG", 1,(dim,)))
+    V = df.fem.functionspace(mesh, ("CG", 1, (dim,)))
     u = df.fem.Function(V)
 
     # boundaries
@@ -711,4 +712,5 @@ if __name__ == "__main__":
     # test_creep(2, SpringMaxwellModel)
     # test_creep(2, SpringKelvinModel)
 
+    # test_plane_strain(SpringKelvinModel)
     # test_plane_strain(SpringKelvinModel)

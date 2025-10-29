@@ -45,6 +45,9 @@ class StressStrainConstraint(Enum):
                 return 4
             case StressStrainConstraint.FULL:
                 return 6
+            case _:
+                msg = f"Constraint {self} not supported"
+                raise Exception(msg)
 
     @property
     def geometric_dim(self) -> int:
@@ -65,6 +68,9 @@ class StressStrainConstraint(Enum):
                 return 2
             case StressStrainConstraint.FULL:
                 return 3
+            case _:
+                msg = f"Constraint {self} not supported"
+                raise Exception(msg)
 
 
 class IncrSmallStrainModel(ABC):
@@ -93,16 +99,6 @@ class IncrSmallStrainModel(ABC):
             tangent: The tangent compatible with Mandel notation.
             history: The history variable(s).
         """
-
-    # Method removed because it is not needed anymore.
-    # @abstractmethod
-    # def update(self) -> None:
-    #    """
-    #    Called after the solver has converged to update anything that is not
-    #    contained in the history variable(s).
-    #    For example: The model could contain the current time which is not
-    #    stored in the history, but needs to be updated after each evaluation.
-    #    """
 
     @property
     @abstractmethod

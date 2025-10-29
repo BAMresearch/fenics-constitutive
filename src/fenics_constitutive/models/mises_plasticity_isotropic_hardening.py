@@ -2,11 +2,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from fenics_constitutive import (
-    IncrSmallStrainModel,
-    StressStrainConstraint,
-    strain_from_grad_u,
-)
+from .interfaces import IncrSmallStrainModel, StressStrainConstraint
+from .utils import strain_from_grad_u, get_identity
 
 
 class VonMises3D(IncrSmallStrainModel):
@@ -43,12 +40,9 @@ class VonMises3D(IncrSmallStrainModel):
                 [0, 0, 0, 0, 0, 0],
             ]
         )
-        self.I2 = np.zeros(
-            self.stress_strain_dim, dtype=np.float64
-        )  # Identity of rank 2 tensor
-        self.I2[0] = 1.0
-        self.I2[1] = 1.0
-        self.I2[2] = 1.0
+
+        self.I2 = get_identity(self.stress_strain_dim, self.constraint)
+
         self.I4 = np.eye(
             self.stress_strain_dim, dtype=np.float64
         )  # Identity of rank 4 tensor
@@ -145,9 +139,8 @@ class VonMises3D(IncrSmallStrainModel):
                     gamma_1 = gamma_0 - xr / xg
                     # exit Newton algorithm for iteration > nmax
                     if it > nmax:
-                        raise RuntimeError(
-                            "Newton-Raphson method did not converge for plastic multiplier."
-                        )
+                        msg = "Newton-Raphson method did not converge for plastic multiplier."
+                        raise RuntimeError(msg)
                     # end of Newton iterration
 
                 # compute tangent with converged gamma
