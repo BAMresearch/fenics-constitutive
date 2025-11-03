@@ -11,7 +11,7 @@ from fenics_constitutive._bindings import (
 
 from .interfaces import IncrSmallStrainModel, StressStrainConstraint
 
-__all__ = ["LinearElasticity3D", "MisesPlasticity3D"]
+__all__ = ["LinearElasticity3D", "MisesPlasticityLinearHardening3D"]
 
 
 def fenics_constitutive_wrapper(rust_model):
@@ -112,5 +112,5 @@ class DruckerPragerHyperbolic3D(IncrSmallStrainModel):
 
 
 @fenics_constitutive_wrapper(PyMisesPlasticity3D)
-class MisesPlasticity3D(IncrSmallStrainModel):
+class MisesPlasticityLinearHardening3D(IncrSmallStrainModel):
     pass
