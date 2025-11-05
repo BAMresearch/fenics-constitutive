@@ -58,17 +58,19 @@ macro_rules! implement_python_model {
         #[pymethods]
         impl $name {
             #[new]
-            pub fn new(parameters: PyReadonlyArray1<f64>) -> Self {
-                let parameter_slice: &[f64; <$model>::PARAMETERS] =
-                    parameters.as_slice().unwrap().try_into().unwrap();
+            pub fn new(parameters: HashMap<String,PyReadonlyArray1<f64>>) -> Self {
+                let mut rust_map = HashMap::new();
+                for (key, val) in parameters.iter() {
+                    rust_map.insert(key.as_str(),val.as_slice().unwrap());    
+                }
                 Self {
-                    parameters: *<$model as ConstitutiveModelFn<
+                    parameters: <$model as ConstitutiveModelFn<
                         { <$model>::STRESS_STRAIN },
                         { <$model>::N_HISTORY },
                         { <$model>::HISTORY },
                         { <$model>::N_PARAMETERS },
                         { <$model>::PARAMETERS },
-                    >>::Parameters::from_array(parameter_slice),
+                    >>::Parameters::from_hashmap(rust_map).unwrap(),
                 }
             }
             pub fn evaluate(

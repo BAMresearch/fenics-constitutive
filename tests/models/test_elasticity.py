@@ -349,7 +349,7 @@ def test_3d(model):
         print("mu python", mu)
         print("kappa python", kappa)
 
-        law = model(np.array([mu, kappa]))
+        law = model({"mu": np.array([mu]), "kappa": np.array([kappa])})
         #print(law.history_dim)
     
     def left_boundary(x):

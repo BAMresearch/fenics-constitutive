@@ -258,7 +258,7 @@ impl<
                 let mut plastic_tangent: SMatrix<f64, 6, 6> =
                     inverse.fixed_view::<6, 6>(0, 0) * 
                     model.elastic_tangent();
-                plastic_tangent.transpose_mut();
+                plastic_tangent.transpose_mut(); //TODO: move the transpose to the python bindings
                 *tangent = plastic_tangent.data.0;
             }
         }

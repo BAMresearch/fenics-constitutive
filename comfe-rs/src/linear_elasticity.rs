@@ -85,3 +85,21 @@ pub unsafe fn linear_elasticity3d_fn(
         time, del_time, del_strain, stress, tangent, history, parameters,
     );
 }
+
+#[cfg(test)]
+mod tests_mandel {
+    use std::collections::HashMap;
+
+    use super::*;
+    
+    #[test]
+    fn test_parameter_from_hashmap() {
+        let mut p = HashMap::new();
+        p.insert("mu", [42.].as_slice());
+        p.insert("kappa", [17.].as_slice());
+        let param = LinearElasticityParameters::from_hashmap(p).unwrap();
+        assert!(param.mu == 42. && param.kappa == 17.);
+
+    }
+
+}
