@@ -10,12 +10,12 @@ from dolfinx.nls.petsc import NewtonSolver
 from mpi4py import MPI
 
 from fenics_constitutive.models import (
-    LinearElasticity3D,
     LinearElasticityModel,
     PlaneStrainFrom3D,
     StressStrainConstraint,
     UniaxialStrainFrom3D,
 )
+from fenics_constitutive.models.rust_models import LinearElasticity3D
 from fenics_constitutive.postprocessing import norm
 from fenics_constitutive.solver import IncrSmallStrainProblem
 

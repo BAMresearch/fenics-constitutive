@@ -7,11 +7,11 @@ from dolfinx.nls.petsc import NewtonSolver
 from mpi4py import MPI
 
 from fenics_constitutive.models import VonMises3D
-from fenics_constitutive.models.rust_models import MisesPlasticity3D
+from fenics_constitutive.models import MisesPlasticityLinearHardening3D
 from fenics_constitutive.solver import IncrSmallStrainProblem
 
 
-@pytest.mark.parametrize("model",[(VonMises3D),(MisesPlasticity3D)])
+@pytest.mark.parametrize("model",[(VonMises3D),(MisesPlasticityLinearHardening3D)])
 def test_uniaxial_stress_3d(model):
     # no MPI, one cell only
     mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 1, 1, 1)
