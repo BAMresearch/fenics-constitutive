@@ -1,0 +1,6 @@
+[workspace]
+members = [
+    "comfe-rs",
+    "bindings"
+]
+resolver = "3"

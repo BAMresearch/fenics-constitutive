@@ -15,6 +15,7 @@ from fenics_constitutive.models import (
     StressStrainConstraint,
     UniaxialStrainFrom3D,
 )
+from fenics_constitutive.models.rust_models import LinearElasticity3D
 from fenics_constitutive.postprocessing import norm
 from fenics_constitutive.solver import IncrSmallStrainProblem
 
@@ -331,17 +332,26 @@ def test_plane_stress():
     # test that the out of plane stress is zero
     assert norm(problem.stress_0[2], problem.dxm) < 1e-10
 
-
-def test_3d():
+@pytest.mark.parametrize("model", [(LinearElasticityModel),(LinearElasticity3D)], ids=["python", "rust"])
+def test_3d(model):
     # test the 3d case against a pure fenics implementation
     mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 2, 2, 2)
     V = df.fem.functionspace(mesh, ("CG", 1, (3,)))
     u = df.fem.Function(V)
-    law = LinearElasticityModel(
-        parameters={"E": youngs_modulus, "nu": poissons_ratio},
-        constraint=StressStrainConstraint.FULL,
-    )
+    try:
+        law = model(
+            parameters={"E": youngs_modulus, "nu": poissons_ratio},
+            constraint=StressStrainConstraint.FULL,
+        )
+    except:
+        mu = youngs_modulus/(2*(1+poissons_ratio))
+        kappa = youngs_modulus /(3*(1-2*poissons_ratio))
+        print("mu python", mu)
+        print("kappa python", kappa)
 
+        law = model({"mu": np.array([mu]), "kappa": np.array([kappa])})
+        #print(law.history_dim)
+    
     def left_boundary(x):
         return np.isclose(x[0], 0.0)
 
@@ -364,7 +374,6 @@ def test_3d():
     solver = NewtonSolver(MPI.COMM_WORLD, problem)
     n, converged = solver.solve(u)
     problem.update()
-
     v_, u_ = ufl.TestFunction(V), ufl.TrialFunction(V)
 
     def eps(v):
@@ -390,7 +399,7 @@ def test_3d():
 
     # Check that the solution is the same
     diff = u_fenics - u
-    assert norm(diff, problem.dxm) < 1e-8 / norm(u, problem.dxm)
+    assert norm(diff, problem.dxm) < 1e-8 / norm(u_fenics, problem.dxm)
 
 
 if __name__ == "__main__":
