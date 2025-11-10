@@ -1,10 +1,8 @@
 use crate::consts::*;
-use crate::impl_array_equivalent;
 use crate::interfaces::*;
 use crate::mandel::*;
-use crate::{create_history_parameter_struct, q_dim_data_type};
-//use crate::impl_from_array;
-use nalgebra::{SMatrix, SMatrixViewMut, SVector, SVectorView, SVectorViewMut};
+use crate::{create_history_parameter_struct};
+use nalgebra::{SMatrix,  SVector, SVectorView, SVectorViewMut};
 
 const _: () = assert!(check_constitutive_model_maps::<
     6,
@@ -15,6 +13,19 @@ const _: () = assert!(check_constitutive_model_maps::<
     MisesPlasticity3D,
 >());
 
+/// A von Mises plasticity model with linear hardening for 3D stress states.
+///
+/// This struct implements the von Mises yield criterion with linear isotropic hardening.
+/// The yield function is defined as: $f = \sqrt{\frac{3}{2} s:s} - \sigma_y$, where:
+/// - $s$ is the deviatoric stress tensor
+/// - $\sigma_y = y_0 + h \cdot \alpha$ is the current yield stress
+/// - $\alpha$ is the equivalent plastic strain
+///
+/// # Parameters
+/// - `mu`: Shear modulus
+/// - `kappa`: Bulk modulus
+/// - `y_0`: Initial yield stress
+/// - `h`: Linear hardening modulus
 #[repr(C)]
 pub struct MisesPlasticity3D();
 

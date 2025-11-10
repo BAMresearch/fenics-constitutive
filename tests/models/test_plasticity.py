@@ -6,8 +6,7 @@ import pytest
 from dolfinx.nls.petsc import NewtonSolver
 from mpi4py import MPI
 
-from fenics_constitutive.models import VonMises3D
-from fenics_constitutive.models import MisesPlasticityLinearHardening3D
+from fenics_constitutive.models import MisesPlasticityLinearHardening3D, VonMises3D
 from fenics_constitutive.solver import IncrSmallStrainProblem
 
 

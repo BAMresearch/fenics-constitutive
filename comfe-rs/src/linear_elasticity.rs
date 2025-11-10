@@ -1,13 +1,8 @@
-use crate::consts::*;
 use crate::interfaces::*;
 use crate::mandel::*;
-use crate::{create_history_parameter_struct, impl_array_equivalent, q_dim_data_type};
+use crate::{create_history_parameter_struct};
 use core::ffi::c_double;
-use nalgebra::{SMatrix, SVector, SVectorView, SVectorViewMut};
-//use phf::{phf_map, Map};
-//use serde::Deserialize;
-//use serde::Serialize;
-use std::collections::HashMap;
+use nalgebra::{SVectorView, SVectorViewMut};
 
 const _: () = assert!(check_constitutive_model_maps::<
     6,
@@ -18,6 +13,20 @@ const _: () = assert!(check_constitutive_model_maps::<
     LinearElasticity3D,
 >());
 
+/// A linear elasticity model for 3D stress states.
+///
+/// This struct implements Hooke's law for isotropic linear elastic materials.
+/// The stress-strain relationship is given by: $\sigma = C : \varepsilon$, where:
+/// - $\sigma$ is the stress tensor
+/// - $C$ is the fourth-order elastic stiffness tensor
+/// - $\varepsilon$ is the strain tensor
+///
+/// The elastic stiffness tensor is defined in terms of the shear modulus $\mu$ 
+/// and bulk modulus $\kappa$.
+///
+/// # Parameters
+/// - `mu`: Shear modulus
+/// - `kappa`: Bulk modulus
 #[repr(C)]
 pub struct LinearElasticity3D();
 
