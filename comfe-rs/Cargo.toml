@@ -1,0 +1,13 @@
+[package]
+name = "comfe-rs"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+nalgebra = "0.32.0"
+konst = "*"
+
+
+[lib]
+name = "comfe"
+crate-type = ["cdylib", "rlib"]

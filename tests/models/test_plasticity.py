@@ -2,26 +2,39 @@ from __future__ import annotations
 
 import dolfinx as df
 import numpy as np
+import pytest
 from dolfinx.nls.petsc import NewtonSolver
 from mpi4py import MPI
 
+from fenics_constitutive.models import MisesPlasticityLinearHardening3D, VonMises3D
 from fenics_constitutive.solver import IncrSmallStrainProblem
-from fenics_constitutive.models import VonMises3D
 
 
-def test_uniaxial_strain_3d():
+@pytest.mark.parametrize("model", [(VonMises3D), (MisesPlasticityLinearHardening3D)])
+def test_uniaxial_stress_3d(model):
     # no MPI, one cell only
     mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 1, 1, 1)
     V = df.fem.functionspace(mesh, ("CG", 1, (3,)))
     u = df.fem.Function(V)
     matparam = {
-        "p_ka": 175000,
-        "p_mu": 80769,
-        "p_y0": 1200,
-        "p_y00": 2500,
-        "p_w": 200,
+        "p_ka": 175000.0,
+        "p_mu": 80769.0,
+        "p_y0": 1200.0,
+        "p_y00": 2500.0,
+        "p_w": 200.0,
     }
-    law = VonMises3D(matparam)
+    matparam_arr = {
+        "mu": np.array([matparam["p_mu"]]),
+        "kappa": np.array([matparam["p_ka"]]),
+        "y_0":np.array([matparam["p_y0"]]),
+        "h":np.array([matparam["p_w"]]),
+    }
+    test_max_stress = False
+    try:
+        law = model(matparam)
+        test_max_stress = True
+    except:
+        law = model(matparam_arr)
 
     def left(x):
         return np.isclose(x[0], 0.0)
@@ -105,7 +118,8 @@ def test_uniaxial_strain_3d():
 
     # if the maximum stress exceeds the yield limit
     tolerance = 1e-8
-    assert np.max(load) - matparam["p_y00"] <= tolerance
+    if test_max_stress:
+        assert np.max(load) - matparam["p_y00"] <= tolerance
 
     # if material behaves linearly under the elastic range with correct slope
     indices = load + tolerance < matparam["p_y0"]
