@@ -27,8 +27,11 @@ class CorotationalLawOnSubMesh(LawOnSubMesh):
         # get local Mandel stress array once
         local_stress_arr = self.local_stress(global_stress)  # self.stress.x.array
 
+        # calculate half rotation matrix for all quadrature points
+        Q_half_all = self._compute_half_rotations(self.displacement_gradient_fn.x.array)
+
         # rotate to midpoint before passing to constitutive law (half rotation)
-        self._stress_rotate(self.displacement_gradient_fn.x.array, local_stress_arr)
+        self._stress_rotate(Q_half_all, local_stress_arr)
 
         with df.common.Timer("constitutive-law-evaluation"):
             self.law.evaluate(
@@ -41,23 +44,13 @@ class CorotationalLawOnSubMesh(LawOnSubMesh):
             )
 
         # rotate to final configuration (half rotation)
-        self._stress_rotate(self.displacement_gradient_fn.x.array, local_stress_arr)
+        self._stress_rotate(Q_half_all, local_stress_arr)
         self.map_to_parent(global_stress, global_tangent)
 
-    def _stress_rotate(self, del_grad_u: np.ndarray, mandel_stress: np.ndarray) -> None:
-        """
-        Rotate Mandel stress using the incremental displacement gradient del_grad_u.
+    def _stress_rotate(self, Q_half_all: np.ndarray, mandel_stress: np.ndarray) -> None:
+        """Rotate Mandel stress using precomputed half-step rotations Q_half_all."""
 
-        del_grad_u: flattened array of shape (N*9,)
-        mandel_stress: flattened Mandel stress array of shape (N*6,) or (N,6)
-                       (modified in-place)
-        """
-        I2 = np.eye(3)
-
-        # number of quadrature points / entries
-        n = del_grad_u.size // 9
-
-        # reshape stresses into Mandel 6-vector
+        n = Q_half_all.shape[0]
         mandel_stress = mandel_stress.reshape(-1, 6)
 
         # build full 3x3 stress tensor from Mandel representation
@@ -72,24 +65,9 @@ class CorotationalLawOnSubMesh(LawOnSubMesh):
         stress[:, 2, 1] = stress[:, 1, 2]
         stress[:, 2, 0] = stress[:, 0, 2]
 
-        # reshape incremental displacement gradient
-        g = del_grad_u.reshape(n, 3, 3)
-
-        for i, eps in enumerate(g):
-            # skew part -> incremental rotation
-            rotation_increment = 0.5 * (eps - eps.T)
-
-            # incremental rotation matrix Q
-            Q_matrix = I2 + np.linalg.inv(I2 - 0.5 * rotation_increment) @ rotation_increment
-
-            # compute half-step rotation via matrix log/exp
-            log_Q = logm(Q_matrix)
-            log_Q_half = 0.5 * log_Q
-            Q_half = expm(log_Q_half)
-
-            # rotate stress
-            rot_stress = Q_half.T @ stress[i, :, :] @ Q_half
-            stress[i, :, :] = rot_stress
+        for i in range(n):
+            Q_half = Q_half_all[i]
+            stress[i, :, :] = Q_half.T @ stress[i, :, :] @ Q_half
 
         # back to Mandel
         rotated_stress_mandel = np.zeros((n, 6), dtype=np.float64)
@@ -100,6 +78,24 @@ class CorotationalLawOnSubMesh(LawOnSubMesh):
         rotated_stress_mandel[:, 4] = np.sqrt(2.0) * stress[:, 1, 2]
         rotated_stress_mandel[:, 5] = np.sqrt(2.0) * stress[:, 0, 2]
 
-
         # write back in-place
         mandel_stress[:, :] = rotated_stress_mandel
+
+    def _compute_half_rotations(self, del_grad_u: np.ndarray) -> np.ndarray:
+        """
+        Compute half-step rotation matrices Q_half for all quadrature points.
+
+        Returns:
+            Q_half: array of shape (N, 3, 3)
+        """
+        I2 = np.eye(3)
+        n = del_grad_u.size // 9
+        g = del_grad_u.reshape(n, 3, 3)
+
+        Q_half_all = np.zeros((n, 3, 3))
+        for i, eps in enumerate(g):
+            rotation_increment = 0.5 * (eps - eps.T)
+            Q_matrix = I2 + np.linalg.inv(I2 - 0.5 * rotation_increment) @ rotation_increment
+            log_Q = logm(Q_matrix)
+            Q_half_all[i] = expm(0.5 * log_Q)
+        return Q_half_all

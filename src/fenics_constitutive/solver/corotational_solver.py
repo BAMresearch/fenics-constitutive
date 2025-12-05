@@ -18,8 +18,10 @@ class CorotationalIncrSmallStrainProblem(IncrSmallStrainProblem):
 
         super().__init__(*args, **kwargs)
 
+        self._check_isoparametric()
+
         # Reference configuration
-        self._X_ref_debug = self._u.function_space.mesh.geometry.x.copy()
+        self._X_ref = self._u.function_space.mesh.geometry.x.copy()
 
         # Replace each base LawOnSubMesh with its corotational variant
         # while preserving all submesh data and function references
@@ -45,9 +47,10 @@ class CorotationalIncrSmallStrainProblem(IncrSmallStrainProblem):
         and applies a corotational stress rotation before evaluating the constitutive
         laws. The mesh is updated to final configuration prior to scattering stress and tangent fields.
         """
+        NonlinearProblem.form(self, x)
+
         self._move_mesh_previous_to_midpoint()
 
-        NonlinearProblem.form(self, x)
         self.incr_disp.update_current(x)
 
         for law in self._law_on_submeshs:
@@ -61,29 +64,31 @@ class CorotationalIncrSmallStrainProblem(IncrSmallStrainProblem):
     def _move_mesh_previous_to_midpoint(self):
         """Moves mesh geometry to midpoint configuration."""
 
-        V_CG = df.fem.functionspace(self._u.function_space.mesh, ("CG", 1, (3,)))
-        u_CG0 = df.fem.Function(V_CG)
-        u_CG = df.fem.Function(V_CG)
-
-        # interpolate displacements to CG-1
-        # interpolation necessary for higher order elements
-        u_CG0.interpolate(self._u0)
-        u_CG.interpolate(self._u)
-
         # displacement increment needed to move to midpoint
-        self._midpoint_disp = 0.5 * (u_CG.x.array - u_CG0.x.array)
+        self._midpoint_disp = 0.5 * (self._u.x.array - self._u0.x.array)
 
         # Update the reference configuration to midpoint
         mesh = self._u.function_space.mesh
-        mesh.geometry.x[:] = self._X_ref_debug + u_CG0.x.array.reshape(-1, 3) +  self._midpoint_disp.reshape(-1, 3)
+        mesh.geometry.x[:] = self._X_ref + self._u0.x.array.reshape(-1, 3) +  self._midpoint_disp.reshape(-1, 3)
 
     def _move_mesh_midpoint_to_final(self):
         """Moves mesh geometry from midpoint to final configuration."""
 
         # Update the midpoint to final configuration
         mesh = self._u.function_space.mesh
-        mesh.geometry.x[:] += self._midpoint_disp.reshape(-1, 3)
+        mesh.geometry.x[:] = self._X_ref + self._u.x.array.reshape(-1, 3)
 
+    def _check_isoparametric(self):
+        """Checks if the elements are isoparametric."""
 
+        # Geometry degree (e.g. 1 for linear, 2 for quadratic)
+        geom_degree = self._u.function_space.mesh.geometry.cmap.degree
 
+        # Displacement element degree
+        disp_degree = self._u.function_space.ufl_element().degree
 
+        if geom_degree != disp_degree:
+            raise NotImplementedError(
+                f"Mesh update only supported for isoparametric elements: "
+                f"geometry degree {geom_degree}, displacement degree {disp_degree}"
+            )
