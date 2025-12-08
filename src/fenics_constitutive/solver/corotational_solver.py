@@ -18,6 +18,7 @@ class CorotationalIncrSmallStrainProblem(IncrSmallStrainProblem):
 
         super().__init__(*args, **kwargs)
 
+        self._check_spatial_dimension_3d()
         self._check_isoparametric()
 
         # Reference configuration
@@ -65,11 +66,11 @@ class CorotationalIncrSmallStrainProblem(IncrSmallStrainProblem):
         """Moves mesh geometry to midpoint configuration."""
 
         # displacement increment needed to move to midpoint
-        self._midpoint_disp = 0.5 * (self._u.x.array - self._u0.x.array)
+        midpoint_disp = 0.5 * (self._u.x.array - self._u0.x.array)
 
         # Update the reference configuration to midpoint
         mesh = self._u.function_space.mesh
-        mesh.geometry.x[:] = self._X_ref + self._u0.x.array.reshape(-1, 3) +  self._midpoint_disp.reshape(-1, 3)
+        mesh.geometry.x[:] = self._X_ref + self._u0.x.array.reshape(-1, 3) +  midpoint_disp.reshape(-1, 3)
 
     def _move_mesh_midpoint_to_final(self):
         """Moves mesh geometry from midpoint to final configuration."""
@@ -91,4 +92,19 @@ class CorotationalIncrSmallStrainProblem(IncrSmallStrainProblem):
             raise NotImplementedError(
                 f"Mesh update only supported for isoparametric elements: "
                 f"geometry degree {geom_degree}, displacement degree {disp_degree}"
+            )
+
+    def _check_spatial_dimension_3d(self) -> None:
+        """
+        Ensure that the solver is only used for 3D problems.
+
+        The current corotational implementation assumes 3x3 tensors and a
+        6-component Mandel stress (3 normal + 3 shear). For 2D / 1D
+        constitutive models a separate implementation is required.
+        """
+        gdim = self._u.function_space.mesh.geometry.dim
+        if gdim != 3:
+            raise NotImplementedError(
+                f"CorotationalIncrSmallStrainProblem currently supports only 3D "
+                f"geometries (gdim=3). Got gdim={gdim}."
             )
