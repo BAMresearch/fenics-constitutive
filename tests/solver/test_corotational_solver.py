@@ -6,7 +6,6 @@ from dolfinx.nls.petsc import NewtonSolver
 from fenics_constitutive.solver import CorotationalIncrSmallStrainProblem
 from fenics_constitutive.models import LinearElasticityModel, StressStrainConstraint
 from mpi4py import MPI
-import matplotlib.pyplot as plt
 
 @pytest.mark.parametrize("experiment", ['Stretch_then_Rotate', 'Stretch_and_Rotate'])
 def test_uniaxial_strain_3d(experiment):
@@ -305,16 +304,6 @@ def test_uniaxial_strain_3d(experiment):
     # Postprocessing: convert list of stresses to array and plot
     # -------------------------------------------------------------------------
     load = np.array(load)
-
-    ax = plt.subplots()[1]
-    if experiment=='Stretch_then_Rotate':
-        ax.plot(np.linspace(0, n_steps_rot+n_steps_stretch+2, n_steps_rot+n_steps_stretch+2), load[:,:], label=['xx','yy','zz', 'xy','yz','xz'])
-    elif experiment=='Stretch_and_Rotate':
-        ax.plot(np.linspace(0, n_steps_rot+1, n_steps_rot+1), load[:,:], label=['xx','yy','zz', 'xy','yz','xz'])
-    ax.set_xlabel(r"$time$")
-    ax.set_ylabel(r"$\sigma$")
-    ax.legend()
-    plt.show()
 
     # -------------------------------------------------------------------------
     # Checks for objectivity after 90° rotation:
