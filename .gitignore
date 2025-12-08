@@ -1,6 +1,8 @@
 __pycache__
 website
 .doit.*
+.idea/
+.vscode/
 
 *build/*
 *target/*
@@ -10,3 +12,4 @@ site/
 *.xdmf
 *.bak
 README.rst 
+src/fenics_constitutive/_version.py

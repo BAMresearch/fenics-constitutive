@@ -9,12 +9,13 @@ import ufl
 from dolfinx.nls.petsc import NewtonSolver
 from mpi4py import MPI
 
-from fenics_constitutive import (
+from fenics_constitutive.models import (
     IncrSmallStrainModel,
-    IncrSmallStrainProblem,
+    SpringKelvinModel,
+    SpringMaxwellModel,
     StressStrainConstraint,
 )
-from fenics_constitutive.models import SpringKelvinModel, SpringMaxwellModel
+from fenics_constitutive.solver import IncrSmallStrainProblem
 
 youngs_modulus = 42.0
 poissons_ratio = 0.2
@@ -717,4 +718,5 @@ if __name__ == "__main__":
     # test_creep(2, SpringMaxwellModel)
     # test_creep(2, SpringKelvinModel)
 
+    # test_plane_strain(SpringKelvinModel)
     # test_plane_strain(SpringKelvinModel)
