@@ -91,7 +91,7 @@ class IncrSmallStrainProblem(NonlinearProblem):
         # Add external forces to the residual form if provided
         if external_forces is not None:
             self.R_form -= external_forces
-            
+
         self.dR_form = (
             ufl.inner(
                 ufl_mandel_strain(du, constraint),
@@ -101,7 +101,7 @@ class IncrSmallStrainProblem(NonlinearProblem):
         )
 
         self.incr_disp = IncrementalDisplacement(u, q_degree)
-        
+
         # Initialize the NonlinearProblem with the compiled forms
         super().__init__(
             self.R_form,

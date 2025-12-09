@@ -19,7 +19,7 @@ def test_body_force_unit_cube():
     mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 3, 3, 3)
     V = df.fem.functionspace(mesh, ("CG", 1, (3,)))
     u = df.fem.Function(V)
-    
+
     law = LinearElasticityModel(
         parameters={"E": youngs_modulus, "nu": poissons_ratio},
         constraint=StressStrainConstraint.FULL,
@@ -65,7 +65,7 @@ def test_neumann_bc_unit_cube():
     mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 3, 3, 3)
     V = df.fem.functionspace(mesh, ("CG", 1, (3,)))
     u = df.fem.Function(V)
-    
+
     law = LinearElasticityModel(
         parameters={"E": youngs_modulus, "nu": poissons_ratio},
         constraint=StressStrainConstraint.FULL,
@@ -113,6 +113,8 @@ def test_neumann_bc_unit_cube():
     assert u_norm > 1e-10, f"Expected non-zero displacement, got {u_norm}"
     
     # Check that displacement in x-direction is positive (traction pulls in +x direction)
+    # Note: For a 3D vector function space, DOFs are interleaved [x0, y0, z0, x1, y1, z1, ...]
+    # so [::3] extracts all x-components
     max_u_x = MPI.COMM_WORLD.allreduce(np.max(u.x.array[::3]), MPI.MAX)
     assert max_u_x > 1e-10, f"Expected positive displacement in x-direction, got {max_u_x}"
 
@@ -122,7 +124,7 @@ def test_combined_forces_unit_cube():
     mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 3, 3, 3)
     V = df.fem.functionspace(mesh, ("CG", 1, (3,)))
     u = df.fem.Function(V)
-    
+
     law = LinearElasticityModel(
         parameters={"E": youngs_modulus, "nu": poissons_ratio},
         constraint=StressStrainConstraint.FULL,
@@ -176,7 +178,7 @@ def test_backward_compatibility():
     mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 2, 2, 2)
     V = df.fem.functionspace(mesh, ("CG", 1, (3,)))
     u = df.fem.Function(V)
-    
+
     law = LinearElasticityModel(
         parameters={"E": youngs_modulus, "nu": poissons_ratio},
         constraint=StressStrainConstraint.FULL,
