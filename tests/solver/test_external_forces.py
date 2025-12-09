@@ -14,9 +14,9 @@ youngs_modulus = 42.0
 poissons_ratio = 0.3
 
 
-def test_body_force_3d():
+def test_body_force_unit_cube():
     """Test body force application on a unit cube."""
-    mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 4, 4, 4)
+    mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 3, 3, 3)
     V = df.fem.functionspace(mesh, ("CG", 1, (3,)))
     u = df.fem.Function(V)
     
@@ -60,9 +60,9 @@ def test_body_force_3d():
     assert stress_norm > 1e-10, f"Expected non-zero stress, got {stress_norm}"
 
 
-def test_neumann_bc_3d():
+def test_neumann_bc_unit_cube():
     """Test Neumann boundary condition on a unit cube."""
-    mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 4, 4, 4)
+    mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 3, 3, 3)
     V = df.fem.functionspace(mesh, ("CG", 1, (3,)))
     u = df.fem.Function(V)
     
@@ -117,9 +117,9 @@ def test_neumann_bc_3d():
     assert max_u_x > 1e-10, f"Expected positive displacement in x-direction, got {max_u_x}"
 
 
-def test_combined_forces_3d():
+def test_combined_forces_unit_cube():
     """Test combination of body force and Neumann BC on a unit cube."""
-    mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 4, 4, 4)
+    mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 3, 3, 3)
     V = df.fem.functionspace(mesh, ("CG", 1, (3,)))
     u = df.fem.Function(V)
     
@@ -171,7 +171,7 @@ def test_combined_forces_3d():
     assert u_norm > 1e-10, f"Expected non-zero displacement, got {u_norm}"
 
 
-def test_no_external_forces():
+def test_backward_compatibility():
     """Test that the solver still works without external forces (backward compatibility)."""
     mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 2, 2, 2)
     V = df.fem.functionspace(mesh, ("CG", 1, (3,)))
@@ -212,7 +212,7 @@ def test_no_external_forces():
 
 
 if __name__ == "__main__":
-    test_body_force_3d()
-    test_neumann_bc_3d()
-    test_combined_forces_3d()
-    test_no_external_forces()
+    test_body_force_unit_cube()
+    test_neumann_bc_unit_cube()
+    test_combined_forces_unit_cube()
+    test_backward_compatibility()
