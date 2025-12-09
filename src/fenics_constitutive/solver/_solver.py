@@ -57,6 +57,7 @@ class IncrSmallStrainProblem(NonlinearProblem):
         u: df.fem.Function,
         bcs: list[df.fem.DirichletBC],
         q_degree: int,
+        external_forces: list[ufl.Form] | None = None,
         del_t: float = 1.0,
         form_compiler_options: dict | None = None,
         jit_options: dict | None = None,
@@ -92,6 +93,10 @@ class IncrSmallStrainProblem(NonlinearProblem):
         self.R_form = (
             ufl.inner(ufl_mandel_strain(u_, constraint), self.stress.current) * self.dxm
         )
+        
+        if external_forces is not None:
+            self.R_form -= sum(external_forces)
+        
         self.dR_form = (
             ufl.inner(
                 ufl_mandel_strain(du, constraint),
