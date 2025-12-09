@@ -85,7 +85,7 @@ class IncrSmallStrainModel(ABC):
         del_t: float,
         grad_del_u: np.ndarray,
         stress: np.ndarray,
-        tangent: np.ndarray,
+        tangent: np.ndarray | None,
         history: dict[str, np.ndarray] | None,
     ) -> None:
         r"""
@@ -96,7 +96,7 @@ class IncrSmallStrainModel(ABC):
             del_t: The time increment $\Delta t$. The time at the end of the increment is $t_{n+1}=t_n+\Delta t$.
             grad_del_u: The gradient of the increment of the displacement field $\nabla\delta$ with $\delta=u_{n+1}-u_n$.
             stress: The current stress in Mandel notation.
-            tangent: The tangent compatible with Mandel notation.
+            tangent: The tangent compatible with Mandel notation. `None` if you don't need the tangent like in explicit dynamics.
             history: The history variable(s).
         """
 

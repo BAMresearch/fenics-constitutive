@@ -19,16 +19,14 @@ if TYPE_CHECKING:
 
 
 def create_law_on_submesh(
-    law: IncrSmallStrainModel, cells: np.ndarray, element_spaces: ElementSpaces
+    law: IncrSmallStrainModel, cells: np.ndarray, element_spaces: ElementSpaces, tangents=True
 ) -> LawOnSubMesh:
     """Create a `LawOnSubMesh`"""
     subspace_map, submesh, stress_vector_space = build_subspace_map(
         cells, element_spaces.stress_vector_space
     )
     stress_fn = fn_for(stress_vector_space)
-    tangent_fn: df.fem.Function = fn_for(
-        element_spaces.stress_tensor_space(submesh)
-    )
+    tangent_fn = fn_for(element_spaces.stress_tensor_space(submesh)) if tangents else None
     inc_disp_grad_fn = fn_for(
         element_spaces.displacement_gradient_tensor_space(submesh)
     )
@@ -51,7 +49,7 @@ class LawOnSubMesh:
     cells: np.ndarray
     displacement_gradient_fn: df.fem.Function
     stress: df.fem.Function
-    local_tangent: df.fem.Function
+    local_tangent: df.fem.Function | None
     submesh_map: SpaceMap
     history: History | None = None
 
@@ -67,7 +65,8 @@ class LawOnSubMesh:
     ) -> None:
         """Map stresses and tangents back to the main mesh"""
         self.submesh_map.map_to_parent(self.stress, global_stress.current)
-        self.submesh_map.map_to_parent(self.local_tangent, global_tangent)
+        if self.local_tangent is not None:
+            self.submesh_map.map_to_parent(self.local_tangent, global_tangent)
 
     def evaluate(
         self,
@@ -83,13 +82,14 @@ class LawOnSubMesh:
         history_input = (
             self.history.reset_trial_state() if self.history is not None else None
         )
+        tangent = self.local_tangent.x.array if self.local_tangent is not None else None
         with df.common.Timer("constitutive-law-evaluation"):
             self.law.evaluate(
                 sim_time.current,
                 sim_time.dt,
                 self.displacement_gradient_fn.x.array,
                 self.local_stress(global_stress),
-                self.local_tangent.x.array,
+                tangent,
                 history_input,
             )
         self.map_to_parent(global_stress, global_tangent)

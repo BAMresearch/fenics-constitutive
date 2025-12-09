@@ -14,7 +14,6 @@ from fenics_constitutive.models import (
     PlaneStrainFrom3D,
     StressStrainConstraint,
     UniaxialStrainFrom3D,
-    norm,
 )
 from fenics_constitutive.models.rust_models import LinearElasticity3D
 from fenics_constitutive.postprocessing import norm
@@ -151,9 +150,9 @@ def test_uniaxial_stress_two_laws(factor: float):
 
     # Does the stiffer element have a proportionally lower strain?
     assert abs(
-        problem.quadrature_data.del_grad_u[0].x.array[0]
-        - factor * problem.quadrature_data.del_grad_u[1].x.array[0]
-    ) < 1e-10 / abs(problem.quadrature_data.del_grad_u[0].x.array[0])
+        problem._del_grad_u[0].x.array[0]
+        - factor * problem._del_grad_u[1].x.array[0]
+    ) < 1e-10 / abs(problem._del_grad_u[0].x.array[0])
 
 
 def test_uniaxial_strain():
