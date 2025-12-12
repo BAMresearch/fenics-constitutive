@@ -3,7 +3,7 @@ import dolfinx as df
 from petsc4py import PETSc
 from ._solver import IncrSmallStrainProblem
 from .corotational_lawonsubmesh import CorotationalLawOnSubMesh
-from .mesh_update import MeshUpdater
+from ._mesh_update import MeshUpdater
 from dolfinx.fem.petsc import NonlinearProblem
 
 class CorotationalIncrSmallStrainProblem(IncrSmallStrainProblem):
