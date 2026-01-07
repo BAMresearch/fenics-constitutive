@@ -19,14 +19,19 @@ if TYPE_CHECKING:
 
 
 def create_law_on_submesh(
-    law: IncrSmallStrainModel, cells: np.ndarray, element_spaces: ElementSpaces, tangents=True
+    law: IncrSmallStrainModel,
+    cells: np.ndarray,
+    element_spaces: ElementSpaces,
+    tangents=True,
 ) -> LawOnSubMesh:
     """Create a `LawOnSubMesh`"""
     subspace_map, submesh, stress_vector_space = build_subspace_map(
         cells, element_spaces.stress_vector_space
     )
     stress_fn = fn_for(stress_vector_space)
-    tangent_fn = fn_for(element_spaces.stress_tensor_space(submesh)) if tangents else None
+    tangent_fn = (
+        fn_for(element_spaces.stress_tensor_space(submesh)) if tangents else None
+    )
     inc_disp_grad_fn = fn_for(
         element_spaces.displacement_gradient_tensor_space(submesh)
     )
@@ -73,9 +78,15 @@ class LawOnSubMesh:
         sim_time: SimulationTime,
         incr_disp: IncrementalDisplacement,
         global_stress: IncrementalStress,
-        global_tangent: df.fem.Function,
+        global_tangent: df.fem.Function | None = None,
     ) -> None:
         """Perform a full constitutive model evaluation for this law context."""
+        if (global_tangent is None and self.local_tangent is not None) or (
+            global_tangent is not None and self.local_tangent is None
+        ):
+            msg = f"Inconsistent use of tangent. LawOnSubMesh was defined with {self.local_tangent}, but global_tangent with value {global_tangent} was supplied"
+            raise Exception(msg)
+
         incr_disp.evaluate_local_incremental_gradient(
             self.cells, self.displacement_gradient_fn
         )
@@ -92,7 +103,8 @@ class LawOnSubMesh:
                 tangent,
                 history_input,
             )
-        self.map_to_parent(global_stress, global_tangent)
+        if global_tangent is not None and self.local_tangent is not None:
+            self.map_to_parent(global_stress, global_tangent)
 
     def update_history(self) -> None:
         """Update the history for this law context if it exists."""

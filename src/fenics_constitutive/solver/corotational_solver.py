@@ -64,37 +64,6 @@ class CorotationalIncrSmallStrainProblem(IncrSmallStrainProblem):
         self.stress.scatter_current()
         self.tangent.x.scatter_forward()
 
-    # def _move_mesh_previous_to_midpoint(self):
-    #     """Moves mesh geometry to midpoint configuration."""
-
-    #     # displacement increment needed to move to midpoint
-    #     midpoint_disp = 0.5 * (self._u.x.array - self._u0.x.array)
-
-    #     # Update the reference configuration to midpoint
-    #     mesh = self._u.function_space.mesh
-    #     mesh.geometry.x[:] = self._X_ref + self._u0.x.array.reshape(-1, 3) +  midpoint_disp.reshape(-1, 3)
-
-    # def _move_mesh_midpoint_to_final(self):
-    #     """Moves mesh geometry from midpoint to final configuration."""
-
-    #     # Update the midpoint to final configuration
-    #     mesh = self._u.function_space.mesh
-    #     mesh.geometry.x[:] = self._X_ref + self._u.x.array.reshape(-1, 3)
-
-    # def _check_isoparametric(self):
-    #     """Checks if the elements are isoparametric."""
-
-    #     # Geometry degree (e.g. 1 for linear, 2 for quadratic)
-    #     geom_degree = self._u.function_space.mesh.geometry.cmap.degree
-
-    #     # Displacement element degree
-    #     disp_degree = self._u.function_space.ufl_element().degree
-
-    #     if geom_degree != disp_degree:
-    #         raise NotImplementedError(
-    #             f"Mesh update only supported for isoparametric elements: "
-    #             f"geometry degree {geom_degree}, displacement degree {disp_degree}"
-    #         )
 
     def _check_spatial_dimension_3d(self) -> None:
         """

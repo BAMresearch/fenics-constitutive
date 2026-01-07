@@ -116,7 +116,7 @@ class CDMSolver:
         self.tangent.x.scatter_forward()
 
 
-def critical_timestep(
+def _critical_timestep(
     laws: list[tuple[IncrSmallStrainModel, np.ndarray]],
     density: list[float],
     u: df.fem.Function,
@@ -124,9 +124,10 @@ def critical_timestep(
 ) -> np.ndarray:
     """
     Determines the critical timesteps for all submeshes. This assumes that the constitutive law
-    returns a linear elastic tangent for $\sigma=0,\varepsilon=0$.
+    returns a linear elastic tangent for $\sigma=0,\varepsilon=0$. The input is not verified for 
+    consistency as this function is supposed to be called in the CDMSolver or any other solver.
     """
-    method_to_factor = {"cdm":2}
+    method_to_factor = {"cdm": 2}
     factor = method_to_factor[method]
     mesh = u.function_space.mesh
     cell_type = mesh.ufl_cell().cellname()
@@ -146,15 +147,14 @@ def critical_timestep(
         )
         h = mesh.h(mesh.topology.dim, cells)
         h_min = h.min()
-        omega = max_frequency_one_element(h_min, u, tangent, density_)
-        del_t.append(factor/omega)
+        omega = _max_frequency_one_element(h_min, u, tangent, density_)
+        del_t.append(factor / omega)
     return np.array(del_t)
 
 
-def max_frequency_one_element(
+def _max_frequency_one_element(
     h: float, u: df.fem.Function, tangent: np.ndarray, density: float
 ) -> float:
-    
     mesh_cell = u.function_space.mesh.ufl_cell().cellname()
 
     V_degree = u.function_space.ufl_element().degree()
@@ -172,7 +172,7 @@ def max_frequency_one_element(
         case "tetrahedron" | "hexahedron":
             h_mesh = df.mesh.create_box(
                 MPI.COMM_SELF,
-                [[0.0, 0.0,0.0], [h, h, h]],
+                [[0.0, 0.0, 0.0], [h, h, h]],
                 [1, 1, 1],
                 cell_type=df.mesh.CellType[mesh_cell],
             )
@@ -183,7 +183,10 @@ def max_frequency_one_element(
     h_u, h_v = ufl.TrialFunction(V_h), ufl.TestFunction(V_h)
     tangent_ufl = ufl.as_matrix(tangent.tolist())
 
-    K_form = df.fem.form(ufl.inner(ufl.dot(tangent_ufl,ufl_mandel_strain(h_u)), ufl_mandel_strain(h_v)) * ufl.dx)
+    K_form = df.fem.form(
+        ufl.inner(ufl.dot(tangent_ufl, ufl_mandel_strain(h_u)), ufl_mandel_strain(h_v))
+        * ufl.dx
+    )
     M_form = df.fem.form(density * ufl.inner(h_u, h_v) * ufl.dx)
 
     h_K, h_M = (
@@ -196,5 +199,3 @@ def max_frequency_one_element(
     h_K = h_K.to_dense()
     max_eig = np.linalg.norm(eigvals(h_K, h_M), np.inf)
     return max_eig**0.5
-
-    
