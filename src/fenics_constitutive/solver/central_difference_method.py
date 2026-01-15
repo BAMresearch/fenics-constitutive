@@ -37,6 +37,7 @@ class CDMSolver:
         v: df.fem.Function,
         bcs: list[df.fem.DirichletBC],
         q_degree: int,
+        safety_factor: float,
         del_t: float | None = None,
         external_forces: ufl.Form | None = None,
         form_compiler_options: dict | None = None,
@@ -46,10 +47,10 @@ class CDMSolver:
         map_c = mesh.topology.index_map(mesh.topology.dim)
         num_cells = map_c.size_local + map_c.num_ghosts
         if isinstance(laws, IncrSmallStrainModel):
-            assert isinstance(density, float)
-            density = [density]
             laws = [(laws, np.arange(0, num_cells, dtype=np.int32))]
 
+        density = [density] if isinstance(density, float) else density
+        
         assert len(density) == len(laws)
 
         constraint = laws[0][0].constraint
@@ -63,8 +64,8 @@ class CDMSolver:
 
         self._law_on_submeshs: list[LawOnSubMesh] = []
 
-        del_t_crit = del_t if del_t is not None else critical_timestep()
-        self.sim_time = SimulationTime(dt=del_t_crit)
+        self.del_t_crit = np.array([del_t]) if del_t is not None else critical_timestep(laws,density,u)
+        self.sim_time = SimulationTime(dt=self.del_t_crit.min()*safety_factor)
 
         self._law_on_submeshs = [
             create_law_on_submesh(law, local_cells, element_spaces, tangents=False)
@@ -116,11 +117,12 @@ class CDMSolver:
         self.tangent.x.scatter_forward()
 
 
-def _critical_timestep(
+def critical_timestep(
     laws: list[tuple[IncrSmallStrainModel, np.ndarray]],
     density: list[float],
     u: df.fem.Function,
     method: str = "cdm",
+    h: float | None = None,
 ) -> np.ndarray:
     """
     Determines the critical timesteps for all submeshes. This assumes that the constitutive law
@@ -130,7 +132,7 @@ def _critical_timestep(
     method_to_factor = {"cdm": 2}
     factor = method_to_factor[method]
     mesh = u.function_space.mesh
-    cell_type = mesh.ufl_cell().cellname()
+    #cell_type = mesh.ufl_cell().cellname()
     del_t: list[float] = []
     for (law, cells), density_ in zip(laws, density):
         tangent = np.zeros((law.stress_strain_dim, law.stress_strain_dim))
@@ -145,8 +147,8 @@ def _critical_timestep(
         assert np.linalg.norm(tangent) > 0.0, (
             "The constitutive law must return a non-zero tangent"
         )
-        h = mesh.h(mesh.topology.dim, cells)
-        h_min = h.min()
+        h_ = mesh.h(mesh.topology.dim, cells) if h is None else np.array([h])
+        h_min = h_.min()
         omega = _max_frequency_one_element(h_min, u, tangent, density_)
         del_t.append(factor / omega)
     return np.array(del_t)
