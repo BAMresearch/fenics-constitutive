@@ -146,6 +146,10 @@ macro_rules! implement_python_model {
             pub fn constraint(&self) -> StressStrainConstraint {
                 $constr
             }
+
+            pub fn print_parameters(&self) {
+                println!("{:?}", self.parameters)
+            }
         }
         $m.add_class::<$name>()?;
     };
