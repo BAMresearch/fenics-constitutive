@@ -10,14 +10,15 @@ use nalgebra::{SMatrix, SVector};
 
 create_history_parameter_struct!(
     DruckerPragerHyperbolicParameters,
-    6,
-    6,
+    7,
+    7,
     [
         (mu, (QDim::Scalar)),
         (kappa, (QDim::Scalar)),
         (a, (QDim::Scalar)),
         (b, (QDim::Scalar)),
         (d, (QDim::Scalar)),
+        (h, (QDim::Scalar)),
         (b_flow, (QDim::Scalar))
     ]
 );
@@ -40,8 +41,8 @@ create_history_parameter_struct!(
 /// # Parameters
 /// - `mu`: Shear modulus
 /// - `kappa`: Bulk modulus
-/// - `a`: slope of the yield surface in $I_1,\sqrt{J_2}$ space
-/// - `b`: Yield strength at zero pressure
+/// - `b`: slope of the yield surface in $I_1,\sqrt{J_2}$ space
+/// - `a`: Yield strength at zero pressure
 /// - `d`: Smoothing parameter
 /// - `b_flow`: slope of the flow-potential, use `b_flow=b` for associated flow
 #[derive(Default, Clone, Copy)]
@@ -61,7 +62,7 @@ pub struct DruckerPragerHyperbolic3D {
     del_plastic_strain: SVector<f64, 6>,
 }
 
-impl Plasticity<6, 6, 6, 1> for DruckerPragerHyperbolic3D {
+impl Plasticity<6, 7, 7, 1> for DruckerPragerHyperbolic3D {
     type Parameters = DruckerPragerHyperbolicParameters;
 
     fn new(parameters: &Self::Parameters) -> Self {
@@ -78,21 +79,31 @@ impl Plasticity<6, 6, 6, 1> for DruckerPragerHyperbolic3D {
         sigma_0: &SVector<f64, 6>,
         sigma_1: &SVector<f64, 6>,
         del_eps: &SVector<f64, 6>,
-        _kappa: &SVector<f64, 1>,
+        kappa: &SVector<f64, 1>,
     ) {
         const PROJECTION_DEV: SMatrix<f64, 6, 6> = const { projection_dev::<6>() };
         const SYM_ID: SVector<f64, 6> = const { sym_id::<6>() };
         // Implementation of setting model state
         let (i_1, s) = sigma_1.trace_dev();
         let j_2 = 0.5 * s.norm_squared();
-        self.f = (j_2+self.parameters.d.powi(2)).sqrt() + self.parameters.b * i_1 - self.parameters.a;
-        let df_di_1 = self.parameters.b;
-        let df_dj_2 = 0.5*(j_2 + self.parameters.d.powi(2)).sqrt().recip();
+
+        let a = (1.0+self.parameters.h * kappa.x)*self.parameters.a;
+        let d = (1.0+self.parameters.h * kappa.x)*self.parameters.d;
+        let b = self.parameters.b;
+        let da_dkappa= self.parameters.h*self.parameters.a;
+        let dd_dkappa= self.parameters.h*self.parameters.d;
+
+        self.f = (j_2+(d*b).powi(2)).sqrt() + b * i_1 - a;
+        let df_di_1 = b;
+        let df_dj_2 = (1_f64/2.0)*(j_2 + b.powi(2)*d.powi(2)).sqrt().recip();
         let _df_di_1i_1 = 0.0;
-        let df_dj_2j_2 = -1.0/4.0*(j_2 + self.parameters.d.powi(2)).powf(-3_f64/2.0);
+        let df_dj_2j_2 = -1.0/4.0*(j_2 + d.powi(2)).powf(-3_f64/2.0);
 
         let df_dsigma = df_di_1 * &SYM_ID + df_dj_2 * &s;
         self.df_dsigma = df_dsigma.transpose();
+
+        self.df_dkappa.x = b.powi(2)*d*dd_dkappa/(j_2 + b.powi(2)*d.powi(2)).sqrt() - da_dkappa;
+
         self.g = {
             if self.parameters.b == self.parameters.b_flow {
                 // associated flow
@@ -103,6 +114,9 @@ impl Plasticity<6, 6, 6, 1> for DruckerPragerHyperbolic3D {
             }
         };
         self.dg_dsigma = s * df_dj_2j_2 * s.transpose() + df_dj_2 * PROJECTION_DEV;
+
+        let df_dj_2_kappa = -1_f64/2.0*d*dd_dkappa*b.powi(2)*(j_2 + b.powi(2)*d.powi(2)).powf(-3_f64/2.0);
+        self.dg_dkappa = df_dj_2_kappa * &s; //df_di_1_kappa=0
 
         self.del_plastic_strain = del_eps - self.elastic_tangent_inv * (sigma_1 - sigma_0);
         

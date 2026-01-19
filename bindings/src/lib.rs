@@ -178,7 +178,7 @@ fn _bindings(m: &Bound<'_, PyModule>) -> PyResult<()> {
     implement_python_model!(
         m,
         PyDruckerPragerHyperbolic3D,
-        IsotropicPlasticityModel3D<6,6, DruckerPragerHyperbolic3D>,
+        IsotropicPlasticityModel3D<7,7, DruckerPragerHyperbolic3D>,
         StressStrainConstraint::FULL
     );
 
