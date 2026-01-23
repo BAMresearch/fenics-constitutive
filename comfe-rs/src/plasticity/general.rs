@@ -203,7 +203,7 @@ impl<
                 model.update_newton_matrix(&mut dres, del_lambda);
 
                 res_sigma = &sigma_1 - &sigma_tr + del_lambda * model.elastic_tangent() * model.g();
-                res_kappa = &alpha_1 - &alpha_0 - model.k();
+                res_kappa = &alpha_1 - &alpha_0 - del_lambda * model.k();
                 res_f = model.f();
 
                 res = SVector::<f64, 8>::from([
