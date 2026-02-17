@@ -10,15 +10,14 @@ use nalgebra::RowSVector;
 use nalgebra::{SMatrix, SVector};
 
 create_history_parameter_struct!(
-    DruckerPragerParameters,
-    5,
-    5,
+    IsotropicMisesParameters,
+    4,
+    4,
     [
         (mu, (QDim::Scalar)),
         (kappa, (QDim::Scalar)),
-        (a, (QDim::Scalar)),
-        (b, (QDim::Scalar)),
-        (b_flow, (QDim::Scalar))
+        (y_0, (QDim::Scalar)),
+        (h, (QDim::Scalar))
     ]
 );
 /// A classic Drucker-Prager plasticity model for 3D stress states.
@@ -43,8 +42,8 @@ create_history_parameter_struct!(
 /// - `b`: Yield strength at zero pressure
 /// - `b_flow`: slope of the flow-potential, use `b_flow=b` for associated flow
 #[derive(Default, Clone, Copy)]
-pub struct DruckerPrager3D {
-    parameters: DruckerPragerParameters,
+pub struct IsotropicMises3D {
+    parameters: IsotropicMisesParameters,
     elastic_tangent: SMatrix<f64, 6, 6>,
     elastic_tangent_inv: SMatrix<f64, 6, 6>,
     f: f64,
@@ -59,11 +58,11 @@ pub struct DruckerPrager3D {
     del_plastic_strain: SVector<f64, 6>,
 }
 
-impl Plasticity<6, 5, 5, 1> for DruckerPrager3D {
-    type Parameters = DruckerPragerParameters;
+impl Plasticity<6, 4, 4, 1> for IsotropicMises3D {
+    type Parameters = IsotropicMisesParameters;
 
     fn new(parameters: &Self::Parameters) -> Self {
-        DruckerPrager3D {
+        IsotropicMises3D {
             parameters: parameters.clone(),
             elastic_tangent: isotropic_elastic_tangent(parameters.mu, parameters.kappa),
             elastic_tangent_inv: isotropic_elastic_tangent_inv(parameters.mu, parameters.kappa),
@@ -78,36 +77,27 @@ impl Plasticity<6, 5, 5, 1> for DruckerPrager3D {
         kappa: &SVector<f64, 1>,
     ) {
         const PROJECTION_DEV: SMatrix<f64, 6, 6> = const { projection_dev::<6>() };
-        const SYM_ID: SVector<f64, 6> = const { sym_id::<6>() };
+        //const SYM_ID: SVector<f64, 6> = const { sym_id::<6>() };
         // Implementation of setting model state
-        let (i_1, s) = sigma_1.trace_dev();
+        let (_i_1, s) = sigma_1.trace_dev();
 
-        assert!(i_1 < self.parameters.a/self.parameters.b , "non-differentiable tip of Drucker-Prager surface reached");
 
         let j_2 = 0.5 * s.norm_squared();
-        self.f = j_2.sqrt() + self.parameters.b * i_1 - self.parameters.a;
-        let df_di_1 = self.parameters.b;
-        let df_dj_2 = 0.5 / j_2.sqrt();
-        let _df_di_1i_1 = 0.0;
-        let df_dj_2j_2 = -0.25 / (j_2 * j_2.sqrt());
+        self.f = (3.0*j_2).sqrt() - self.parameters.y_0 - self.parameters.h * kappa.x;
 
-        let df_dsigma = df_di_1 * &SYM_ID + df_dj_2 * &s;
+        let df_dj_2 = 1.5 / (3.0*j_2).sqrt();
+        let df_dj_2j_2 = -(9./4.) / (3.0*j_2).powf(3.0/2.0);
+
+        let df_dsigma = df_dj_2 * &s;
         self.df_dsigma = df_dsigma.transpose();
-        
-        self.g = {
-            if self.parameters.b == self.parameters.b_flow {
-                // associated flow
-                df_dsigma
-            } else {
-                //non-associated flow
-                self.parameters.b_flow * &SYM_ID + df_dj_2 * &s
-            }
-        };
+        self.df_dkappa.x = - self.parameters.h;
+
+        self.g = df_dsigma;
         // This derivative is the same for both associated and non-associated flow
         self.dg_dsigma = &s * df_dj_2j_2 * &s.transpose() + df_dj_2 * &PROJECTION_DEV;
-
+        
         let g_norm = self.g.norm();
-        self.k = SVector::from_element((2_f64/3_f64).sqrt()*g_norm);
+        self.k.x =(2_f64/3_f64).sqrt()*g_norm;
         self.dk_dsigma = ((2_f64/3_f64).sqrt()/g_norm)* self.g.transpose() * &self.dg_dsigma;
         self.dk_dkappa = ((2_f64/3_f64).sqrt()/g_norm)* self.g.transpose() * &self.dg_dkappa;
     }
