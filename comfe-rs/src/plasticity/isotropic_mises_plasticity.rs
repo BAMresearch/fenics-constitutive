@@ -74,7 +74,6 @@ impl Plasticity<6, 4, 4, 1> for IsotropicMises3D {
         &mut self,
         sigma_0: &SVector<f64, 6>,
         sigma_1: &SVector<f64, 6>,
-        del_eps: &SVector<f64, 6>,
         kappa: &SVector<f64, 1>,
     ) {
         const PROJECTION_DEV: SMatrix<f64, 6, 6> = const { projection_dev::<6>() };
@@ -97,8 +96,6 @@ impl Plasticity<6, 4, 4, 1> for IsotropicMises3D {
         // This derivative is the same for both associated and non-associated flow
         self.dg_dsigma = &s * df_dj_2j_2 * &s.transpose() + df_dj_2 * &PROJECTION_DEV;
         
-        self.del_plastic_strain = del_eps - &self.elastic_tangent_inv * (sigma_1 - sigma_0);
-        //let pl_norm = self.del_plastic_strain.norm();
         let g_norm = self.g.norm();
         self.k.x =(2_f64/3_f64).sqrt()*g_norm;
         self.dk_dsigma = ((2_f64/3_f64).sqrt()/g_norm)* self.g.transpose() * &self.dg_dsigma;
@@ -148,9 +145,5 @@ impl Plasticity<6, 4, 4, 1> for IsotropicMises3D {
     fn elastic_tangent_inv(&self) -> &SMatrix<f64, 6, 6> {
         // Implementation of elastic_tangent_inv
         &self.elastic_tangent_inv
-    }
-    fn del_plastic_strain(&self) -> &SVector<f64, 6> {
-        // Implementation of del_plastic_strain
-        &self.del_plastic_strain
     }
 }

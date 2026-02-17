@@ -30,6 +30,7 @@ create_history_parameter_struct!(
 /// - $J_2$ is the second invariant of the deviatoric stress tensor
 /// - $I_1$ is the first invariant of the stress tensor
 /// - $a$ and $b$ are material parameters that describe the yield surface as in the [`DruckerPrager3D`] model. $d$ is an additional smoothing parameter for the tip.
+/// - $h$ is a hardening parameter that expands the yield surface by multiplying $(1+h\alpha)$ to the parameters $a,d$. The slope $b$ remains constant.ts
 /// - $b_{flow}$ defines the slope of the flow rule which is equal to $b$ for associated flow. For $b=0$ the return direction is purely deviatoric (radial return algorithm)
 ///
 ///
@@ -78,7 +79,6 @@ impl Plasticity<6, 7, 7, 1> for DruckerPragerHyperbolic3D {
         &mut self,
         sigma_0: &SVector<f64, 6>,
         sigma_1: &SVector<f64, 6>,
-        del_eps: &SVector<f64, 6>,
         kappa: &SVector<f64, 1>,
     ) {
         const PROJECTION_DEV: SMatrix<f64, 6, 6> = const { projection_dev::<6>() };
@@ -118,8 +118,6 @@ impl Plasticity<6, 7, 7, 1> for DruckerPragerHyperbolic3D {
         let df_dj_2_kappa = -1_f64/2.0*d*dd_dkappa*b.powi(2)*(j_2 + b.powi(2)*d.powi(2)).powf(-3_f64/2.0);
         self.dg_dkappa = df_dj_2_kappa * &s; //df_di_1_kappa=0
 
-        self.del_plastic_strain = del_eps - self.elastic_tangent_inv * (sigma_1 - sigma_0);
-        
         
         let g_norm = self.g.norm();
         self.k = SVector::from_element((2_f64/3_f64).sqrt()*g_norm);
@@ -170,9 +168,5 @@ impl Plasticity<6, 7, 7, 1> for DruckerPragerHyperbolic3D {
     fn elastic_tangent_inv(&self) -> &SMatrix<f64, 6, 6> {
         // Implementation of elastic_tangent_inv
         &self.elastic_tangent_inv
-    }
-    fn del_plastic_strain(&self) -> &SVector<f64, 6> {
-        // Implementation of del_plastic_strain
-        &self.del_plastic_strain
     }
 }
