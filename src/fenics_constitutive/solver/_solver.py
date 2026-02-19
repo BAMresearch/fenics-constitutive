@@ -90,14 +90,14 @@ class IncrSmallStrainProblem(NonlinearProblem):
         self.metadata = {"quadrature_degree": q_degree, "quadrature_scheme": "default"}
         self.dxm = ufl.dx(metadata=self.metadata)
 
-        self.R_form = (
+        R_form = (
             ufl.inner(ufl_mandel_strain(u_, constraint), self.stress.current) * self.dxm
         )
         
         if external_forces is not None:
-            self.R_form -= sum(external_forces)
+            R_form -= sum(external_forces)
         
-        self.dR_form = (
+        dR_form = (
             ufl.inner(
                 ufl_mandel_strain(du, constraint),
                 ufl.dot(self.tangent, ufl_mandel_strain(u_, constraint)),
@@ -105,16 +105,12 @@ class IncrSmallStrainProblem(NonlinearProblem):
             * self.dxm
         )
 
-        self._bcs = bcs
-        self._form_compiler_options = form_compiler_options
-        self._jit_options = jit_options
-
         self.incr_disp = IncrementalDisplacement(u, q_degree)
         super().__init__(
-                self.R_form,
+                R_form,
                 self.incr_disp.current,
-                bcs=self._bcs,
-                J=self.dR_form,
+                bcs=bcs,
+                J=dR_form,
                 form_compiler_options=form_compiler_options if form_compiler_options is not None else {},
                 jit_options=jit_options if jit_options is not None else {}
             )

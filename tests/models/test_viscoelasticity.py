@@ -452,6 +452,10 @@ def test_creep(dim: int, mat: IncrSmallStrainModel):
     facet_tags, _ = create_meshtags(mesh, mesh.topology.dim - 1, neumann_boundary)
     dA = ufl.Measure("ds", domain=mesh, subdomain_data=facet_tags)
     neumann_data = df.fem.Constant(mesh, load)
+    
+    # apply load
+    test_function = ufl.TestFunction(V)
+    fext = ufl.inner(neumann_data, test_function) * dA(neumann_tag)
 
     # problem and solve
     dt = 2
@@ -461,11 +465,8 @@ def test_creep(dim: int, mat: IncrSmallStrainModel):
         dirc_bcs,
         1,
         del_t=dt,
+        external_forces=[fext],
     )
-    # apply load
-    test_function = ufl.TestFunction(V)
-    fext = ufl.inner(neumann_data, test_function) * dA(neumann_tag)
-    problem.R_form -= fext
 
     solver = NewtonSolver(MPI.COMM_WORLD, problem)
 
