@@ -1,0 +1,126 @@
+
+from __future__ import annotations
+
+import dolfinx as df
+import numpy as np
+import pytest
+from dolfinx.nls.petsc import NewtonSolver
+from mpi4py import MPI
+
+from fenics_constitutive.models.rust_models import IsotropicMises3D, MisesPlasticityLinearHardening3D
+from fenics_constitutive.solver import IncrSmallStrainProblem
+
+
+def test_tangent_3d(model):
+    # no MPI, one cell only
+    mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 1, 1, 1)
+    V = df.fem.functionspace(mesh, ("CG", 1, (3,)))
+    u = df.fem.Function(V)
+
+    matparam_arr = {
+        "mu": np.array([]),
+        "kappa": np.array([matparam["p_ka"]]),
+        "y_0":np.array([matparam["p_y0"]]),
+        "h":np.array([matparam["p_w"]]),
+    }
+    test_max_stress = False
+    
+    def left(x):
+        return np.isclose(x[0], 0.0)
+
+    def right(x):
+        return np.isclose(x[0], 1.0)
+
+    def upper_boundary(x):
+        return np.isclose(x[1], 0.0)
+
+    def side_boundary(x):
+        return np.isclose(x[2], 0.0)
+
+    tdim = mesh.topology.dim
+    fdim = tdim - 1
+
+    left_facets = df.mesh.locate_entities_boundary(mesh, fdim, left)
+    right_facets = df.mesh.locate_entities_boundary(mesh, fdim, right)
+    upper_facets = df.mesh.locate_entities_boundary(mesh, fdim, upper_boundary)
+    side_facets = df.mesh.locate_entities_boundary(mesh, fdim, side_boundary)
+    #
+    # ### Dirichlet BCs
+    zero_scalar = df.fem.Constant(mesh, 0.0)
+    scalar_x = df.fem.Constant(mesh, 0.015)
+    fix_ux_left = df.fem.dirichletbc(
+        zero_scalar,
+        df.fem.locate_dofs_topological(V.sub(0), fdim, left_facets),
+        V.sub(0),
+    )
+    move_ux_right = df.fem.dirichletbc(
+        scalar_x,
+        df.fem.locate_dofs_topological(V.sub(0), fdim, right_facets),
+        V.sub(0),
+    )
+    fix_uy = df.fem.dirichletbc(
+        zero_scalar,
+        df.fem.locate_dofs_topological(V.sub(1), fdim, upper_facets),
+        V.sub(1),
+    )
+    fix_uz = df.fem.dirichletbc(
+        zero_scalar,
+        df.fem.locate_dofs_topological(V.sub(2), fdim, side_facets),
+        V.sub(2),
+    )
+
+    dirichlet = [fix_ux_left, move_ux_right, fix_uy, fix_uz]
+
+    problem = IncrSmallStrainProblem(law, u, dirichlet, q_degree=1)
+
+    solver = NewtonSolver(MPI.COMM_WORLD, problem)
+
+    nTime = 100
+    max_disp = 0.05
+    load_steps = np.linspace(0, 1, num=nTime + 1)[1:]
+    iterations = np.array([], dtype=np.int32)
+    displacement = [0.0]
+    load = [0.0]
+
+    for inc, time in enumerate(load_steps):
+        # print("Load Increment:", inc)
+
+        current_disp = time * max_disp
+        scalar_x.value = current_disp
+
+        niter, converged = solver.solve(u)
+        problem.update()
+
+        # print(f"Converged: {converged} in {niter} iterations.")
+        iterations = np.append(iterations, niter)
+
+        stress_values = []
+        stress_values.append(problem.stress_0.x.array.copy())
+        stress_values = stress_values[0]
+        stress_values = stress_values[::6][0]
+
+        displacement.append(current_disp)
+        load.append(stress_values)
+
+    displacement = np.array(displacement)
+    load = np.array(load)
+
+    # if the maximum stress exceeds the yield limit
+    tolerance = 1e-8
+    if test_max_stress:
+        assert np.max(load) - matparam["p_y00"] <= tolerance
+
+    # if material behaves linearly under the elastic range with correct slope
+    indices = load + tolerance < matparam["p_y0"]
+    v = (3 * matparam["p_ka"] - 2 * matparam["p_mu"]) / (
+        2 * (3 * matparam["p_ka"] + matparam["p_mu"])
+    )
+    trace = displacement[indices][1] - 2 * v * displacement[indices][1]
+    dev = displacement[indices][1] - trace / 3
+    slope = (matparam["p_ka"] * trace + 2 * matparam["p_mu"] * dev) / displacement[
+        indices
+    ][1]
+    assert np.all(
+        abs(np.ediff1d(load[indices]) / np.ediff1d(displacement[indices]) - slope)
+        < 1e-7
+    )
