@@ -53,7 +53,7 @@ def test_relaxation_uniaxial_stress(mat: IncrSmallStrainModel):
         u,
         [bc_left, bc_right],
         1,
-        dt,
+        del_t=dt,
     )
 
     solver = NewtonSolver(MPI.COMM_WORLD, problem)
@@ -219,7 +219,7 @@ def test_relaxation(dim: int, mat: IncrSmallStrainModel):
         u,
         dirc_bcs,
         1,
-        dt,
+        del_t=dt,
     )
 
     solver = NewtonSolver(MPI.COMM_WORLD, problem)
@@ -331,8 +331,8 @@ def test_kelvin_vs_maxwell():
     # solve Kelvin problem without linear step
     dt, q_degree = 0.1, 4
     problems = [
-        IncrSmallStrainProblem(law_K, u, [bc_left, bc_right], q_degree, dt),
-        IncrSmallStrainProblem(law_M, u, [bc_left, bc_right], q_degree, dt),
+        IncrSmallStrainProblem(law_K, u, [bc_left, bc_right], q_degree, del_t=dt),
+        IncrSmallStrainProblem(law_M, u, [bc_left, bc_right], q_degree, del_t=dt),
     ]
 
     stress_p, strain_p = [], []
@@ -460,7 +460,7 @@ def test_creep(dim: int, mat: IncrSmallStrainModel):
         u,
         dirc_bcs,
         1,
-        dt,
+        del_t=dt,
     )
     # apply load
     test_function = ufl.TestFunction(V)
@@ -657,7 +657,7 @@ def define_problem(mat: IncrSmallStrainModel, dim: int):
 
     # problem
     dt = 5
-    problem = IncrSmallStrainProblem(law, u, bc_list, 1, dt)
+    problem = IncrSmallStrainProblem(law, u, bc_list, 1, del_t=dt)
     return u, problem
 
 
