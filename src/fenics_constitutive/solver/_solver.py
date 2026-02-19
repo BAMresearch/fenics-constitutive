@@ -110,27 +110,14 @@ class IncrSmallStrainProblem(NonlinearProblem):
         self._jit_options = jit_options
 
         self.incr_disp = IncrementalDisplacement(u, q_degree)
-
-    @property
-    def a(self) -> df.fem.Form:
-        """Compiled bilinear form (the Jacobian form)"""
-
-        if not hasattr(self, "_a"):
-            # ensure compilation of UFL forms
-            super().__init__(
+        super().__init__(
                 self.R_form,
                 self.incr_disp.current,
-                self._bcs,
-                self.dR_form,
-                form_compiler_options=(
-                    self._form_compiler_options
-                    if self._form_compiler_options is not None
-                    else {}
-                ),
-                jit_options=self._jit_options if self._jit_options is not None else {},
+                bcs=self._bcs,
+                J=self.dR_form,
+                form_compiler_options=form_compiler_options if form_compiler_options is not None else {},
+                jit_options=jit_options if jit_options is not None else {}
             )
-
-        return self._a
 
     @df.common.timed("constitutive-form-evaluation")
     def form(self, x: PETSc.Vec) -> None:
