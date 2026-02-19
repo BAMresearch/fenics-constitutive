@@ -53,6 +53,7 @@ class CDMSolver:
         self.f = v.copy()
         self.a = v.copy()
         self.v = v
+        self.M_inv = diagonal_inverted_mass(v.function_space, density, problem._law_on_submeshs)
 
     @df.common.timed("constitutive-form-evaluation-corotational")
     def step(self) -> None:
@@ -70,6 +71,55 @@ class CDMSolver:
         self.problem.incr_disp.current.x.scatter_forward()
 
         self.problem.form_without_petsc(evaluate_tangent=False)
+
+# class CorotationalCDMSolver:
+#     def __init__(
+#         self,
+#         problem: IncrSmallStrainProblem,
+#         density: list[float] | float,
+#         v: df.fem.Function,
+#         safety_factor: float,
+#         del_t: float | None = None,
+#     ) -> None:
+#         self.problem = problem
+#         mesh = problem._u.function_space.mesh
+#         map_c = mesh.topology.index_map(mesh.topology.dim)
+#         num_cells = map_c.size_local + map_c.num_ghosts
+
+#         density = [density] if isinstance(density, float) else density
+
+#         laws = [(law.law, law.cells) for law in problem._law_on_submeshs]
+#         assert len(density) == len(laws)
+
+#         self.del_t_crit = (
+#             np.array([del_t])
+#             if del_t is not None
+#             else critical_timestep(laws, density, v)
+#         )
+#         self.sim_time = SimulationTime(dt=self.del_t_crit.min() * safety_factor)
+
+#         self.f = v.copy()
+#         self.a = v.copy()
+#         self.v = v
+
+#         self.M_inv = diagonal_inverted_mass(v.function_space, density, problem._law_on_submeshs)
+
+#     @df.common.timed("constitutive-form-evaluation-corotational")
+#     def step(self) -> None:
+#         # self._move_mesh_previous_to_midpoint()
+
+#         df.fem.assemble_vector(self.f.x.array, self.problem.L)
+#         self.f.x.scatter_reverse(df.la.InsertMode.add)
+
+#         self.a.x.array[:] = self.M_inv * self.f.x.array
+#         self.a.x.scatter_forward()
+
+#         self.v.x.array[:] += self.sim_time.dt * self.a.x.array
+#         self.v.x.scatter_forward()
+#         self.problem.incr_disp.current.x.array[:] += self.sim_time.dt * self.v.x.array
+#         self.problem.incr_disp.current.x.scatter_forward()
+
+#         self.problem.form_without_petsc(evaluate_tangent=False)
 
 
 def critical_timestep(
@@ -159,7 +209,7 @@ def _max_frequency_one_element(
 
 
 def diagonal_inverted_mass(
-    function_space: df.fem.FunctionSpace, density: float | list[tuple[float, np.ndarray]]
+    function_space: df.fem.FunctionSpace, density: list[float], laws: list[LawOnSubMesh]
 ) -> df.fem.Function:
     mesh_cell = function_space.mesh.ufl_cell().cellname()
     basix_cell = basix.CellType[mesh_cell]
@@ -178,14 +228,19 @@ def diagonal_inverted_mass(
 
         metadata = {"quadrature_degree": q_degree, "quadrature_scheme": "gll"}
         dxm = ufl.dx(metadata=metadata)
-        if isinstance(float,density):
+        if len(density)>1:
             density_space = df.fem.functionspace(function_space.mesh, ("DG",0))
             density_fn = cast(df.fem.Function,df.fem.Function(density_space))
-            density_fn.x.array[]
+            for density_, law in zip(density,laws):
+                density_fn.x.array[law.cells] = density_
+            density_fn.x.scatter_forward()
+        else:
+            density_fn = df.fem.Constant(function_space.mesh, np.array(density))
+        
         u_ = ufl.TestFunction(function_space)
         v_ = ufl.TrialFunction(function_space)
         mass_form = cast(ufl.Form, ufl.action(
-            ufl.inner(u_, v_) * density * dxm,
+            density_fn * ufl.inner(u_, v_) * dxm,
             df.fem.Constant(function_space.mesh, np.array([1.0] * geo_dim)),
         ))
         M_action = cast(df.fem.Function, df.fem.Function(function_space))
@@ -195,4 +250,6 @@ def diagonal_inverted_mass(
         raise Exception(
             "Only implemented for intervals, quadrilaterals and hexahedral elements"
         )
+    M_action.x.array[:] =1. / M_action.x.array[:] 
+    M_action.x.scatter_forward()
     return M_action
