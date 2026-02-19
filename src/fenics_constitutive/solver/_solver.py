@@ -138,14 +138,22 @@ class IncrSmallStrainProblem(NonlinearProblem):
 
         """
         super().form(x)
-        self.incr_disp.update_current(x)
 
+        self.incr_disp.update_current(x)
+        self.form_without_petsc(evaluate_tangent=True)
+
+    def form_without_petsc(self, evaluate_tangent: bool)-> None:
+        """
+        This function should be used when the solver does not require PETSc. We assume that the current solution
+        is stored in `self.incr_displ`
+        """
+        tangent = self.tangent if evaluate_tangent else None
         for law in self._law_on_submeshs:
-            law.evaluate(self.sim_time, self.incr_disp, self.stress, self.tangent)
+            law.evaluate(self.sim_time, self.incr_disp, self.stress, tangent)
 
         self.stress.scatter_current()
         self.tangent.x.scatter_forward()
-
+        
     def update(self) -> None:
         """
         Update the current displacement, stress and history.

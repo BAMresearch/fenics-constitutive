@@ -1,120 +1,75 @@
-import basix
-import ufl
-from fenics_constitutive.solver.utils import ufl_mandel_strain
-from fenics_constitutive.solver.typesafe import fn_for
-from fenics_constitutive.solver._incrementalunknowns import IncrementalDisplacement
 from __future__ import annotations
 
+import basix
 import dolfinx as df
 import numpy as np
+import ufl
 from dolfinx.fem.petsc import NonlinearProblem
-from petsc4py import PETSc
 from mpi4py import MPI
+from petsc4py import PETSc
 from scipy.linalg import eigvals
+
 from fenics_constitutive.models.interfaces import IncrSmallStrainModel
-from fenics_constitutive.solver._incrementalunknowns import IncrementalStress
+from fenics_constitutive.solver._incrementalunknowns import (
+    IncrementalDisplacement,
+    IncrementalStress,
+)
 from fenics_constitutive.solver._lawonsubmesh import LawOnSubMesh, create_law_on_submesh
 from fenics_constitutive.solver._solver import SimulationTime
 from fenics_constitutive.solver._spaces import ElementSpaces
+from fenics_constitutive.solver.typesafe import fn_for
+from fenics_constitutive.solver.utils import ufl_mandel_strain
 
 from ._solver import IncrSmallStrainProblem
+from typing import cast
 
 
 class CDMSolver:
-    """
-    Corotational extension of IncrSmallStrainProblem that adds objective
-    stress-rate rotation and mesh-update steps.
-
-    This subclass reuses all core functionality of the base solver and
-    overrides only the initialization and `form` method.
-    """
-
     def __init__(
         self,
-        laws: list[tuple[IncrSmallStrainModel, np.ndarray]] | IncrSmallStrainModel,
+        problem: IncrSmallStrainProblem,
         density: list[float] | float,
-        u: df.fem.Function,
         v: df.fem.Function,
-        bcs: list[df.fem.DirichletBC],
-        q_degree: int,
         safety_factor: float,
         del_t: float | None = None,
-        external_forces: ufl.Form | None = None,
-        form_compiler_options: dict | None = None,
-        jit_options: dict | None = None,
     ) -> None:
-        mesh = u.function_space.mesh
+        self.problem = problem
+        mesh = problem._u.function_space.mesh
         map_c = mesh.topology.index_map(mesh.topology.dim)
         num_cells = map_c.size_local + map_c.num_ghosts
-        if isinstance(laws, IncrSmallStrainModel):
-            laws = [(laws, np.arange(0, num_cells, dtype=np.int32))]
 
         density = [density] if isinstance(density, float) else density
-        
+
+        laws = [(law.law, law.cells) for law in problem._law_on_submeshs]
         assert len(density) == len(laws)
 
-        constraint = laws[0][0].constraint
-        assert all(law[0].constraint == constraint for law in laws), (
-            "All laws must have the same constraint"
+        self.del_t_crit = (
+            np.array([del_t])
+            if del_t is not None
+            else critical_timestep(laws, density, v)
         )
+        self.sim_time = SimulationTime(dt=self.del_t_crit.min() * safety_factor)
 
-        element_spaces = ElementSpaces.create(mesh, constraint, q_degree)
-        self.stress = IncrementalStress(element_spaces.stress_vector_space)
-        self.tangent = fn_for(element_spaces.stress_tensor_space(mesh))
-
-        self._law_on_submeshs: list[LawOnSubMesh] = []
-
-        self.del_t_crit = np.array([del_t]) if del_t is not None else critical_timestep(laws,density,u)
-        self.sim_time = SimulationTime(dt=self.del_t_crit.min()*safety_factor)
-
-        self._law_on_submeshs = [
-            create_law_on_submesh(law, local_cells, element_spaces, tangents=False)
-            for law, local_cells in laws
-        ]
-
-        u_ = ufl.TestFunction(u.function_space)
-
-        self.metadata = {"quadrature_degree": q_degree, "quadrature_scheme": "default"}
-        self.dxm = ufl.dx(metadata=self.metadata)
-
-        self.f_int_form = df.fem.form(
-            ufl.inner(ufl_mandel_strain(u_, constraint), self.stress.current)
-            * self.dxm,
-            jit_options=jit_options,
-            form_compiler_options=form_compiler_options,
-        )
-
-        self.f_ext_form = (
-            df.fem.form(
-                external_forces,
-                jit_options=jit_options,
-                form_compiler_options=form_compiler_options,
-            )
-            if external_forces is not None
-            else None
-        )
-        self.f = u.copy()
-        self.a = u.copy()
-        self._bcs = bcs
-        self._form_compiler_options = form_compiler_options
-        self._jit_options = jit_options
-
-        self.incr_disp = IncrementalDisplacement(u, q_degree)
+        self.f = v.copy()
+        self.a = v.copy()
+        self.v = v
 
     @df.common.timed("constitutive-form-evaluation-corotational")
     def step(self) -> None:
         # self._move_mesh_previous_to_midpoint()
 
-        f_temp = np.zeros_like(self.f.x.array)
-        df.fem.assemble_vector(f_temp, self.f_int_form)
+        df.fem.assemble_vector(self.f.x.array, self.problem.L)
+        self.f.x.scatter_reverse(df.la.InsertMode.add)
 
-        for law in self._law_on_submeshs:
-            law.evaluate(self.sim_time, self.incr_disp, self.stress, self.tangent)
+        self.a.x.array[:] = self.M_inv * self.f.x.array
+        self.a.x.scatter_forward()
 
-        # self._move_mesh_midpoint_to_final()
+        self.v.x.array[:] += self.sim_time.dt * self.a.x.array
+        self.v.x.scatter_forward()
+        self.problem.incr_disp.current.x.array[:] += self.sim_time.dt * self.v.x.array
+        self.problem.incr_disp.current.x.scatter_forward()
 
-        self.stress.scatter_current()
-        self.tangent.x.scatter_forward()
+        self.problem.form_without_petsc(evaluate_tangent=False)
 
 
 def critical_timestep(
@@ -126,13 +81,13 @@ def critical_timestep(
 ) -> np.ndarray:
     """
     Determines the critical timesteps for all submeshes. This assumes that the constitutive law
-    returns a linear elastic tangent for $\sigma=0,\varepsilon=0$. The input is not verified for 
+    returns a linear elastic tangent for $\sigma=0,\varepsilon=0$. The input is not verified for
     consistency as this function is supposed to be called in the CDMSolver or any other solver.
     """
     method_to_factor = {"cdm": 2}
     factor = method_to_factor[method]
     mesh = u.function_space.mesh
-    #cell_type = mesh.ufl_cell().cellname()
+    # cell_type = mesh.ufl_cell().cellname()
     del_t: list[float] = []
     for (law, cells), density_ in zip(laws, density):
         tangent = np.zeros((law.stress_strain_dim, law.stress_strain_dim))
@@ -199,5 +154,45 @@ def _max_frequency_one_element(
     h_M.scatter_reverse()
     h_M = h_M.to_dense()
     h_K = h_K.to_dense()
-    max_eig = np.linalg.norm(eigvals(h_K, h_M), np.inf)
+    max_eig = float(np.linalg.norm(eigvals(h_K, h_M), np.inf))
     return max_eig**0.5
+
+
+def diagonal_inverted_mass(
+    function_space: df.fem.FunctionSpace, density: float | list[tuple[float, np.ndarray]]
+) -> df.fem.Function:
+    mesh_cell = function_space.mesh.ufl_cell().cellname()
+    basix_cell = basix.CellType[mesh_cell]
+    if basix_cell in [
+        basix.CellType.interval,
+        basix.CellType.quadrilateral,
+        basix.CellType.hexahedron,
+    ]:
+        # do gll integration
+        # todo:adapt for higher order elements
+        p_degree_to_q_degree = {1: 1, 2: 2}
+        geo_dim = function_space.mesh.geometry.dim
+        V_degree = function_space.ufl_element().degree()
+
+        q_degree = p_degree_to_q_degree[V_degree]
+
+        metadata = {"quadrature_degree": q_degree, "quadrature_scheme": "gll"}
+        dxm = ufl.dx(metadata=metadata)
+        if isinstance(float,density):
+            density_space = df.fem.functionspace(function_space.mesh, ("DG",0))
+            density_fn = cast(df.fem.Function,df.fem.Function(density_space))
+            density_fn.x.array[]
+        u_ = ufl.TestFunction(function_space)
+        v_ = ufl.TrialFunction(function_space)
+        mass_form = cast(ufl.Form, ufl.action(
+            ufl.inner(u_, v_) * density * dxm,
+            df.fem.Constant(function_space.mesh, np.array([1.0] * geo_dim)),
+        ))
+        M_action = cast(df.fem.Function, df.fem.Function(function_space))
+        df.fem.assemble_vector(M_action.x.array, df.fem.form(mass_form))
+        M_action.x.scatter_reverse(df.la.InsertMode.add)
+    else:
+        raise Exception(
+            "Only implemented for intervals, quadrilaterals and hexahedral elements"
+        )
+    return M_action
