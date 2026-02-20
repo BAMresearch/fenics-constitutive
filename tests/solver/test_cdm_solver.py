@@ -123,7 +123,7 @@ def test_cdm_1d_linear_elastic_wave(n_elements: int):
     bcs = [bc_left, bc_right]
     
     # Create problem
-    problem = IncrSmallStrainProblem(law, u, bcs, q_degree=2)
+    problem = IncrSmallStrainProblem(law, u, bcs, q_degree=1)
     
     # Create CDM solver with safety factor
     safety_factor = 0.8
