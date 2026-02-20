@@ -59,6 +59,7 @@ class IncrSmallStrainProblem(NonlinearProblem):
         q_degree: int,
         external_forces: list[ufl.Form] | None = None,
         del_t: float = 1.0,
+        external_forces: list[ufl.Form] | None = None,
         form_compiler_options: dict | None = None,
         jit_options: dict | None = None,
     ) -> None:
