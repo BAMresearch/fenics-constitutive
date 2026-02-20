@@ -1,27 +1,21 @@
 from __future__ import annotations
 
+from typing import cast
+
 import basix
 import dolfinx as df
 import numpy as np
 import ufl
-from dolfinx.fem.petsc import NonlinearProblem
 from mpi4py import MPI
 from petsc4py import PETSc
 from scipy.linalg import eigvals
 
 from fenics_constitutive.models.interfaces import IncrSmallStrainModel
-from fenics_constitutive.solver._incrementalunknowns import (
-    IncrementalDisplacement,
-    IncrementalStress,
-)
-from fenics_constitutive.solver._lawonsubmesh import LawOnSubMesh, create_law_on_submesh
+from fenics_constitutive.solver._lawonsubmesh import LawOnSubMesh
 from fenics_constitutive.solver._solver import SimulationTime
-from fenics_constitutive.solver._spaces import ElementSpaces
-from fenics_constitutive.solver.typesafe import fn_for
 from fenics_constitutive.solver.utils import ufl_mandel_strain
 
 from ._solver import IncrSmallStrainProblem
-from typing import cast
 
 
 class CDMSolver:
@@ -53,9 +47,10 @@ class CDMSolver:
         self.f = v.copy()
         self.a = v.copy()
         self.v = v
-        self.M_inv = diagonal_inverted_mass(v.function_space, density, problem._law_on_submeshs)
+        self.M_inv = diagonal_inverted_mass(
+            v.function_space, density, problem._law_on_submeshs
+        )
 
-    @df.common.timed("constitutive-form-evaluation-corotational")
     def step(self) -> None:
         # self._move_mesh_previous_to_midpoint()
 
@@ -71,6 +66,7 @@ class CDMSolver:
         self.problem.incr_disp.current.x.scatter_forward()
 
         self.problem.form_without_petsc(evaluate_tangent=False)
+
 
 # class CorotationalCDMSolver:
 #     def __init__(
@@ -222,27 +218,28 @@ def diagonal_inverted_mass(
         # todo:adapt for higher order elements
         p_degree_to_q_degree = {1: 1, 2: 2}
         geo_dim = function_space.mesh.geometry.dim
-        V_degree = function_space.ufl_element().degree()
-
+        V_degree = function_space.ufl_element().degree
+        action_fn = cast(df.fem.Function, df.fem.Function(function_space))
+        action_fn.x.array[:] = 1.0
+        action_fn.x.scatter_forward()
         q_degree = p_degree_to_q_degree[V_degree]
 
         metadata = {"quadrature_degree": q_degree, "quadrature_scheme": "gll"}
         dxm = ufl.dx(metadata=metadata)
-        if len(density)>1:
-            density_space = df.fem.functionspace(function_space.mesh, ("DG",0))
-            density_fn = cast(df.fem.Function,df.fem.Function(density_space))
-            for density_, law in zip(density,laws):
+        if len(density) > 1:
+            density_space = df.fem.functionspace(function_space.mesh, ("DG", 0))
+            density_fn = cast(df.fem.Function, df.fem.Function(density_space))
+            for density_, law in zip(density, laws):
                 density_fn.x.array[law.cells] = density_
             density_fn.x.scatter_forward()
         else:
-            density_fn = df.fem.Constant(function_space.mesh, np.array(density))
-        
+            density_fn = df.fem.Constant(function_space.mesh, density[0])
+
         u_ = ufl.TestFunction(function_space)
         v_ = ufl.TrialFunction(function_space)
-        mass_form = cast(ufl.Form, ufl.action(
-            density_fn * ufl.inner(u_, v_) * dxm,
-            df.fem.Constant(function_space.mesh, np.array([1.0] * geo_dim)),
-        ))
+        mass_form = cast(
+            ufl.Form, ufl.action(density_fn * ufl.inner(u_, v_) * dxm, action_fn)
+        )
         M_action = cast(df.fem.Function, df.fem.Function(function_space))
         df.fem.assemble_vector(M_action.x.array, df.fem.form(mass_form))
         M_action.x.scatter_reverse(df.la.InsertMode.add)
@@ -250,6 +247,6 @@ def diagonal_inverted_mass(
         raise Exception(
             "Only implemented for intervals, quadrilaterals and hexahedral elements"
         )
-    M_action.x.array[:] =1. / M_action.x.array[:] 
+    M_action.x.array[:] = 1.0 / M_action.x.array[:]
     M_action.x.scatter_forward()
     return M_action
