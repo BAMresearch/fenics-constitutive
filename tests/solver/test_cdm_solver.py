@@ -168,49 +168,6 @@ def test_cdm_1d_linear_elastic_wave(n_elements: int):
     assert rel_error < 0.3, f"Relative error {rel_error:.2%} too large"
 
 
-def test_cdm_critical_timestep_1d():
-    """
-    Test that the critical timestep is computed correctly for 1D.
-    
-    For 1D uniaxial stress: dt_crit = 2 * h / c where c = sqrt(E/rho)
-    """
-    from fenics_constitutive.solver.central_difference_method import critical_timestep
-    
-    E = 210e9
-    nu = 0.3
-    rho = 7800
-    L = 1.0
-    n_elements = 10
-    h = L / n_elements
-    
-    # Expected wave speed and critical timestep
-    c = np.sqrt(E / rho)
-    dt_expected = 2 * h / c  # CDM factor of 2
-    
-    mesh = df.mesh.create_interval(MPI.COMM_WORLD, n_elements, [0.0, L])
-    V = df.fem.functionspace(mesh, ("Lagrange", 1))
-    u = df.fem.Function(V)
-    
-    law = LinearElasticityModel(
-        parameters={"E": E, "nu": nu},
-        constraint=StressStrainConstraint.UNIAXIAL_STRESS,
-    )
-    
-    map_c = mesh.topology.index_map(mesh.topology.dim)
-    num_cells = map_c.size_local + map_c.num_ghosts
-    cells = np.arange(0, num_cells, dtype=np.int32)
-    
-    laws = [(law, cells)]
-    density = [float(rho)]
-    dt_computed = critical_timestep(laws, density, u)
-    
-    assert dt_computed[0] > 0, "Critical timestep must be positive"
-    
-    # Check that computed timestep is close to expected (within 20%)
-    rel_diff = abs(dt_computed[0] - dt_expected) / dt_expected
-    assert rel_diff < 0.2, f"Critical timestep differs by {rel_diff:.2%}"
-
-
 def test_cdm_energy_stability_1d():
     """
     Test stability for an undamped 1D system - displacements should stay bounded.

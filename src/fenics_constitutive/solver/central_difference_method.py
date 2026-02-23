@@ -10,6 +10,7 @@ from mpi4py import MPI
 from petsc4py import PETSc
 from scipy.linalg import eigvals
 
+from fenics_constitutive.models import StressStrainConstraint
 from fenics_constitutive.models.interfaces import IncrSmallStrainModel
 from fenics_constitutive.solver._lawonsubmesh import LawOnSubMesh
 from fenics_constitutive.solver._solver import SimulationTime
@@ -144,23 +145,39 @@ def critical_timestep(
             if law.history_dim is not None
             else None
         )
-        law.evaluate(0.0, 1e-12, grad_del_u, stress, tangent, history)
+        law.evaluate(
+            0.0,
+            1e-12,
+            grad_del_u,
+            stress,
+            tangent.reshape(
+                -1,
+            ),
+            history,
+        )
         assert np.linalg.norm(tangent) > 0.0, (
             "The constitutive law must return a non-zero tangent"
         )
         h_ = mesh.h(mesh.topology.dim, cells) if h is None else np.array([h])
         h_min = h_.min()
-        omega = _max_frequency_one_element(h_min, u, tangent, density_)
+        omega = _max_frequency_one_element(h_min, u, tangent, density_, law.constraint)
         del_t.append(factor / omega)
     return np.array(del_t)
 
 
 def _max_frequency_one_element(
-    h: float, u: df.fem.Function, tangent: np.ndarray, density: float
+    h: float,
+    u: df.fem.Function,
+    tangent: np.ndarray,
+    density: float,
+    constraint: StressStrainConstraint,
 ) -> float:
-    mesh_cell = u.function_space.mesh.ufl_cell().cellname()
+    mesh = u.function_space.mesh
+    mesh_cell = mesh.ufl_cell().cellname()
 
-    V_degree = u.function_space.ufl_element().degree()
+    map_c = mesh.topology.index_map(mesh.topology.dim)
+    num_cells = map_c.size_local + map_c.num_ghosts
+    V_degree = u.function_space.ufl_element().degree
 
     match mesh_cell:
         case "interval":
@@ -182,30 +199,32 @@ def _max_frequency_one_element(
         case _:
             msg = f"Celltype {mesh_cell} not implemented"
             raise Exception(msg)
-    V_h = df.fem.functionspace(h_mesh, ("CG", V_degree, h_mesh.geometry.dim))
+    V_h = df.fem.functionspace(h_mesh, ("CG", V_degree, (h_mesh.geometry.dim,)))
     h_u, h_v = ufl.TrialFunction(V_h), ufl.TestFunction(V_h)
     tangent_ufl = ufl.as_matrix(tangent.tolist())
 
     K_form = df.fem.form(
-        ufl.inner(ufl.dot(tangent_ufl, ufl_mandel_strain(h_u)), ufl_mandel_strain(h_v))
+        ufl.inner(
+            ufl.dot(tangent_ufl, ufl_mandel_strain(h_u, constraint)),
+            ufl_mandel_strain(h_v, constraint),
+        )
         * ufl.dx
     )
-    M_form = df.fem.form(density * ufl.inner(h_u, h_v) * ufl.dx)
 
-    h_K, h_M = (
-        df.fem.assemble_matrix(K_form),
-        df.fem.assemble_matrix(M_form),
-    )
+    h_K = df.fem.assemble_matrix(K_form)
+
     h_K.scatter_reverse()
-    h_M.scatter_reverse()
-    h_M = h_M.to_dense()
     h_K = h_K.to_dense()
-    max_eig = float(np.linalg.norm(eigvals(h_K, h_M), np.inf))
+    h_M_diag = diagonal_inverted_mass(V_h, [density], [np.arange(num_cells)])
+    h_M_diag = np.diagflat(1.0 / h_M_diag.x.array)
+
+    max_eig = float(np.linalg.norm(eigvals(h_K, h_M_diag), np.inf))
+    # TODO gather results from all ranks
     return max_eig**0.5
 
 
 def diagonal_inverted_mass(
-    function_space: df.fem.FunctionSpace, density: list[float], laws: list[LawOnSubMesh]
+    function_space: df.fem.FunctionSpace, density: list[float], cells: list[np.ndarray]
 ) -> df.fem.Function:
     mesh_cell = function_space.mesh.ufl_cell().cellname()
     basix_cell = basix.CellType[mesh_cell]
@@ -229,8 +248,8 @@ def diagonal_inverted_mass(
         if len(density) > 1:
             density_space = df.fem.functionspace(function_space.mesh, ("DG", 0))
             density_fn = cast(df.fem.Function, df.fem.Function(density_space))
-            for density_, law in zip(density, laws):
-                density_fn.x.array[law.cells] = density_
+            for density_, cells_ in zip(density, cells):
+                density_fn.x.array[cells_] = density_
             density_fn.x.scatter_forward()
         else:
             density_fn = df.fem.Constant(function_space.mesh, density[0])

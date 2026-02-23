@@ -10,11 +10,10 @@ from __future__ import annotations
 import dolfinx as df
 import numpy as np
 import pytest
-import ufl
 from mpi4py import MPI
 
-from fenics_constitutive.models.linear_elasticity_model import LinearElasticityModel
 from fenics_constitutive.models.interfaces import StressStrainConstraint
+from fenics_constitutive.models.linear_elasticity_model import LinearElasticityModel
 from fenics_constitutive.solver import IncrSmallStrainProblem
 from fenics_constitutive.solver.central_difference_method import diagonal_inverted_mass
 
