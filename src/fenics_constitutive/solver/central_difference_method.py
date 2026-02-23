@@ -24,7 +24,8 @@ class CDMSolver:
         self,
         problem: IncrSmallStrainProblem,
         density: list[float] | float,
-        v: df.fem.Function,
+        u0: df.fem.Function,
+        v0: df.fem.Function,
         safety_factor: float,
         del_t: float | None = None,
     ) -> None:
@@ -42,16 +43,21 @@ class CDMSolver:
         self.del_t_crit = (
             np.array([del_t])
             if del_t is not None
-            else critical_timestep(laws, density, v)
+            else critical_timestep(laws, density, u0)
         )
         self.problem.sim_time = SimulationTime(dt=self.del_t_crit.min() * safety_factor)
+        
+        self.problem.incr_disp.current.x.array[:] = u0.x.array[:]
+        self.problem.incr_disp.current.x.scatter_forward()
+        self.problem.incr_disp.previous.x.array[:] = u0.x.array[:]
+        self.problem.incr_disp.previous.x.scatter_forward()
 
-        self.f = v.copy()
-        self.a = v.copy()
-        self.v = v
+        self.f = df.fem.Function(v0.function_space)
+        self.a = df.fem.Function(v0.function_space)
+        self.v = v0
         cells = [law[1] for law in laws]
         self.M_inv = diagonal_inverted_mass(
-            v.function_space, density, cells
+            v0.function_space, density, cells
         )
 
     def step(self) -> None:
