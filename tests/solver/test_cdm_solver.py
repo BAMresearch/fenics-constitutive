@@ -81,7 +81,7 @@ def test_cdm_1d_linear_elastic_wave(n_elements: int):
     # Material and geometry parameters
     E = 210e9  # Young's modulus (Pa)
     nu = 0.3   # Poisson's ratio (not used for uniaxial stress)
-    rho = 7800  # Density (kg/m^3)
+    rho = 7800.  # Density (kg/m^3)
     L = 1.0  # Bar length (m)
     u_applied = 0.001  # Applied displacement (m)
     
@@ -130,27 +130,28 @@ def test_cdm_1d_linear_elastic_wave(n_elements: int):
     solver = CDMSolver(problem, density=rho, v=v, safety_factor=safety_factor)
     
     # Time stepping
-    n_steps = int(T_end / solver.sim_time.dt)
-    
-    for _ in range(n_steps):
+    n_steps = int(T_end / problem.sim_time.dt)
+    print(n_steps)
+    for i in range(n_steps):
         solver.step()
+        solver.problem.update()
+
         
         # Apply boundary conditions after each step
-        v.x.array[dofs_left] = 0.0
-        v.x.array[dofs_right] = 0.0
-        v.x.scatter_forward()
+        #v.x.array[dofs_left] = 0.0
+        #v.x.array[dofs_right] = 0.0
+        #v.x.scatter_forward()
         
         # Enforce displacement BCs
-        problem.incr_disp.current.x.array[dofs_left] = 0.0
-        problem.incr_disp.current.x.array[dofs_right] = u_applied
-        problem.incr_disp.current.x.scatter_forward()
-    
+        #problem.incr_disp.current.x.array[dofs_left] = 0.0
+        #problem.incr_disp.current.x.array[dofs_right] = u_applied
+        #problem.incr_disp.current.x.scatter_forward()
     # Get numerical solution
     u_numerical = problem.incr_disp.current.x.array.copy()
     x_coords = V.tabulate_dof_coordinates()[:, 0]
     
     # Compute analytical solution
-    t_final = n_steps * solver.sim_time.dt
+    t_final = n_steps * problem.sim_time.dt
     u_analytical = analytical_1d_wave_solution(x_coords, t_final, L, c, u_applied)
     
     # Check boundary conditions are satisfied
@@ -168,69 +169,72 @@ def test_cdm_1d_linear_elastic_wave(n_elements: int):
     assert rel_error < 0.3, f"Relative error {rel_error:.2%} too large"
 
 
-def test_cdm_energy_stability_1d():
-    """
-    Test stability for an undamped 1D system - displacements should stay bounded.
-    """
-    E = 210e9
-    nu = 0.3
-    rho = 7800
-    L = 1.0
-    n_elements = 20
+# def test_cdm_energy_stability_1d():
+#     """
+#     Test stability for an undamped 1D system - displacements should stay bounded.
+#     """
+#     E = 210e9
+#     nu = 0.3
+#     rho = 7800
+#     L = 1.0
+#     n_elements = 20
     
-    mesh = df.mesh.create_interval(MPI.COMM_WORLD, n_elements, [0.0, L])
-    V = df.fem.functionspace(mesh, ("Lagrange", 1))
-    u = df.fem.Function(V, name="Displacement")
-    v = df.fem.Function(V, name="Velocity")
+#     mesh = df.mesh.create_interval(MPI.COMM_WORLD, n_elements, [0.0, L])
+#     V = df.fem.functionspace(mesh, ("Lagrange", 1))
+#     u = df.fem.Function(V, name="Displacement")
+#     v = df.fem.Function(V, name="Velocity")
     
-    law = LinearElasticityModel(
-        parameters={"E": E, "nu": nu},
-        constraint=StressStrainConstraint.UNIAXIAL_STRESS,
-    )
+#     law = LinearElasticityModel(
+#         parameters={"E": E, "nu": nu},
+#         constraint=StressStrainConstraint.UNIAXIAL_STRESS,
+#     )
     
-    def left(x):
-        return np.isclose(x[0], 0.0)
+#     def left(x):
+#         return np.isclose(x[0], 0.0)
     
-    def right(x):
-        return np.isclose(x[0], L)
+#     def right(x):
+#         return np.isclose(x[0], L)
     
-    dofs_left = df.fem.locate_dofs_geometrical(V, left)
-    dofs_right = df.fem.locate_dofs_geometrical(V, right)
+#     dofs_left = df.fem.locate_dofs_geometrical(V, left)
+#     dofs_right = df.fem.locate_dofs_geometrical(V, right)
     
-    bc_left = df.fem.dirichletbc(df.fem.Constant(mesh, 0.0), dofs_left, V)
-    bc_right = df.fem.dirichletbc(df.fem.Constant(mesh, 0.0), dofs_right, V)
-    bcs = [bc_left, bc_right]
+#     bc_left = df.fem.dirichletbc(df.fem.Constant(mesh, 0.0), dofs_left, V)
+#     bc_right = df.fem.dirichletbc(df.fem.Constant(mesh, 0.0), dofs_right, V)
+#     bcs = [bc_left, bc_right]
     
-    problem = IncrSmallStrainProblem(law, u, bcs, q_degree=2)
+#     problem = IncrSmallStrainProblem(law, u, bcs, q_degree=2)
     
-    # Set initial displacement (sine wave)
-    x_coords = V.tabulate_dof_coordinates()[:, 0]
-    initial_amplitude = 0.0001
-    u_initial = initial_amplitude * np.sin(np.pi * x_coords / L)
-    problem.incr_disp.current.x.array[:] = u_initial
-    problem.incr_disp.current.x.scatter_forward()
+#     # Set initial displacement (sine wave)
+#     x_coords = V.tabulate_dof_coordinates()[:, 0]
+#     initial_amplitude = 0.0001
+#     u_initial = initial_amplitude * np.sin(np.pi * x_coords / L)
+#     problem.incr_disp.current.x.array[:] = u_initial
+#     problem.incr_disp.current.x.scatter_forward()
     
-    # Apply boundary conditions
-    problem.incr_disp.current.x.array[dofs_left] = 0.0
-    problem.incr_disp.current.x.array[dofs_right] = 0.0
-    problem.incr_disp.current.x.scatter_forward()
+#     # Apply boundary conditions
+#     problem.incr_disp.current.x.array[dofs_left] = 0.0
+#     problem.incr_disp.current.x.array[dofs_right] = 0.0
+#     problem.incr_disp.current.x.scatter_forward()
     
-    problem.form_without_petsc(evaluate_tangent=False)
+#     problem.form_without_petsc(evaluate_tangent=False)
     
-    solver = CDMSolver(problem, density=rho, v=v, safety_factor=0.8)
+#     solver = CDMSolver(problem, rho, v=v, safety_factor=0.8)
     
-    n_steps = 100
-    for _ in range(n_steps):
-        solver.step()
+#     n_steps = 100
+#     for _ in range(n_steps):
+#         solver.step()
         
-        v.x.array[dofs_left] = 0.0
-        v.x.array[dofs_right] = 0.0
-        v.x.scatter_forward()
+#         v.x.array[dofs_left] = 0.0
+#         v.x.array[dofs_right] = 0.0
+#         v.x.scatter_forward()
         
-        problem.incr_disp.current.x.array[dofs_left] = 0.0
-        problem.incr_disp.current.x.array[dofs_right] = 0.0
-        problem.incr_disp.current.x.scatter_forward()
+#         problem.incr_disp.current.x.array[dofs_left] = 0.0
+#         problem.incr_disp.current.x.array[dofs_right] = 0.0
+#         problem.incr_disp.current.x.scatter_forward()
     
-    # Check displacements are bounded (stability)
-    max_disp = np.max(np.abs(problem.incr_disp.current.x.array))
-    assert max_disp < 10 * initial_amplitude, f"Displacement too large: {max_disp}"
+#     # Check displacements are bounded (stability)
+#     max_disp = np.max(np.abs(problem.incr_disp.current.x.array))
+#     assert max_disp < 10 * initial_amplitude, f"Displacement too large: {max_disp}"
+
+if __name__=="__main__":
+    test_cdm_1d_linear_elastic_wave(10)

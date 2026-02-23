@@ -36,6 +36,7 @@ class CDMSolver:
         density = [density] if isinstance(density, float) else density
 
         laws = [(law.law, law.cells) for law in problem._law_on_submeshs]
+        
         assert len(density) == len(laws)
 
         self.del_t_crit = (
@@ -43,13 +44,14 @@ class CDMSolver:
             if del_t is not None
             else critical_timestep(laws, density, v)
         )
-        self.sim_time = SimulationTime(dt=self.del_t_crit.min() * safety_factor)
+        self.problem.sim_time = SimulationTime(dt=self.del_t_crit.min() * safety_factor)
 
         self.f = v.copy()
         self.a = v.copy()
         self.v = v
+        cells = [law[1] for law in laws]
         self.M_inv = diagonal_inverted_mass(
-            v.function_space, density, problem._law_on_submeshs
+            v.function_space, density, cells
         )
 
     def step(self) -> None:
@@ -58,13 +60,20 @@ class CDMSolver:
         df.fem.assemble_vector(self.f.x.array, self.problem.L)
         self.f.x.scatter_reverse(df.la.InsertMode.add)
 
-        self.a.x.array[:] = self.M_inv * self.f.x.array
+        self.a.x.array[:] = self.M_inv.x.array * self.f.x.array
         self.a.x.scatter_forward()
-
-        self.v.x.array[:] += self.sim_time.dt * self.a.x.array
+        
+        self.v.x.array[:] += self.problem.sim_time.dt * self.a.x.array
         self.v.x.scatter_forward()
-        self.problem.incr_disp.current.x.array[:] += self.sim_time.dt * self.v.x.array
+        
+        self.problem.incr_disp.current.x.array[:] += self.problem.sim_time.dt * self.v.x.array
+        for bc in self.problem.bcs:
+            bc.set(self.problem.incr_disp.current.x.array)
         self.problem.incr_disp.current.x.scatter_forward()
+        
+        for bc in self.problem.bcs:
+            bc.set(self.v.x.array, self.problem.incr_disp.previous.x.array, 1.0/self.problem.sim_time.dt)
+        self.v.x.scatter_forward()
 
         self.problem.form_without_petsc(evaluate_tangent=False)
 
