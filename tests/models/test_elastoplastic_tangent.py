@@ -7,120 +7,67 @@ import pytest
 from dolfinx.nls.petsc import NewtonSolver
 from mpi4py import MPI
 
-from fenics_constitutive.models.rust_models import IsotropicMises3D, MisesPlasticityLinearHardening3D
+from fenics_constitutive.models import IncrSmallStrainModel
+from fenics_constitutive.models.rust_models import (
+    IsotropicMises3D,
+    MisesPlasticityLinearHardening3D,
+)
 from fenics_constitutive.solver import IncrSmallStrainProblem
+from fenics_constitutive.solver._lawonsubmesh import LawOnSubMesh, create_law_on_submesh
 
 
-def test_tangent_3d(model):
-    # no MPI, one cell only
-    mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 1, 1, 1)
-    V = df.fem.functionspace(mesh, ("CG", 1, (3,)))
-    u = df.fem.Function(V)
+def create_history(law:IncrSmallStrainModel)-> dict[str,np.ndarray]:
+    output ={}
+    if law.history_dim is None:
+        return output
 
-    matparam_arr = {
-        "mu": np.array([]),
-        "kappa": np.array([matparam["p_ka"]]),
-        "y_0":np.array([matparam["p_y0"]]),
-        "h":np.array([matparam["p_w"]]),
-    }
-    test_max_stress = False
+    for key,value in law.history_dim.items():
+        val = np.zeros(value).flatten()
+        output[key]=val
+    return output
+
+
+def test_tangent_3d():
     
-    def left(x):
-        return np.isclose(x[0], 0.0)
+    sigma_analytical = np.zeros(6)
+    sigma_numerical = np.zeros(6)
 
-    def right(x):
-        return np.isclose(x[0], 1.0)
+    tangent_analytical = np.zeros(36)
+    tangent_numerical = np.zeros(36)
 
-    def upper_boundary(x):
-        return np.isclose(x[1], 0.0)
+    #parameters for steel
+    matparam = {
+        "kappa": 166.67,  # Bulk modulus
+        "mu": 80.77,    # Shear modulus
+        "y_0": 0.2,      # Initial yield stress
+        "h": 10.0,       # Hardening modulus
+    }
+    matparam_arr = {
+        "mu": np.array([matparam["mu"]]),
+        "kappa": np.array([matparam["kappa"]]),
+        "y_0":np.array([matparam["y_0"]]),
+        "h":np.array([matparam["h"]]),
+    }
 
-    def side_boundary(x):
-        return np.isclose(x[2], 0.0)
+    law_analytical = IsotropicMises3D(matparam_arr)
+    law_numerical = MisesPlasticityLinearHardening3D(matparam_arr)
 
-    tdim = mesh.topology.dim
-    fdim = tdim - 1
+    # Create history variables
+    history_analytical = create_history(law_analytical)
+    history_numerical = create_history(law_numerical)
 
-    left_facets = df.mesh.locate_entities_boundary(mesh, fdim, left)
-    right_facets = df.mesh.locate_entities_boundary(mesh, fdim, right)
-    upper_facets = df.mesh.locate_entities_boundary(mesh, fdim, upper_boundary)
-    side_facets = df.mesh.locate_entities_boundary(mesh, fdim, side_boundary)
-    #
-    # ### Dirichlet BCs
-    zero_scalar = df.fem.Constant(mesh, 0.0)
-    scalar_x = df.fem.Constant(mesh, 0.015)
-    fix_ux_left = df.fem.dirichletbc(
-        zero_scalar,
-        df.fem.locate_dofs_topological(V.sub(0), fdim, left_facets),
-        V.sub(0),
-    )
-    move_ux_right = df.fem.dirichletbc(
-        scalar_x,
-        df.fem.locate_dofs_topological(V.sub(0), fdim, right_facets),
-        V.sub(0),
-    )
-    fix_uy = df.fem.dirichletbc(
-        zero_scalar,
-        df.fem.locate_dofs_topological(V.sub(1), fdim, upper_facets),
-        V.sub(1),
-    )
-    fix_uz = df.fem.dirichletbc(
-        zero_scalar,
-        df.fem.locate_dofs_topological(V.sub(2), fdim, side_facets),
-        V.sub(2),
-    )
+    # del_grad_u for uniaxial strain
+    grad_del_u = np.zeros((3, 3))
+    grad_del_u[0, 0] = 0.001  
 
-    dirichlet = [fix_ux_left, move_ux_right, fix_uy, fix_uz]
+    for i in range(10):
+        law_analytical.evaluate(0.0,0.0, grad_del_u.flatten(),sigma_analytical,tangent_analytical, history_analytical)
+        law_numerical.evaluate(0.0,0.0, grad_del_u.flatten(),sigma_numerical,tangent_numerical, history_numerical)
+        # Compare stress
+        assert np.allclose(sigma_analytical, sigma_numerical, atol=1e-6, rtol=1e-10), f"Stress mismatch at iteration {i}"
+        # Compare tangent
+        assert np.allclose(tangent_analytical, tangent_numerical, atol=1e-6, rtol=1e-10), f"Tangent mismatch at iteration {i}"
 
-    problem = IncrSmallStrainProblem(law, u, dirichlet, q_degree=1)
+    assert history_analytical["history"][0] > 0, "plastic strain not reached in test"
 
-    solver = NewtonSolver(MPI.COMM_WORLD, problem)
-
-    nTime = 100
-    max_disp = 0.05
-    load_steps = np.linspace(0, 1, num=nTime + 1)[1:]
-    iterations = np.array([], dtype=np.int32)
-    displacement = [0.0]
-    load = [0.0]
-
-    for inc, time in enumerate(load_steps):
-        # print("Load Increment:", inc)
-
-        current_disp = time * max_disp
-        scalar_x.value = current_disp
-
-        niter, converged = solver.solve(u)
-        problem.update()
-
-        # print(f"Converged: {converged} in {niter} iterations.")
-        iterations = np.append(iterations, niter)
-
-        stress_values = []
-        stress_values.append(problem.stress_0.x.array.copy())
-        stress_values = stress_values[0]
-        stress_values = stress_values[::6][0]
-
-        displacement.append(current_disp)
-        load.append(stress_values)
-
-    displacement = np.array(displacement)
-    load = np.array(load)
-
-    # if the maximum stress exceeds the yield limit
-    tolerance = 1e-8
-    if test_max_stress:
-        assert np.max(load) - matparam["p_y00"] <= tolerance
-
-    # if material behaves linearly under the elastic range with correct slope
-    indices = load + tolerance < matparam["p_y0"]
-    v = (3 * matparam["p_ka"] - 2 * matparam["p_mu"]) / (
-        2 * (3 * matparam["p_ka"] + matparam["p_mu"])
-    )
-    trace = displacement[indices][1] - 2 * v * displacement[indices][1]
-    dev = displacement[indices][1] - trace / 3
-    slope = (matparam["p_ka"] * trace + 2 * matparam["p_mu"] * dev) / displacement[
-        indices
-    ][1]
-    assert np.all(
-        abs(np.ediff1d(load[indices]) / np.ediff1d(displacement[indices]) - slope)
-        < 1e-7
-    )
+    
