@@ -84,7 +84,7 @@ def test_diagonal_mass_two_materials_hexahedron(n_elements: int):
     
     # Compute diagonal inverted mass
     densities = [rho1, rho2]
-    M_inv = diagonal_inverted_mass(V, densities, problem._law_on_submeshs)
+    M_inv = diagonal_inverted_mass(V, densities, [cells_mat1,cells_mat2])
     
     # The diagonal mass matrix satisfies: M @ ones = M_lumped
     # where M_lumped is the sum of each row of the consistent mass matrix
@@ -206,7 +206,7 @@ def test_diagonal_mass_two_materials_quadrilateral(n_elements: int):
     problem = IncrSmallStrainProblem(laws, u, bcs, q_degree=1)
     
     densities = [rho1, rho2]
-    M_inv = diagonal_inverted_mass(V, densities, problem._law_on_submeshs)
+    M_inv = diagonal_inverted_mass(V, densities, [cells_mat1,cells_mat2])
     
     total_mass_numerical = np.sum(1.0 / M_inv.x.array)
     expected_mass = rho1 * 0.5 + rho2 * 0.5  # Area of each half
