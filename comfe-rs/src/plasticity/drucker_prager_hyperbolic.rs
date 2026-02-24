@@ -45,6 +45,7 @@ create_history_parameter_struct!(
 /// - `b`: slope of the yield surface in $I_1,\sqrt{J_2}$ space
 /// - `a`: Yield strength at zero pressure
 /// - `d`: Smoothing parameter
+/// - `h`: Hardening parameter
 /// - `b_flow`: slope of the flow-potential, use `b_flow=b` for associated flow
 #[derive(Default, Clone, Copy)]
 pub struct DruckerPragerHyperbolic3D {
