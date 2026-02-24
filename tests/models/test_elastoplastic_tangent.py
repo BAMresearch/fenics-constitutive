@@ -147,7 +147,7 @@ def test_tangent_3d_random():
 
     # del_grad_u for uniaxial strain
     grad_del_u = np.random.random((3,3))
-    grad_del_u = 0.01*grad_del_u/np.linalg.norm(grad_del_u)
+    grad_del_u = 0.001*grad_del_u/np.linalg.norm(grad_del_u)
 
     for i in range(10):
         law_analytical.evaluate(0.0,0.0, grad_del_u.flatten(),sigma_analytical,tangent_analytical, history_analytical)
