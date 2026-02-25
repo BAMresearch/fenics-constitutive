@@ -58,6 +58,7 @@ class IncrSmallStrainProblem(NonlinearProblem):
         bcs: list[df.fem.DirichletBC],
         q_degree: int,
         del_t: float = 1.0,
+        external_forces: list[ufl.Form] | None = None,
         form_compiler_options: dict | None = None,
         jit_options: dict | None = None,
     ) -> None:
@@ -89,10 +90,14 @@ class IncrSmallStrainProblem(NonlinearProblem):
         self.metadata = {"quadrature_degree": q_degree, "quadrature_scheme": "default"}
         self.dxm = ufl.dx(metadata=self.metadata)
 
-        self.R_form = (
+        R_form = (
             ufl.inner(ufl_mandel_strain(u_, constraint), self.stress.current) * self.dxm
         )
-        self.dR_form = (
+        
+        if external_forces is not None:
+            R_form -= sum(external_forces)
+        
+        dR_form = (
             ufl.inner(
                 ufl_mandel_strain(du, constraint),
                 ufl.dot(self.tangent, ufl_mandel_strain(u_, constraint)),
@@ -100,32 +105,15 @@ class IncrSmallStrainProblem(NonlinearProblem):
             * self.dxm
         )
 
-        self._bcs = bcs
-        self._form_compiler_options = form_compiler_options
-        self._jit_options = jit_options
-
         self.incr_disp = IncrementalDisplacement(u, q_degree)
-
-    @property
-    def a(self) -> df.fem.Form:
-        """Compiled bilinear form (the Jacobian form)"""
-
-        if not hasattr(self, "_a"):
-            # ensure compilation of UFL forms
-            super().__init__(
-                self.R_form,
+        super().__init__(
+                R_form,
                 self.incr_disp.current,
-                self._bcs,
-                self.dR_form,
-                form_compiler_options=(
-                    self._form_compiler_options
-                    if self._form_compiler_options is not None
-                    else {}
-                ),
-                jit_options=self._jit_options if self._jit_options is not None else {},
+                bcs=bcs,
+                J=dR_form,
+                form_compiler_options=form_compiler_options if form_compiler_options is not None else {},
+                jit_options=jit_options if jit_options is not None else {}
             )
-
-        return self._a
 
     @df.common.timed("constitutive-form-evaluation")
     def form(self, x: PETSc.Vec) -> None:
