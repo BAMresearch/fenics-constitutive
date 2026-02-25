@@ -20,27 +20,20 @@ create_history_parameter_struct!(
         (h, (QDim::Scalar))
     ]
 );
-/// A classic Drucker-Prager plasticity model for 3D stress states.
+/// A von Mises plasticity model with linear hardening for 3D stress states. This is a duplicate
+///  implementation to test the implementation of the tangent.
 ///
-/// This struct represents the Drucker-Prager yield criterion with associated flow rule.
-/// The yield function is defined as: $f = \sqrt{J_2} + b\cdot I_1 - a$, where:
-/// - $J_2$ is the second invariant of the deviatoric stress tensor
-/// - $I_1$ is the first invariant of the stress tensor
-/// - $a$ and $b$ are material parameters that describe the yield surface.
-/// - $b_{flow}$ defines the slope of the flow rule which is equal to $b$ for associated flow. For $b=0$ the return direction is purely deviatoric (radial return algorithm)
-///
-///
-/// This struct does not implement the stress return algorithm but implements
-/// the required functions like the yield function, flow rule, etc.
-/// via the [`Plasticity`] trait. It is to be used within the [`IsotropicPlasticityModel3D`]
-/// in order to solve the plasticity problem.
+/// This struct implements the von Mises yield criterion with linear isotropic hardening.
+/// The yield function is defined as: $f = \sqrt{\frac{3}{2} s:s} - \sigma_y$, where:
+/// - $s$ is the deviatoric stress tensor
+/// - $\sigma_y = y_0 + h \cdot \alpha$ is the current yield stress
+/// - $\alpha$ is the equivalent plastic strain
 ///
 /// # Parameters
 /// - `mu`: Shear modulus
 /// - `kappa`: Bulk modulus
-/// - `a`: slope of the yield surface in $I_1,\sqrt{J_2}$ space
-/// - `b`: Yield strength at zero pressure
-/// - `b_flow`: slope of the flow-potential, use `b_flow=b` for associated flow
+/// - `y_0`: Initial yield stress
+/// - `h`: Linear hardening modulus
 #[derive(Default, Clone, Copy)]
 pub struct IsotropicMises3D {
     parameters: IsotropicMisesParameters,
