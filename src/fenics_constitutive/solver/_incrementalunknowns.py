@@ -48,6 +48,51 @@ class IncrementalDisplacement:
         )
         displacement_gradient_fn.x.scatter_forward()
 
+@dataclass(frozen=True)
+class IncrementalMixedSolution:
+    solution_0: df.fem.Function
+    solution_1: df.fem.Function
+    _expr: df.fem.Expression
+
+    @staticmethod
+    def new(mixed_function: df.fem.Function, q_degree: int) -> IncrementalMixedSolution:
+        mesh = mixed_function.function_space.mesh
+        basix_celltype = getattr(basix.CellType, mesh.topology.cell_type.name)
+        q_points, _ = basix.make_quadrature(basix_celltype, q_degree)
+        
+        solution_0 = mixed_function.copy()
+        u0 = solution_0.sub(0)
+        u1 = mixed_function.sub(0)
+        del_grad_u_expr = df.fem.Expression(
+            ufl.nabla_grad(u1 - u0), q_points
+        )
+        return IncrementalMixedSolution(
+            solution_0=solution_0,
+            solution_1=mixed_function,
+            _expr=del_grad_u_expr,
+        )
+
+    def update(self) -> None:
+        self.solution_0.x.array[:] = self.solution_1.x.array
+        self.solution_0.x.scatter_forward()
+
+    def set_current(self, x: PETSc.Vec) -> None:
+        """Copy the solution vector x into the current displacement and update ghosts."""
+        x.copy(self.solution_1.x.petsc_vec)
+        self.solution_1.x.petsc_vec.ghostUpdate(
+            addv=PETSc.InsertMode.INSERT, mode=PETSc.ScatterMode.FORWARD
+        )
+
+    def evaluate_local_incremental_gradient(
+        self, cells: np.ndarray, displacement_gradient_fn: df.fem.Function
+    ) -> None:
+        """Eval inc disp grad fun"""
+        displacement_gradient_fn.interpolate(
+            self._expr,
+            cells0=cells,
+            cells1=np.arange(cells.size, dtype=np.int32),
+        )
+        displacement_gradient_fn.x.scatter_forward()
 
 class IncrementalStress:
     __slots__ = ("_current", "_previous")
