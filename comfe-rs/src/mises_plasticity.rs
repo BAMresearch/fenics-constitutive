@@ -104,21 +104,23 @@ impl ConstitutiveModelFn<6, 2, 7, 4, 4> for MisesPlasticity3D {
         } else {
             let del_alpha = (s_tr_eq - sigma_y) / (3. * mu + h);
             let del_gamma = f64::sqrt(3. / 2.) * del_alpha;
-            let theta = 1. - (3. * mu * del_alpha) / s_tr_eq;
+            
+            let s_tr_norm = s_tr_eq * (2_f64/3_f64).sqrt();
+            let theta = 1. - (2. * mu * del_gamma) / (s_tr_norm);
 
             // Update the equivalent plastic strain
             // determine the plastic strain
-            let n = s_tr / s_tr_eq;
+            let n = s_tr / s_tr_norm;
             history_.plastic_strain += del_gamma * &n;
             history_.alpha += del_alpha;
 
-            stress_vec.copy_from(&(p_1 * &SYM_ID + theta * &s_tr));
+            stress_vec.copy_from(&(p_1 * &SYM_ID + &s_tr - (2.0*mu*del_gamma)*&n));
 
             if let Some(tangent) = tangent {
                 let theta_bar = 1.0 / (1.0 + (h / (3.0 * mu))) - (1.0 - theta);
                 let tangent_new = kappa * &SYM_ID_OUTER_SYM_ID
                     + (2.0 * mu * theta) * &PROJECTION_DEV
-                    + (2.0 * mu * theta_bar) * &n * &n.transpose();
+                    - (2.0 * mu * theta_bar) * &n * &n.transpose();
                 // Copy the tangent matrix to the output
                 *tangent = tangent_new.data.0;
             }

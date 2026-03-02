@@ -20,7 +20,7 @@ pub trait Plasticity<
         &mut self,
         sigma_0: &SVector<f64, STRESS_STRAIN>,
         sigma_1: &SVector<f64, STRESS_STRAIN>,
-        del_eps: &SVector<f64, STRESS_STRAIN>,
+        //del_eps: &SVector<f64, STRESS_STRAIN>,
         kappa: &SVector<f64, KAPPA>,
     );
     fn f(&self) -> f64;
@@ -34,7 +34,7 @@ pub trait Plasticity<
     fn dk_dkappa(&self) -> &SMatrix<f64, KAPPA, KAPPA>;
     fn elastic_tangent(&self) -> &SMatrix<f64, STRESS_STRAIN, STRESS_STRAIN>;
     fn elastic_tangent_inv(&self) -> &SMatrix<f64, STRESS_STRAIN, STRESS_STRAIN>;
-    fn del_plastic_strain(&self) -> &SVector<f64, STRESS_STRAIN>;
+    //fn del_plastic_strain(&self) -> &SVector<f64, STRESS_STRAIN>;
     fn update_newton_matrix<const N: usize>(&self, dres: &mut SMatrix<f64, N, N>, del_lambda: f64) {
         assert!(N == STRESS_STRAIN + KAPPA + 1);
         // fill dres_sigma_dsigma
@@ -123,7 +123,7 @@ impl<
         let alpha_0 = SVector::<f64, 1>::from_element(history_.alpha);
         let mut alpha_1 = alpha_0.clone();
         let mut sigma_1: SVector<f64,6>;
-        model.set_model_state(&sigma_0, &sigma_tr, &del_eps, &alpha_0);
+        model.set_model_state(&sigma_0, &sigma_tr, &alpha_0);
 
         let f = model.f();
         if f <= 0.0 {
@@ -152,7 +152,6 @@ impl<
             let mut res_f = model.f();
 
             let mut dres = SMatrix::<f64, 8, 8>::zeros();
-            model.update_newton_matrix(&mut dres, 0.0);
 
             let mut res = SVector::<f64, 8>::from([
                 res_sigma[0],
@@ -178,6 +177,9 @@ impl<
             loop {
                 sol_0 = sol_1;
 
+                //Fill the newton matrix
+                model.update_newton_matrix(&mut dres, del_lambda);
+                
                 let lu = dres.lu();
                 let result = lu.solve(&res);
                 match result {
@@ -199,11 +201,11 @@ impl<
                 alpha_prev = sol_0.fixed_view::<1, 1>(7, 0).into();
                 del_lambda_prev = sol_0[6];
 
-                model.set_model_state(&sigma_0, &sigma_1, &del_eps, &alpha_1);
-                model.update_newton_matrix(&mut dres, del_lambda);
+                //Set all states in order to evaluate the new residuals
+                model.set_model_state(&sigma_0, &sigma_1, &alpha_1);
 
                 res_sigma = &sigma_1 - &sigma_tr + del_lambda * model.elastic_tangent() * model.g();
-                res_kappa = &alpha_1 - &alpha_0 - model.k();
+                res_kappa = &alpha_1 - &alpha_0 - del_lambda * model.k();
                 res_f = model.f();
 
                 res = SVector::<f64, 8>::from([
@@ -250,8 +252,10 @@ impl<
             // Update the stress and history
             *stress = sigma_1.data.0[0];
             history_.alpha = alpha_1[0];
-            history_.plastic_strain += model.del_plastic_strain();
+            history_.plastic_strain += del_lambda * model.g();
             if let Some(tangent) = tangent {
+                //update the newton matrix in order to evaluate at t_{n+1}
+                model.update_newton_matrix(&mut dres, del_lambda);
                 let inverse = dres
                     .try_inverse()
                     .expect("Plasticity3D: Failed to calculate tangent");
