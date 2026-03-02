@@ -48,25 +48,26 @@ class IncrementalDisplacement:
         )
         displacement_gradient_fn.x.scatter_forward()
 
+
 @dataclass(frozen=True)
-class IncrementalMixedSolution:
+class IncrementalGradientSolution:
     solution_0: df.fem.Function
     solution_1: df.fem.Function
     _expr: df.fem.Expression
 
     @staticmethod
-    def new(mixed_function: df.fem.Function, q_degree: int) -> IncrementalMixedSolution:
+    def from_mixed_function(
+        mixed_function: df.fem.Function, q_degree: int
+    ) -> IncrementalGradientSolution:
         mesh = mixed_function.function_space.mesh
         basix_celltype = getattr(basix.CellType, mesh.topology.cell_type.name)
         q_points, _ = basix.make_quadrature(basix_celltype, q_degree)
-        
+
         solution_0 = mixed_function.copy()
         u0 = solution_0.sub(0)
         u1 = mixed_function.sub(0)
-        del_grad_u_expr = df.fem.Expression(
-            ufl.nabla_grad(u1 - u0), q_points
-        )
-        return IncrementalMixedSolution(
+        del_grad_u_expr = df.fem.Expression(ufl.nabla_grad(u1 - u0), q_points)
+        return IncrementalGradientSolution(
             solution_0=solution_0,
             solution_1=mixed_function,
             _expr=del_grad_u_expr,
@@ -93,6 +94,18 @@ class IncrementalMixedSolution:
             cells1=np.arange(cells.size, dtype=np.int32),
         )
         displacement_gradient_fn.x.scatter_forward()
+
+    def evaluate_nonlocal_on_quadrature_points(
+        self, cells: np.ndarray, nonlocal_qp: df.fem.Function
+    ):
+        """Eval inc disp grad fun"""
+        nonlocal_qp.interpolate(
+            self.solution_1.sub(1),
+            cells0=cells,
+            cells1=np.arange(cells.size, dtype=np.int32),
+        )
+        nonlocal_qp.x.scatter_forward()
+
 
 class IncrementalStress:
     __slots__ = ("_current", "_previous")

@@ -1,3 +1,4 @@
+from fenics_constitutive.solver._solver import SimulationTime
 from fenics_constitutive.solver._spaces import GradientElementSpaces
 from __future__ import annotations
 
@@ -20,15 +21,6 @@ from ._lawonsubmesh import LawOnSubMesh, create_law_on_submesh
 from ._spaces import ElementSpaces
 from .typesafe import fn_for
 from .utils import ufl_mandel_strain
-
-
-@dataclass(slots=True)
-class SimulationTime:
-    dt: float
-    current: float = 0
-
-    def advance(self) -> None:
-        self.current += self.dt
 
 
 class IncrSmallStrainGradientProblem(NonlinearProblem):
@@ -81,7 +73,7 @@ class IncrSmallStrainGradientProblem(NonlinearProblem):
         self.dlocal_deps = fn_for(tangent_spaces[2])
         self.dlocal_dnonlocal = fn_for(tangent_spaces[3])
 
-        self.local_quantity = 
+        self.local_quantity = fn_for(element_spaces.local_quantity_space(mesh))
         self._law_on_submeshs: list[LawOnSubMesh] = []
         self.sim_time = SimulationTime(dt=del_t)
 

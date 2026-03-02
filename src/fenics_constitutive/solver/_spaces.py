@@ -56,7 +56,7 @@ class ElementSpaces:
 
 
 @dataclass(frozen=True, slots=True)
-class GradientElementSpaces:
+class GradientElements:
     _stress_vector_element: basix.ufl._ElementBase
     _local_quantity_element: basix.ufl._ElementBase
     _dsigma_deps_element: basix.ufl._ElementBase

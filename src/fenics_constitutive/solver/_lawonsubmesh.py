@@ -1,3 +1,4 @@
+from fenics_constitutive.models.interfaces import IncrSmallStrainGradientModel
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -55,6 +56,66 @@ class LawOnSubMesh:
     submesh_map: SpaceMap
     history: History | None = None
 
+    def local_stress(self, stress: IncrementalStress) -> np.ndarray:
+        """Map the global stress to the submesh"""
+        self.submesh_map.map_to_sub(stress.previous, self.stress)
+        return self.stress.x.array
+
+    def map_to_parent(
+        self,
+        global_stress: IncrementalStress,
+        global_tangent: df.fem.Function,
+    ) -> None:
+        """Map stresses and tangents back to the main mesh"""
+        self.submesh_map.map_to_parent(self.stress, global_stress.current)
+        self.submesh_map.map_to_parent(self.local_tangent, global_tangent)
+
+    def evaluate(
+        self,
+        sim_time: SimulationTime,
+        incr_disp: IncrementalDisplacement,
+        global_stress: IncrementalStress,
+        global_tangent: df.fem.Function,
+    ) -> None:
+        """Perform a full constitutive model evaluation for this law context."""
+        incr_disp.evaluate_local_incremental_gradient(
+            self.cells, self.displacement_gradient_fn
+        )
+        history_input = (
+            self.history.reset_trial_state() if self.history is not None else None
+        )
+        with df.common.Timer("constitutive-law-evaluation"):
+            self.law.evaluate(
+                sim_time.current,
+                sim_time.dt,
+                self.displacement_gradient_fn.x.array,
+                self.local_stress(global_stress),
+                self.local_tangent.x.array,
+                history_input,
+            )
+        self.map_to_parent(global_stress, global_tangent)
+
+    def update_history(self) -> None:
+        """Update the history for this law context if it exists."""
+        if self.history is not None:
+            self.history.update()
+
+@dataclass
+class GradientLawOnSubMesh:
+    law: IncrSmallStrainGradientModel
+    cells: np.ndarray
+    displacement_gradient_fn: df.fem.Function
+    nonlocal_quantity_sub: df.fem.Function
+    local_quantity_sub: df.fem.Function
+    stress: df.fem.Function
+    dsigma_deps_sub: df.fem.Function
+    dsigma_dnonlocal_sub: df.fem.Function
+    dlocal_deps_sub: df.fem.Function
+    dlocal_dnonlocal_sub: df.fem.Function
+    submesh_map: SpaceMap
+    history: History | None = None
+    
+    
     def local_stress(self, stress: IncrementalStress) -> np.ndarray:
         """Map the global stress to the submesh"""
         self.submesh_map.map_to_sub(stress.previous, self.stress)
