@@ -1,3 +1,5 @@
+from typing import cast
+from fenics_constitutive.models.interfaces import IncrSmallStrainGradientModel
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -30,7 +32,7 @@ def build_history(
             mesh.topology.cell_name(), value_shape=value_shape, degree=q_degree
         )
         history_space = df.fem.functionspace(mesh, Q)
-        history[key] = df.fem.Function(history_space)
+        history[key] = cast(df.fem.Function, df.fem.Function(history_space))
     return history
 
 
@@ -44,7 +46,7 @@ class History:
 
     @staticmethod
     def try_create(
-        law: IncrSmallStrainModel, submesh: df.mesh.Mesh, q_degree: int
+        law: IncrSmallStrainModel | IncrSmallStrainGradientModel, submesh: df.mesh.Mesh, q_degree: int
     ) -> History | None:
         if law.history_dim is None:
             return None

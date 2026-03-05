@@ -54,6 +54,7 @@ class ElementSpaces:
     def stress_tensor_space(self, mesh: df.mesh.Mesh) -> df.fem.FunctionSpace:
         return df.fem.functionspace(mesh, self._stress_tensor_element)
 
+    
 
 @dataclass(frozen=True, slots=True)
 class GradientElements:
@@ -69,7 +70,7 @@ class GradientElements:
     @staticmethod
     def create(
         mesh: df.mesh.Mesh, constraint: StressStrainConstraint, q_degree: int
-    ) -> GradientElementSpaces:
+    ) -> GradientElements:
         gdim = mesh.geometry.dim
         stress_vector_element = basix.ufl.quadrature_element(
             mesh.topology.cell_name(),
@@ -108,7 +109,7 @@ class GradientElements:
             mesh.topology.cell_name(), value_shape=(gdim, gdim), degree=q_degree
         )
         # stress_vector_space = df.fem.functionspace(mesh, stress_vector_element)
-        return GradientElementSpaces(
+        return GradientElements(
             stress_vector_element,
             local_quantity_element,
             dsigma_deps_element,
@@ -119,7 +120,7 @@ class GradientElements:
             q_degree,
         )
 
-    def displacement_gradient_space(self, mesh: df.mesh.Mesh) -> df.fem.FunctionSpace:
+    def del_grad_u_space(self, mesh: df.mesh.Mesh) -> df.fem.FunctionSpace:
         return df.fem.functionspace(mesh, self._displacement_gradient_tensor_element)
 
     def tangent_spaces(self, mesh: df.mesh.Mesh) -> list[df.fem.FunctionSpace]:
@@ -130,8 +131,9 @@ class GradientElements:
             df.fem.functionspace(mesh, self._dlocal_dnonlocal_element),
         ]
 
-    def stress_vector_space(self, mesh: df.mesh.Mesh) -> df.fem.FunctionSpace:
+    def stress_space(self, mesh: df.mesh.Mesh) -> df.fem.FunctionSpace:
         return df.fem.functionspace(mesh, self._stress_vector_element)
+    
     def local_quantity_space(self, mesh: df.mesh.Mesh)-> df.fem.FunctionSpace:
         return df.fem.functionspace(mesh, self._local_quantity_element)
 

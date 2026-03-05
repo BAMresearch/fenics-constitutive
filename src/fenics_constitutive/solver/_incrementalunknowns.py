@@ -51,15 +51,18 @@ class IncrementalDisplacement:
 
 @dataclass(frozen=True)
 class IncrementalGradientSolution:
-    solution_0: df.fem.Function
-    solution_1: df.fem.Function
-    _expr: df.fem.Expression
+    previous: df.fem.Function
+    current: df.fem.Function
+    _del_grad_u_expr: df.fem.Expression
 
     @staticmethod
     def from_mixed_function(
         mixed_function: df.fem.Function, q_degree: int
     ) -> IncrementalGradientSolution:
-        mesh = mixed_function.function_space.mesh
+        mixed_space = mixed_function.function_space
+        assert mixed_space.num_sub_spaces == 2
+
+        mesh = mixed_space.mesh
         basix_celltype = getattr(basix.CellType, mesh.topology.cell_type.name)
         q_points, _ = basix.make_quadrature(basix_celltype, q_degree)
 
@@ -68,9 +71,9 @@ class IncrementalGradientSolution:
         u1 = mixed_function.sub(0)
         del_grad_u_expr = df.fem.Expression(ufl.nabla_grad(u1 - u0), q_points)
         return IncrementalGradientSolution(
-            solution_0=solution_0,
-            solution_1=mixed_function,
-            _expr=del_grad_u_expr,
+            previous=solution_0,
+            current=mixed_function,
+            _del_grad_u_expr=del_grad_u_expr,
         )
 
     def update(self) -> None:
@@ -108,6 +111,35 @@ class IncrementalGradientSolution:
 
 
 class IncrementalStress:
+    __slots__ = ("_current", "_previous")
+
+    def __init__(self, function_space) -> None:
+        self._current = fn_for(function_space)
+        self._previous = fn_for(function_space)
+
+    @property
+    def current(self) -> df.fem.Function:
+        return self._current
+
+    @property
+    def previous(self) -> df.fem.Function:
+        return self._previous
+
+    def current_array(self) -> np.ndarray:
+        return self.current.x.array
+
+    def update_previous(self) -> None:
+        self._previous.x.array[:] = self._current.x.array
+        self._previous.x.scatter_forward()
+
+    def update_current(self) -> None:
+        self._current.x.array[:] = self._previous.x.array
+        self._current.x.scatter_forward()
+
+    def scatter_current(self) -> None:
+        self._current.x.scatter_forward()
+
+class IncrementalLocalQuantity:
     __slots__ = ("_current", "_previous")
 
     def __init__(self, function_space) -> None:

@@ -1,3 +1,7 @@
+from fenics_constitutive.solver._lawonsubmesh import create_gradient_law_on_submesh
+from fenics_constitutive.solver._incrementalunknowns import IncrementalLocalQuantity
+from fenics_constitutive.solver._spaces import GradientElements
+from fenics_constitutive.solver._incrementalunknowns import IncrementalGradientSolution
 from fenics_constitutive.solver._solver import SimulationTime
 from fenics_constitutive.solver._spaces import GradientElementSpaces
 from __future__ import annotations
@@ -22,6 +26,13 @@ from ._spaces import ElementSpaces
 from .typesafe import fn_for
 from .utils import ufl_mandel_strain
 
+    
+@dataclass
+class NonlocalTangentFunctions:
+    dsigma_deps: df.fem.Function
+    dsigma_dnonlocal: df.fem.Function
+    dlocal_deps: df.fem.Function
+    dlocal_dnonlocal: df.fem.Function
 
 class IncrSmallStrainGradientProblem(NonlinearProblem):
     """
@@ -64,29 +75,28 @@ class IncrSmallStrainGradientProblem(NonlinearProblem):
             "All laws must have the same constraint"
         )
 
-        element_spaces = GradientElementSpaces.create(mesh, constraint, q_degree)
-        self.stress = IncrementalStress(fn_for(element_spaces.stress_vector_space(mesh)))
+        elements = GradientElements.create(mesh, constraint, q_degree)
+        self.stress = IncrementalStress(fn_for(elements.stress_space(mesh)))
+        self.local_quantity = IncrementalLocalQuantity(elements.local_quantity_space(mesh))
+        self.solution = IncrementalGradientSolution.from_mixed_function(mixed_solution, q_degree)
 
-        tangent_spaces = element_spaces.tangent_spaces(mesh)
+        u = self.solution.current.sub(0)
+        nonlocal_quantity = self.solution.current.sub(1)
+
+        tangent_spaces = elements.tangent_spaces(mesh)
         self.dsigma_deps = fn_for(tangent_spaces[0])
         self.dsigma_dnonlocal = fn_for(tangent_spaces[1])
         self.dlocal_deps = fn_for(tangent_spaces[2])
         self.dlocal_dnonlocal = fn_for(tangent_spaces[3])
 
-        self.local_quantity = fn_for(element_spaces.local_quantity_space(mesh))
         self._law_on_submeshs: list[LawOnSubMesh] = []
         self.sim_time = SimulationTime(dt=del_t)
 
         self._law_on_submeshs = [
-            create_law_on_submesh(law, local_cells, element_spaces)
+            create_gradient_law_on_submesh(law, local_cells, elements)
             for law, local_cells in laws
         ]
 
-        mixed_space = mixed_solution.function_space
-        assert mixed_space.num_sub_spaces == 2
-
-        u = mixed_solution.sub(0)
-        nonlocal_quantity = mixed_solution.sub(1)
 
         (u_test, nonlocal_test) = ufl.TestFunctions(mixed_space)
         (u_trial, nonlocal_trial) = ufl.TrialFunctions(mixed_space)
@@ -129,7 +139,6 @@ class IncrSmallStrainGradientProblem(NonlinearProblem):
             - ((self.dlocal_dnonlocal - nonlocal_trial) * nonlocal_test) * self.dxm
         )
 
-        self.incr_solution = IncrementalMixedSolution.new(mixed_solution, q_degree)
         super().__init__(
             R_form,
             mixed_solution,
