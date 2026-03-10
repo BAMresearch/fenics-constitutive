@@ -243,14 +243,18 @@ class UniaxialStrainFrom3D(IncrSmallStrainModel):
         del_t: float,
         grad_del_u: np.ndarray,
         stress: np.ndarray,
-        tangent: np.ndarray,
+        tangent: np.ndarray | None,
         history: dict[str, np.ndarray] | None,
     ) -> None:
-        self.tangent_3d = (
-            np.zeros(6 * 6 * len(grad_del_u))
-            if self.tangent_3d is None
-            else self.tangent_3d
-        )
+        current_tangent = None
+        if tangent is not None:
+            self.tangent_3d = (
+                np.zeros(6 * 6 * len(grad_del_u))
+                if self.tangent_3d is None
+                else self.tangent_3d
+            )
+            current_tangent = self.tangent_3d
+        
         self.stress_3d = (
             np.zeros(6 * len(grad_del_u)) if self.stress_3d is None else self.stress_3d
         )
@@ -264,34 +268,10 @@ class UniaxialStrainFrom3D(IncrSmallStrainModel):
         self._stress_to_3d(stress)
 
         self.model.evaluate(
-            t, del_t, self.grad_del_u_3d, self.stress_3d, self.tangent_3d, history
+            t, del_t, self.grad_del_u_3d, self.stress_3d, current_tangent, history
         )
-        self._tangent_to_1d(tangent)
-        self._stress_to_1d(stress)
-
-    def evaluate_without_tangent(
-        self,
-        t: float,
-        del_t: float,
-        grad_del_u: np.ndarray,
-        stress: np.ndarray,
-        history: dict[str, np.ndarray] | None,
-    ) -> None:
-        self.stress_3d = (
-            np.zeros(6 * len(grad_del_u)) if self.stress_3d is None else self.stress_3d
-        )
-        self.grad_del_u_3d = (
-            np.zeros(9 * len(grad_del_u))
-            if self.grad_del_u_3d is None
-            else self.grad_del_u_3d
-        )
-
-        self._grad_del_u_to_3d(grad_del_u)
-        self._stress_to_3d(stress)
-
-        self.model.evaluate_without_tangent(
-            t, del_t, self.grad_del_u_3d, self.stress_3d, history
-        )
+        if tangent is not None:
+            self._tangent_to_1d(tangent)
         self._stress_to_1d(stress)
 
     @property
@@ -354,13 +334,19 @@ class PlaneStrainFrom3D(IncrSmallStrainModel):
         del_t: float,
         grad_del_u: np.ndarray,
         stress: np.ndarray,
-        tangent: np.ndarray,
+        tangent: np.ndarray | None,
         history: dict[str, np.ndarray] | None,
     ) -> None:
         n_gauss = int(grad_del_u.size / 4)
-        self.tangent_3d = (
-            np.zeros(6 * 6 * n_gauss) if self.tangent_3d is None else self.tangent_3d
-        )
+        current_tangent = None
+        if tangent is not None:
+            self.tangent_3d = (
+                np.zeros(6 * 6 * n_gauss)
+                if self.tangent_3d is None
+                else self.tangent_3d
+            )
+            current_tangent = self.tangent_3d
+            
         self.stress_3d = (
             np.zeros(6 * n_gauss) if self.stress_3d is None else self.stress_3d
         )
@@ -372,35 +358,11 @@ class PlaneStrainFrom3D(IncrSmallStrainModel):
         self._stress_to_3d(stress)
 
         self.model.evaluate(
-            t, del_t, self.grad_del_u_3d, self.stress_3d, self.tangent_3d, history
+            t, del_t, self.grad_del_u_3d, self.stress_3d, current_tangent, history
         )
-        self._tangent_to_2d(tangent)
+        if tangent is not None:
+            self._tangent_to_2d(tangent)
         self._stress_to_2d(stress)
-
-    def evaluate_without_tangent(
-        self,
-        time: float,
-        del_t: float,
-        grad_del_u: np.ndarray,
-        mandel_stress: np.ndarray,
-        history: dict[str, np.ndarray] | None,
-    ) -> None:
-        n_gauss = int(grad_del_u.size / 4)
-
-        self.stress_3d = (
-            np.zeros(6 * n_gauss) if self.stress_3d is None else self.stress_3d
-        )
-        self.grad_del_u_3d = (
-            np.zeros(9 * n_gauss) if self.grad_del_u_3d is None else self.grad_del_u_3d
-        )
-
-        self._grad_del_u_to_3d(grad_del_u)
-        self._stress_to_3d(mandel_stress)
-
-        self.model.evaluate_without_tangent(
-            time, del_t, self.grad_del_u_3d, self.stress_3d, history
-        )
-        self._stress_to_2d(mandel_stress)
 
     @property
     def history_dim(self) -> dict[str, int | tuple[int, int]] | None:

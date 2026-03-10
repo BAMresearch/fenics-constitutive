@@ -39,7 +39,7 @@ class LinearElasticityModel(IncrSmallStrainModel):
         )
         n_gauss = grad_del_u.size // (self.geometric_dim**2)
         if tangent is not None:
-            assert grad_del_u.size // (self.geometric_dim**2) == tangent.size // (self.stress_strain_dim**2)
+            assert n_gauss == tangent.size // (self.stress_strain_dim**2)
             tangent[:] = np.tile(self.D.flatten(), n_gauss)
 
         mandel_view = stress.reshape(-1, self.stress_strain_dim)
