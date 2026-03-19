@@ -103,7 +103,7 @@ class IncrementalGradientSolution:
     ):
         """Eval inc disp grad fun"""
         nonlocal_qp.interpolate(
-            self.solution_1.sub(1),
+            self.current.sub(1),
             cells0=cells,
             cells1=np.arange(cells.size, dtype=np.int32),
         )

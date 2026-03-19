@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
 
+import dolfinx as df
 import numpy as np
 
 __all__ = [
@@ -143,6 +144,23 @@ class IncrSmallStrainModel(ABC):
             The dimension of the history variable(s).
         """
 
+
+@dataclass
+class NonlocalTangentFunctions:
+    dsigma_deps: df.fem.Function
+    dsigma_dnonlocal: df.fem.Function
+    dlocal_deps: df.fem.Function
+    dlocal_dnonlocal: df.fem.Function
+
+    def to_nonlocal_tangents(self) -> NonlocalTangents:
+        return NonlocalTangents(
+            dsigma_deps=self.dsigma_deps.x.array,
+            dsigma_dnonlocal=self.dsigma_dnonlocal.x.array,
+            dlocal_deps=self.dlocal_deps.x.array,
+            dlocal_dnonlocal=self.dlocal_dnonlocal.x.array,
+        )
+
+
 @dataclass
 class NonlocalTangents:
     dsigma_deps: np.ndarray
@@ -150,11 +168,12 @@ class NonlocalTangents:
     dlocal_deps: np.ndarray
     dlocal_dnonlocal: np.ndarray
 
+
 class IncrSmallStrainGradientModel(ABC):
     """
     Interface for incremental small strain models with gradient plasticity and/or damage formulation.
     """
-    
+
     @abstractmethod
     def evaluate(
         self,

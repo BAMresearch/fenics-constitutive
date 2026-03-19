@@ -1,9 +1,4 @@
-from fenics_constitutive.solver._lawonsubmesh import create_gradient_law_on_submesh
-from fenics_constitutive.solver._incrementalunknowns import IncrementalLocalQuantity
-from fenics_constitutive.solver._spaces import GradientElements
-from fenics_constitutive.solver._incrementalunknowns import IncrementalGradientSolution
-from fenics_constitutive.solver._solver import SimulationTime
-from fenics_constitutive.solver._spaces import GradientElementSpaces
+from fenics_constitutive.solver._lawonsubmesh import GradientLawOnSubMesh
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -17,8 +12,16 @@ from petsc4py import PETSc
 
 from fenics_constitutive.models.interfaces import (
     IncrSmallStrainGradientModel,
+    NonlocalTangentFunctions,
+    NonlocalTangents,
 )
-from fenics_constitutive.solver._incrementalunknowns import IncrementalMixedSolution
+from fenics_constitutive.solver._incrementalunknowns import (
+    IncrementalGradientSolution,
+    IncrementalLocalQuantity,
+)
+from fenics_constitutive.solver._lawonsubmesh import create_gradient_law_on_submesh
+from fenics_constitutive.solver._solver import SimulationTime
+from fenics_constitutive.solver._spaces import GradientElements, GradientElementSpaces
 
 from ._incrementalunknowns import IncrementalDisplacement, IncrementalStress
 from ._lawonsubmesh import LawOnSubMesh, create_law_on_submesh
@@ -26,13 +29,6 @@ from ._spaces import ElementSpaces
 from .typesafe import fn_for
 from .utils import ufl_mandel_strain
 
-    
-@dataclass
-class NonlocalTangentFunctions:
-    dsigma_deps: df.fem.Function
-    dsigma_dnonlocal: df.fem.Function
-    dlocal_deps: df.fem.Function
-    dlocal_dnonlocal: df.fem.Function
 
 class IncrSmallStrainGradientProblem(NonlinearProblem):
     """
@@ -59,6 +55,7 @@ class IncrSmallStrainGradientProblem(NonlinearProblem):
         mixed_solution: df.fem.Function,
         bcs: list[df.fem.DirichletBC],
         q_degree: int,
+        l: float,
         del_t: float = 1.0,
         external_forces: list[ufl.Form] | None = None,
         form_compiler_options: dict | None = None,
@@ -77,29 +74,36 @@ class IncrSmallStrainGradientProblem(NonlinearProblem):
 
         elements = GradientElements.create(mesh, constraint, q_degree)
         self.stress = IncrementalStress(fn_for(elements.stress_space(mesh)))
-        self.local_quantity = IncrementalLocalQuantity(elements.local_quantity_space(mesh))
-        self.solution = IncrementalGradientSolution.from_mixed_function(mixed_solution, q_degree)
+        self.local_quantity = IncrementalLocalQuantity(
+            elements.local_quantity_space(mesh)
+        )
+        self.solution = IncrementalGradientSolution.from_mixed_function(
+            mixed_solution, q_degree
+        )
 
         u = self.solution.current.sub(0)
         nonlocal_quantity = self.solution.current.sub(1)
 
         tangent_spaces = elements.tangent_spaces(mesh)
-        self.dsigma_deps = fn_for(tangent_spaces[0])
-        self.dsigma_dnonlocal = fn_for(tangent_spaces[1])
-        self.dlocal_deps = fn_for(tangent_spaces[2])
-        self.dlocal_dnonlocal = fn_for(tangent_spaces[3])
+        self.tangents = NonlocalTangentFunctions(
+            dsigma_deps=fn_for(tangent_spaces[0]),
+            dsigma_dnonlocal=fn_for(tangent_spaces[1]),
+            dlocal_deps=fn_for(tangent_spaces[2]),
+            dlocal_dnonlocal=fn_for(tangent_spaces[3]),
+        )
 
-        self._law_on_submeshs: list[LawOnSubMesh] = []
+        self._law_on_submeshs: list[GradientLawOnSubMesh] = []
         self.sim_time = SimulationTime(dt=del_t)
 
         self._law_on_submeshs = [
-            create_gradient_law_on_submesh(law, local_cells, elements)
+            create_gradient_law_on_submesh(
+                law, local_cells, elements, self.stress.current.function_space
+            )
             for law, local_cells in laws
         ]
 
-
-        (u_test, nonlocal_test) = ufl.TestFunctions(mixed_space)
-        (u_trial, nonlocal_trial) = ufl.TrialFunctions(mixed_space)
+        (u_test, nonlocal_test) = ufl.TestFunctions(mixed_solution.function_space)
+        (u_trial, nonlocal_trial) = ufl.TrialFunctions(mixed_solution.function_space)
 
         self.metadata = {"quadrature_degree": q_degree, "quadrature_scheme": "default"}
         self.dxm = ufl.dx(metadata=self.metadata)
@@ -120,23 +124,31 @@ class IncrSmallStrainGradientProblem(NonlinearProblem):
             (
                 ufl.inner(
                     ufl_mandel_strain(u_trial, constraint),
-                    ufl.dot(self.dsigma_deps, ufl_mandel_strain(u_test, constraint)),
+                    ufl.dot(
+                        self.tangents.dsigma_deps, ufl_mandel_strain(u_test, constraint)
+                    ),
                 )
             )
             * self.dxm
             + (
-                ufl.inner(ufl_mandel_strain(u_test, constraint), self.dsigma_dnonlocal)
+                ufl.inner(
+                    ufl_mandel_strain(u_test, constraint),
+                    self.tangents.dsigma_dnonlocal,
+                )
                 * nonlocal_trial
             )
             * self.dxm
             - (
                 nonlocal_test
-                * ufl.inner(self.dlocal_deps, ufl_mandel_strain(u_trial, constraint))
+                * ufl.inner(
+                    self.tangents.dlocal_deps, ufl_mandel_strain(u_trial, constraint)
+                )
             )
             * self.dxm
             + (l**2 * ufl.inner(ufl.grad(nonlocal_trial), ufl.grad(nonlocal_test)))
             * self.dxm
-            - ((self.dlocal_dnonlocal - nonlocal_trial) * nonlocal_test) * self.dxm
+            - ((self.tangents.dlocal_dnonlocal - nonlocal_trial) * nonlocal_test)
+            * self.dxm
         )
 
         super().__init__(
@@ -161,21 +173,21 @@ class IncrSmallStrainGradientProblem(NonlinearProblem):
 
         """
         super().form(x)
-        self.incr_disp.update_current(x)
+        self.solution.set_current(x)
 
         for law in self._law_on_submeshs:
-            law.evaluate(self.sim_time, self.incr_disp, self.stress, self.tangent)
+            law.evaluate(self.sim_time, self.solution, self.stress, self.local_quantity, self.tangents)
 
-        self.stress.scatter_current()
-        self.tangent.x.scatter_forward()
+        self.stress.scatter_current() #TODO: this scattering may not be needed because we scatter already in map_to_parent 
+        
 
     def update(self) -> None:
         """
         Update the current displacement, stress and history.
         """
-        self.incr_disp.update_previous()
+        self.solution.update()
         self.stress.update_previous()
-
+        self.local_quantity.update_previous()
         for law in self._law_on_submeshs:
             law.update_history()
 
@@ -203,11 +215,11 @@ class IncrSmallStrainGradientProblem(NonlinearProblem):
 
     @property
     def _u(self) -> df.fem.Function:
-        return self.incr_disp.current
+        return self.solution.current.sub(0)
 
     @property
     def _u0(self) -> df.fem.Function:
-        return self.incr_disp.previous
+        return self.solution.previous.sub(0)
 
     @property
     def stress_0(self) -> df.fem.Function:
