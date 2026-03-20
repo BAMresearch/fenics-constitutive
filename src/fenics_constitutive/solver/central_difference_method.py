@@ -45,7 +45,7 @@ class CDMSolver:
             if del_t is not None
             else critical_timestep(laws, density, u0)
         )
-        self.problem.sim_time = SimulationTime(dt=self.del_t_crit.min() * safety_factor)
+        self.problem.sim_time.set_timestep(self.del_t_crit.min() * safety_factor)
         
         self.problem.incr_disp.current.x.array[:] = u0.x.array[:]
         self.problem.incr_disp.current.x.scatter_forward()

@@ -20,11 +20,33 @@ from .utils import ufl_mandel_strain
 
 @dataclass(slots=True)
 class SimulationTime:
-    dt: float
-    current: float = 0
+    """
+    Class to keep track of the simulation time and time step.
+
+    Attributes:
+        dt_max: The timestep set by the user. It is supposed to represent the time for the loadsteps and cannot be changed by the solver.
+        dt: The current time step set by the solver.
+        current: The current simulation time.
+    """
+    dt_max: float
+    dt: float = 0.0
+    current: float = 0.0
+    
+    def __post_init__(self):
+        if self.dt == 0.0:
+            self.dt = self.dt_max
 
     def advance(self) -> None:
+        """
+        Advance the simulation time by the current time step.
+        """
         self.current += self.dt
+    
+    def set_timestep(self, dt: float) -> None:
+        """
+        Set the current time step. It will only be set if it is smaller then `self.dt_max`
+        """
+        self.dt = dt if dt < self.dt_max else self.dt_max
 
 
 class IncrSmallStrainProblem(NonlinearProblem):
@@ -78,7 +100,7 @@ class IncrSmallStrainProblem(NonlinearProblem):
         self.tangent = fn_for(element_spaces.stress_tensor_space(mesh))
 
         self._law_on_submeshs: list[LawOnSubMesh] = []
-        self.sim_time = SimulationTime(dt=del_t)
+        self.sim_time = SimulationTime(dt_max=del_t)
 
         self._law_on_submeshs = [
             create_law_on_submesh(law, local_cells, element_spaces)
