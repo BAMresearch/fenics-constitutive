@@ -20,11 +20,35 @@ from .utils import ufl_mandel_strain
 
 @dataclass(slots=True)
 class SimulationTime:
-    dt: float
-    current: float = 0
+    r"""
+    Class to keep track of the simulation time and time step.
+
+    Attributes:
+        dt_max: The timestep set by the user. It is supposed to represent the maximal allowed time
+            for the loadsteps and cannot be changed by the solver.
+        dt: The current time step set by the solver with $\Delta t \le Delta t_\mathrm{max}$.
+            For quasi-static simulations this is identical to $\Delta t_\mathrm{max}$
+        current: The current simulation time.
+    """
+    dt_max: float
+    dt: float = 0.0
+    current: float = 0.0
+    
+    def __post_init__(self):
+        if self.dt == 0.0:
+            self.dt = self.dt_max
 
     def advance(self) -> None:
+        """
+        Advance the simulation time by the current time step.
+        """
         self.current += self.dt
+    
+    def set_timestep(self, dt: float) -> None:
+        """
+        Set the current time step. It will only be set if it is smaller then `self.dt_max`
+        """
+        self.dt = dt if dt < self.dt_max else self.dt_max
 
 
 class IncrSmallStrainProblem(NonlinearProblem):
@@ -39,16 +63,13 @@ class IncrSmallStrainProblem(NonlinearProblem):
         u: The displacement field. This is the unknown in the nonlinear problem.
         bcs: The Dirichlet boundary conditions.
         q_degree: The quadrature degree (Polynomial degree which the quadrature rule needs to integrate exactly).
-        del_t: The time increment.
+        del_t: The maximal allowed time increment between steps. This is relevant if an explicit solver is used or if the 
+            material model depends on the time, e.g. viscoelasticity. The actually used timestep may be overwritten by
+            the solver if convergence issues occur or if the critical timestep is smaller.
+        external_forces: The external forces applied to the system. This should be a list of ufl Forms which are subtracted from the residual. 
+            The user can use this to apply body forces or Neumann boundary conditions.
         form_compiler_options: The options for the form compiler.
         jit_options: The options for the JIT compiler.
-
-    Note:
-        If `super().__init__(R, u, bcs, dR)` is called within the __init__ method,
-        the user cannot add Neumann BCs. Therefore, the compilation (i.e. call to
-        `super().__init__()`) is done when `df.nls.petsc.NewtonSolver` is initialized.
-        The solver will call `self._A = fem.petsc.create_matrix(problem.a)` and hence
-        we override the property ``a`` of NonlinearProblem to ensure that the form is compiled.
     """
 
     def __init__(
@@ -78,7 +99,7 @@ class IncrSmallStrainProblem(NonlinearProblem):
         self.tangent = fn_for(element_spaces.stress_tensor_space(mesh))
 
         self._law_on_submeshs: list[LawOnSubMesh] = []
-        self.sim_time = SimulationTime(dt=del_t)
+        self.sim_time = SimulationTime(dt_max=del_t)
 
         self._law_on_submeshs = [
             create_law_on_submesh(law, local_cells, element_spaces)
@@ -126,17 +147,31 @@ class IncrSmallStrainProblem(NonlinearProblem):
 
         """
         super().form(x)
-        self.incr_disp.update_current(x)
 
+        self.incr_disp.update_current(x)
+        self.form_without_petsc(evaluate_tangent=True)
+
+    def form_without_petsc(self, evaluate_tangent: bool)-> None:
+        """
+        This function should be used when the solver does not require PETSc. We assume that the current solution
+        is stored in `self.incr_displ`.
+        
+        Args:
+            evaluate_tangent: Whether to evaluate the tangent. If `False`, the old values in `self.tangent` will be used. 
+        """
+        tangent = self.tangent if evaluate_tangent else None
         for law in self._law_on_submeshs:
-            law.evaluate(self.sim_time, self.incr_disp, self.stress, self.tangent)
+            law.evaluate(self.sim_time, self.incr_disp, self.stress, tangent)
 
         self.stress.scatter_current()
         self.tangent.x.scatter_forward()
-
+        
     def update(self) -> None:
         """
         Update the current displacement, stress and history.
+        Any sensor evaluations that require you to know the current and 
+        the previous state should be done before calling this function, 
+        as it will update the previous state to the current state.
         """
         self.incr_disp.update_previous()
         self.stress.update_previous()

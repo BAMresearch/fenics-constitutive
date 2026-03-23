@@ -97,6 +97,11 @@ def test_uniaxial_stress():
     ],
 )
 def test_uniaxial_stress_two_laws(factor: float):
+    """
+    Test that when we have two submeshes with different Young's moduli, 
+    the stress is homogenous and the strain is inversely proportional 
+    to the Young's modulus.
+    """
     mesh = df.mesh.create_unit_interval(MPI.COMM_WORLD, 2)
     V = df.fem.functionspace(mesh, ("CG", 1))
     u = df.fem.Function(V)
@@ -150,7 +155,8 @@ def test_uniaxial_stress_two_laws(factor: float):
 
     # Does the stiffer element have a proportionally lower strain?
     assert abs(
-        problem._del_grad_u[0].x.array[0] - factor * problem._del_grad_u[1].x.array[0]
+        problem._del_grad_u[0].x.array[0]
+        - factor * problem._del_grad_u[1].x.array[0]
     ) < 1e-10 / abs(problem._del_grad_u[0].x.array[0])
 
 
