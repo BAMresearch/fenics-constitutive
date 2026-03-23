@@ -30,12 +30,16 @@ class IncrementalDisplacement:
         self.previous.x.array[:] = self.current.x.array
         self.previous.x.scatter_forward()
 
-    def update_current(self, x: np.ndarray) -> None:
+    def update_current(self, x: PETSc.Vec | np.ndarray) -> None:
         """Copy the solution vector x into the current displacement and update ghosts."""
-        x.copy(self.current.x.petsc_vec)
-        self.current.x.petsc_vec.ghostUpdate(
-            addv=PETSc.InsertMode.INSERT, mode=PETSc.ScatterMode.FORWARD
-        )
+        if isinstance(x,PETSc.Vec):
+            x.copy(self.current.x.petsc_vec)
+            self.current.x.petsc_vec.ghostUpdate(
+                addv=PETSc.InsertMode.INSERT, mode=PETSc.ScatterMode.FORWARD
+            )
+        elif isinstance(x, np.ndarray):
+            self.current.x.array[:] = x
+            self.current.x.scatter_forward()
 
     def evaluate_local_incremental_gradient(
         self, cells: np.ndarray, displacement_gradient_fn: df.fem.Function

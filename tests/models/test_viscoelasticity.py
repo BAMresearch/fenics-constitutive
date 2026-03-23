@@ -91,7 +91,9 @@ def test_relaxation_uniaxial_stress(mat: IncrSmallStrainModel):
         disp.append(u.x.array[-1])
         stress.append(problem.stress_1.x.array[-1])
         strain.append(problem._history_1[0]["strain"].x.array[-1])
-        viscostrain.append(problem._history_1[0]["strain_visco"].x.array[-1])
+        viscostrain.append(
+            problem._history_1[0]["strain_visco"].x.array[-1]
+        )
 
     # print("0", time[0], disp[0], stress[0], strain[0], viscostrain[0])
     # print("end", time[-1], disp[-1], stress[-1], strain[-1], viscostrain[-1])
@@ -253,7 +255,9 @@ def test_relaxation(dim: int, mat: IncrSmallStrainModel):
         disp.append(u.x.array.max())
         stress.append(problem.stress_1.x.array.max())
         strain.append(problem._history_1[0]["strain"].x.array.max())
-        viscostrain.append(problem._history_1[0]["strain_visco"].x.array.max())
+        viscostrain.append(
+            problem._history_1[0]["strain_visco"].x.array.max()
+        )
 
     print(disp[-1], stress[0], stress[-1], strain[0], viscostrain[0], viscostrain[-1])
 
@@ -499,7 +503,9 @@ def test_creep(dim: int, mat: IncrSmallStrainModel):
         disp.append(u.x.array.max())
         stress.append(problem.stress_1.x.array.max())
         strain.append(problem._history_1[0]["strain"].x.array.max())
-        viscostrain.append(problem._history_1[0]["strain_visco"].x.array.max())
+        viscostrain.append(
+            problem._history_1[0]["strain_visco"].x.array.max()
+        )
 
     print(disp[-1], stress[0], stress[-1], strain[0], viscostrain[0], viscostrain[-1])
 

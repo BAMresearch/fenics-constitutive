@@ -7,6 +7,7 @@ from fenics_constitutive._bindings import (
     PyDruckerPragerHyperbolic3D,
     PyLinearElasticity3D,
     PyMisesPlasticity3D,
+    PyIsotropicMises3D,
 )
 
 from .interfaces import IncrSmallStrainModel, StressStrainConstraint
@@ -143,6 +144,27 @@ class DruckerPragerHyperbolic3D(IncrSmallStrainModel):
 
 @fenics_constitutive_wrapper(PyMisesPlasticity3D)
 class MisesPlasticityLinearHardening3D(IncrSmallStrainModel):
+    r"""
+    A von Mises plasticity model with linear hardening for 3D stress states.
+
+    This class implements the von Mises yield criterion with linear isotropic hardening.
+    The yield function is defined as: $f = \sqrt{3/2 \cdot s:s} - \sigma_y$, where:
+     
+    - $s$ is the deviatoric stress tensor
+    - $\sigma_y = y_0 + h \cdot \alpha$ is the current yield stress
+    - $\alpha$ is the equivalent plastic strain
+
+    Args:
+        parameters (dict[str, np.ndarray]): A dictionary containing:
+            
+            - "mu": Shear modulus
+            - "kappa": Bulk modulus
+            - "y_0": Initial yield stress
+            - "h": Linear hardening modulus
+    """
+
+@fenics_constitutive_wrapper(PyIsotropicMises3D)
+class IsotropicMises3D(IncrSmallStrainModel):
     """
     A von Mises plasticity model with linear hardening for 3D stress states.
 

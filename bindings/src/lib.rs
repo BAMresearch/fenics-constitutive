@@ -1,7 +1,7 @@
 use comfe::interfaces::*;
 use comfe::linear_elasticity::LinearElasticity3D;
 use comfe::mises_plasticity::MisesPlasticity3D;
-use comfe::plasticity::{DruckerPrager3D, DruckerPragerHyperbolic3D, IsotropicPlasticityModel3D};
+use comfe::plasticity::{DruckerPrager3D, DruckerPragerHyperbolic3D, IsotropicMises3D, IsotropicPlasticityModel3D};
 use pyo3::prelude::*;
 
 use numpy::{PyReadonlyArray1, PyReadwriteArray1};
@@ -146,6 +146,10 @@ macro_rules! implement_python_model {
             pub fn constraint(&self) -> StressStrainConstraint {
                 $constr
             }
+
+            pub fn print_parameters(&self) {
+                println!("{:?}", self.parameters)
+            }
         }
         $m.add_class::<$name>()?;
     };
@@ -174,7 +178,13 @@ fn _bindings(m: &Bound<'_, PyModule>) -> PyResult<()> {
     implement_python_model!(
         m,
         PyDruckerPragerHyperbolic3D,
-        IsotropicPlasticityModel3D<6,6, DruckerPragerHyperbolic3D>,
+        IsotropicPlasticityModel3D<7,7, DruckerPragerHyperbolic3D>,
+        StressStrainConstraint::FULL
+    );
+    implement_python_model!(
+        m,
+        PyIsotropicMises3D,
+        IsotropicPlasticityModel3D<4,4, IsotropicMises3D>,
         StressStrainConstraint::FULL
     );
 
