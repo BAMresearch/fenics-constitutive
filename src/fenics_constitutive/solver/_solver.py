@@ -20,12 +20,14 @@ from .utils import ufl_mandel_strain
 
 @dataclass(slots=True)
 class SimulationTime:
-    """
+    r"""
     Class to keep track of the simulation time and time step.
 
     Attributes:
-        dt_max: The timestep set by the user. It is supposed to represent the time for the loadsteps and cannot be changed by the solver.
-        dt: The current time step set by the solver.
+        dt_max: The timestep set by the user. It is supposed to represent the maximal allowed time
+            for the loadsteps and cannot be changed by the solver.
+        dt: The current time step set by the solver with $\Delta t \le Delta t_\mathrm{max}$.
+            For quasi-static simulations this is identical to $\Delta t_\mathrm{max}$
         current: The current simulation time.
     """
     dt_max: float
