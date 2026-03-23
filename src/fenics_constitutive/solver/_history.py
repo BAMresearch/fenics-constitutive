@@ -1,14 +1,16 @@
-from typing import cast
-from fenics_constitutive.models.interfaces import IncrSmallStrainGradientModel
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import cast
 
 import basix.ufl
 import dolfinx as df
 import numpy as np
 
-from fenics_constitutive.models.interfaces import IncrSmallStrainModel
+from fenics_constitutive.models.interfaces import (
+    IncrSmallStrainGradientModel,
+    IncrSmallStrainModel,
+)
 
 
 def build_history(
