@@ -1,9 +1,12 @@
 from dataclasses import dataclass
-import numpy as np
-from scipy.linalg import logm, expm
-from ._lawonsubmesh import LawOnSubMesh, IncrementalDisplacement, IncrementalStress
-from ._solver import SimulationTime
+
 import dolfinx as df
+import numpy as np
+from scipy.linalg import expm, logm
+
+from ._lawonsubmesh import IncrementalDisplacement, IncrementalStress, LawOnSubMesh
+from ._solver import SimulationTime
+
 
 @dataclass
 class CorotationalLawOnSubMesh(LawOnSubMesh):
