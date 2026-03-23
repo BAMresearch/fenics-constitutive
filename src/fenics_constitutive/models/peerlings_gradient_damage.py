@@ -16,6 +16,7 @@ class PeerlingsGradientDamage(IncrSmallStrainGradientModel):
         self._constraint = constraint
         self.C = get_elastic_tangent(parameters["E"], parameters["nu"], constraint)
 
+    
     def evaluate(
         self,
         t: float,
@@ -41,7 +42,7 @@ class PeerlingsGradientDamage(IncrSmallStrainGradientModel):
         assert history is not None
 
         total_strain = strain_from_grad_u(grad_del_u, self._constraint) + history["total_strain"].reshape(-1, self.stress_strain_dim)
-        
+
         def omega(eps_eq: np.ndarray)->np.ndarray:
             return eps_eq
 
