@@ -61,7 +61,9 @@ class IncrSmallStrainProblem(NonlinearProblem):
         u: The displacement field. This is the unknown in the nonlinear problem.
         bcs: The Dirichlet boundary conditions.
         q_degree: The quadrature degree (Polynomial degree which the quadrature rule needs to integrate exactly).
-        del_t: The time increment.
+        del_t: The maximal allowed time increment between steps. This is relevant if an explicit solver is used or if the 
+            material model depends on the time, e.g. viscoelasticity. The actually used timestep may be overwritten by
+            the solver if convergence issues occur or if the critical timestep is smaller.
         external_forces: The external forces applied to the system. This should be a list of ufl Forms which are subtracted from the residual. 
             The user can use this to apply body forces or Neumann boundary conditions.
         form_compiler_options: The options for the form compiler.

@@ -1,10 +1,13 @@
 from __future__ import annotations
+
 import dolfinx as df
+from dolfinx.fem.petsc import NonlinearProblem
 from petsc4py import PETSc
+
+from ._mesh_update import MeshUpdater
 from ._solver import IncrSmallStrainProblem
 from .corotational_lawonsubmesh import CorotationalLawOnSubMesh
-from ._mesh_update import MeshUpdater
-from dolfinx.fem.petsc import NonlinearProblem
+
 
 class CorotationalIncrSmallStrainProblem(IncrSmallStrainProblem):
     """
@@ -13,6 +16,21 @@ class CorotationalIncrSmallStrainProblem(IncrSmallStrainProblem):
 
     This subclass reuses all core functionality of the base solver and
     overrides only the initialization and `form` method.
+    
+    Args:
+        laws: A list of tuples where the first element is the constitutive law and the second
+            element is the cells for the submesh. If only one law is provided, it is assumed
+            that the domain is homogenous. The cell indices should be local indices of the MPI-process.
+        u: The displacement field. This is the unknown in the nonlinear problem.
+        bcs: The Dirichlet boundary conditions.
+        q_degree: The quadrature degree (Polynomial degree which the quadrature rule needs to integrate exactly).
+        del_t: The maximal allowed time increment between steps. This is relevant if an explicit solver is used or if the 
+            material model depends on the time, e.g. viscoelasticity. The actually used timestep may be overwritten by
+            the solver if convergence issues occur or if the critical timestep is smaller.
+        external_forces: The external forces applied to the system. This should be a list of ufl Forms which are subtracted from the residual. 
+            The user can use this to apply body forces or Neumann boundary conditions.
+        form_compiler_options: The options for the form compiler.
+        jit_options: The options for the JIT compiler.
     """
 
     def __init__(self, *args, **kwargs) -> None:
@@ -21,10 +39,6 @@ class CorotationalIncrSmallStrainProblem(IncrSmallStrainProblem):
 
         self.mesh_updater = MeshUpdater(self.incr_disp)
         self._check_spatial_dimension_3d()
-        # self._check_isoparametric() # already done in the creation of mesh updater
-
-        # Reference configuration
-        # self._X_ref = self._u.function_space.mesh.geometry.x.copy()
 
         # Replace each base LawOnSubMesh with its corotational variant
         # while preserving all submesh data and function references
@@ -75,7 +89,10 @@ class CorotationalIncrSmallStrainProblem(IncrSmallStrainProblem):
         """
         gdim = self._u.function_space.mesh.geometry.dim
         if gdim != 3:
-            raise NotImplementedError(
+            msg = (
                 f"CorotationalIncrSmallStrainProblem currently supports only 3D "
                 f"geometries (gdim=3). Got gdim={gdim}."
+            )
+            raise NotImplementedError(
+                msg
             )
