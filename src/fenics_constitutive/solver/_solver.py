@@ -62,15 +62,10 @@ class IncrSmallStrainProblem(NonlinearProblem):
         bcs: The Dirichlet boundary conditions.
         q_degree: The quadrature degree (Polynomial degree which the quadrature rule needs to integrate exactly).
         del_t: The time increment.
+        external_forces: The external forces applied to the system. This should be a list of ufl Forms which are subtracted from the residual. 
+            The user can use this to apply body forces or Neumann boundary conditions.
         form_compiler_options: The options for the form compiler.
         jit_options: The options for the JIT compiler.
-
-    Note:
-        If `super().__init__(R, u, bcs, dR)` is called within the __init__ method,
-        the user cannot add Neumann BCs. Therefore, the compilation (i.e. call to
-        `super().__init__()`) is done when `df.nls.petsc.NewtonSolver` is initialized.
-        The solver will call `self._A = fem.petsc.create_matrix(problem.a)` and hence
-        we override the property ``a`` of NonlinearProblem to ensure that the form is compiled.
     """
 
     def __init__(
@@ -155,7 +150,10 @@ class IncrSmallStrainProblem(NonlinearProblem):
     def form_without_petsc(self, evaluate_tangent: bool)-> None:
         """
         This function should be used when the solver does not require PETSc. We assume that the current solution
-        is stored in `self.incr_displ`
+        is stored in `self.incr_displ`.
+        
+        Args:
+            evaluate_tangent: Whether to evaluate the tangent. If `False`, the old values in `self.tangent` will be used. 
         """
         tangent = self.tangent if evaluate_tangent else None
         for law in self._law_on_submeshs:
@@ -167,6 +165,9 @@ class IncrSmallStrainProblem(NonlinearProblem):
     def update(self) -> None:
         """
         Update the current displacement, stress and history.
+        Any sensor evaluations that require you to know the current and 
+        the previous state should be done before calling this function, 
+        as it will update the previous state to the current state.
         """
         self.incr_disp.update_previous()
         self.stress.update_previous()

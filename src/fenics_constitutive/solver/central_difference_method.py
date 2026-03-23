@@ -20,6 +20,21 @@ from ._solver import IncrSmallStrainProblem
 
 
 class CDMSolver:
+    """
+    Class to solve the incremental small strain problem using the central difference method.
+
+    Args:
+        problem: The incremental small strain problem to be solved.
+        density: The density of the material. This is either a single 
+            value for a homogenous domain or a list of values for each submesh.
+        u0: The initial displacement. This is used to set the initial condition for the solver.
+        v0: The initial velocity. This is used to set the initial condition for the solver.
+        safety_factor: The safety factor for the time step. The time step is set to the critical 
+            time step multiplied by the safety factor. This should be a value between 0 and 1.
+        del_t: The time step. If this is not provided, the critical time step will be calculated based
+            on the material properties and the mesh size.
+    """
+
     def __init__(
         self,
         problem: IncrSmallStrainProblem,
@@ -61,7 +76,7 @@ class CDMSolver:
         )
 
     def step(self) -> None:
-        # self._move_mesh_previous_to_midpoint()
+        r"""Advance the solution by $\Delta t$"""
 
         df.fem.assemble_vector(self.f.x.array, self.problem.L)
         self.f.x.scatter_reverse(df.la.InsertMode.add)
@@ -84,56 +99,6 @@ class CDMSolver:
         self.problem.form_without_petsc(evaluate_tangent=False)
 
 
-# class CorotationalCDMSolver:
-#     def __init__(
-#         self,
-#         problem: IncrSmallStrainProblem,
-#         density: list[float] | float,
-#         v: df.fem.Function,
-#         safety_factor: float,
-#         del_t: float | None = None,
-#     ) -> None:
-#         self.problem = problem
-#         mesh = problem._u.function_space.mesh
-#         map_c = mesh.topology.index_map(mesh.topology.dim)
-#         num_cells = map_c.size_local + map_c.num_ghosts
-
-#         density = [density] if isinstance(density, float) else density
-
-#         laws = [(law.law, law.cells) for law in problem._law_on_submeshs]
-#         assert len(density) == len(laws)
-
-#         self.del_t_crit = (
-#             np.array([del_t])
-#             if del_t is not None
-#             else critical_timestep(laws, density, v)
-#         )
-#         self.sim_time = SimulationTime(dt=self.del_t_crit.min() * safety_factor)
-
-#         self.f = v.copy()
-#         self.a = v.copy()
-#         self.v = v
-
-#         self.M_inv = diagonal_inverted_mass(v.function_space, density, problem._law_on_submeshs)
-
-#     @df.common.timed("constitutive-form-evaluation-corotational")
-#     def step(self) -> None:
-#         # self._move_mesh_previous_to_midpoint()
-
-#         df.fem.assemble_vector(self.f.x.array, self.problem.L)
-#         self.f.x.scatter_reverse(df.la.InsertMode.add)
-
-#         self.a.x.array[:] = self.M_inv * self.f.x.array
-#         self.a.x.scatter_forward()
-
-#         self.v.x.array[:] += self.sim_time.dt * self.a.x.array
-#         self.v.x.scatter_forward()
-#         self.problem.incr_disp.current.x.array[:] += self.sim_time.dt * self.v.x.array
-#         self.problem.incr_disp.current.x.scatter_forward()
-
-#         self.problem.form_without_petsc(evaluate_tangent=False)
-
-
 def critical_timestep(
     laws: list[tuple[IncrSmallStrainModel, np.ndarray]],
     density: list[float],
@@ -145,11 +110,21 @@ def critical_timestep(
     Determines the critical timesteps for all submeshes. This assumes that the constitutive law
     returns a linear elastic tangent for $\sigma=0,\varepsilon=0$. The input is not verified for
     consistency as this function is supposed to be called in the CDMSolver or any other solver.
+    
+    Args:
+        laws: A list of tuples containing the constitutive law and the corresponding cells for each submesh.
+        density: A list of densities for each submesh.
+        u: The current displacement. This is used to determine the geometric dimension and the function space of the problem.
+        method: The time integration method. This is used to determine the factor for the critical time step. Currently only 
+            "cdm" is implemented, which corresponds to the central difference method. The factor for the central difference method is 2,
+            which means that the time step should be halved.
+        h: The mesh size. If this is not provided, the mesh size will be determined based on the mesh and the cells for each submesh.
+            This can be used to override the mesh size if the user already knows `h` for example from the mesh creation.
     """
     method_to_factor = {"cdm": 2}
     factor = method_to_factor[method]
     mesh = u.function_space.mesh
-    # cell_type = mesh.ufl_cell().cellname()
+
     del_t: list[float] = []
     for (law, cells), density_ in zip(laws, density):
         tangent = np.zeros((law.stress_strain_dim, law.stress_strain_dim))
@@ -187,6 +162,17 @@ def _max_frequency_one_element(
     density: float,
     constraint: StressStrainConstraint,
 ) -> float:
+    """
+    Determines the maximum frequency for one element based on the tangent stiffness and the density. 
+    This is used to determine the critical time step for the central difference method.
+
+    Args:
+        h: The mesh size. This is used to determine the stiffness of the element.
+        u: The current displacement. This is used to determine the function space of the problem.
+        tangent: The tangent stiffness of the material. This is used to determine the stiffness of the element.
+        density: The density of the material. This is used to determine the mass of the element.
+        constraint: The stress-strain constraint of the material. This is used to determine the ufl form of the stiffness matrix.
+    """
     mesh = u.function_space.mesh
     mesh_cell = mesh.ufl_cell().cellname()
 
@@ -241,6 +227,17 @@ def _max_frequency_one_element(
 def diagonal_inverted_mass(
     function_space: df.fem.FunctionSpace, density: list[float], cells: list[np.ndarray]
 ) -> df.fem.Function:
+    """
+    Determine the inverse of the diagonal mass matrix. For intervals, quadrilaterals and hexahedra, the
+    Gauss-Lobatto-Legendre quadrature is used to compute the mass matrix, which results in a diagonal mass matrix.
+    For other cell types, this function is not implemented and an exception is raised.
+
+    Args:
+        function_space: The function space for which the mass matrix is computed.
+        density: The density of the material. This is either a single value for a homogenous domain or a list of values for each submesh.
+        cells: The cells corresponding to each submesh. This is used to assign the density to the correct cells in the mass matrix assembly.
+        
+    """
     mesh_cell = function_space.mesh.ufl_cell().cellname()
     basix_cell = basix.CellType[mesh_cell]
     if basix_cell in [
