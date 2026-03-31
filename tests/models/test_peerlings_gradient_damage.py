@@ -151,12 +151,12 @@ class PeerlingsNumeric:
         u_el = df.fem.Function(V)
         
         law = PeerlingsGradientPerfectDamage(
-            parameters={"E": self.E, "nu": 0.3, "eps_0": self.kappa0, "omega_max": 0.99}, # nu does not do anythng in uniaxial stress
+            parameters={"E": self.E, "nu": 0.3, "eps_0": self.kappa0, "omega_max": 1.0}, # nu does not do anythng in uniaxial stress
             constraint=StressStrainConstraint.UNIAXIAL_STRESS,
         )
         
         law_notch = PeerlingsGradientPerfectDamage(
-            parameters={"E": self.E * (1.0-self.alpha), "nu": 0.3, "eps_0":self.kappa0, "omega_max":0.99}, # nu does not do anythng in uniaxial stress
+            parameters={"E": self.E * (1.0-self.alpha), "nu": 0.3, "eps_0":self.kappa0, "omega_max":1.0}, # nu does not do anythng in uniaxial stress
             constraint=StressStrainConstraint.UNIAXIAL_STRESS,
         )
         print(law.C,law_notch.C)
