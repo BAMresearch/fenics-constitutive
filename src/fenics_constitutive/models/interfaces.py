@@ -193,8 +193,10 @@ class IncrSmallStrainGradientModel(ABC):
             t: The current global time $t_n$.
             del_t: The time increment $\Delta t$. The time at the end of the increment is $t_{n+1}=t_n+\Delta t$.
             grad_del_u: The gradient of the increment of the displacement field $\nabla\delta$ with $\delta=u_{n+1}-u_n$.
+            nonlocal_quantity: The nonlocal equivalent of the local variable, e.g. equivalent plastic strain or a strain norm.
             stress: The current stress in Mandel notation.
-            tangent: The tangent compatible with Mandel notation.
+            local_quantity: The local variable, e.g. equivalent plastic strain or a strain norm.
+            tangents: The tangents compatible with Mandel notation. `None` if you don't need the tangents like in explicit dynamics.
             history: The history variable(s).
         """
 

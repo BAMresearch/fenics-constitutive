@@ -11,6 +11,26 @@ from .utils import get_elastic_tangent, strain_from_grad_u
 
 
 class PeerlingsGradientPerfectDamage(IncrSmallStrainGradientModel):
+    """
+    Peerlings gradient damage model with perfect damage behavior.
+    The model is based on the paper "GRADIENT ENHANCED DAMAGE FOR QUASI-BRITTLE MATERIALS" by Peerlings et al. (1996).
+
+    Attributes:
+        C: The elastic tangent stiffness matrix.
+        eps_0: The strain at which damage initiates.
+        omega_max: The maximum damage value. This should be less than 1.0 to avoid complete loss of stiffness, which can lead to numerical issues.
+
+    Args:
+        parameters: A dictionary containing the parameters of the model. It should have
+            the following keys:
+                - E: The Young's modulus.
+                - nu: The Poisson's ratio.
+                - eps_0: The strain at which damage initiates.
+                - omega_max: The maximum damage value.
+        constraint: The constraint for the stresses and the strains. The model should work for all assumptions,
+            except maybe for plane stress. So far it is only tested for uniaxial stress.
+    """
+
     def __init__(
         self, parameters: dict[str, float], constraint: StressStrainConstraint
     ):
