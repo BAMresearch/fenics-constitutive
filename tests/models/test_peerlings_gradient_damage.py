@@ -215,9 +215,9 @@ class PeerlingsNumeric:
         solver = NewtonSolver(MPI.COMM_WORLD, problem)
         solver.rtol = 1e-7
         solver.atol = 1e-7
-        solver.maxit = 200
+        #solver.maxit = 200
         #solver.criterion="incremental"
-        displacements = np.linspace(0.0, displacement_right.value, 100)
+        displacements = np.linspace(0.0, displacement_right.value, 20)
         for d in displacements:
             displacement_right.value = d
             try:
