@@ -143,28 +143,25 @@ class PeerlingsNumeric:
         n_elements = 50 * h_refinement
         mesh = df.mesh.create_interval(MPI.COMM_WORLD, n_elements, np.array([0.0,L/2.0]))
         
-        V = df.fem.functionspace(mesh, ("CG", 1))
         element = basix.ufl.element(ElementFamily.P, basix.CellType.interval, 1)
         mixed_element = basix.ufl.mixed_element([element,element])
         mixed_space = df.fem.functionspace(mesh, mixed_element)
         u = df.fem.Function(mixed_space)
-        u_el = df.fem.Function(V)
         
         law = PeerlingsGradientPerfectDamage(
-            parameters={"E": self.E, "nu": 0.3, "eps_0": self.kappa0, "omega_max": 1.0}, # nu does not do anythng in uniaxial stress
+            parameters={"E": self.E, "nu": 0.3, "eps_0": self.kappa0, "omega_max": 1.}, # nu does not do anythng in uniaxial stress
             constraint=StressStrainConstraint.UNIAXIAL_STRESS,
         )
         
         law_notch = PeerlingsGradientPerfectDamage(
-            parameters={"E": self.E * (1.0-self.alpha), "nu": 0.3, "eps_0":self.kappa0, "omega_max":1.0}, # nu does not do anythng in uniaxial stress
+            parameters={"E": self.E * (1.0-self.alpha), "nu": 0.3, "eps_0":self.kappa0, "omega_max":1.}, # nu does not do anythng in uniaxial stress
             constraint=StressStrainConstraint.UNIAXIAL_STRESS,
         )
-        print(law.C,law_notch.C)
+
         def left_boundary(x):
             return np.isclose(x[0], 0.0)
             #return np.isclose(x[0], -self.L/2.)
 
-        
         def right_boundary(x):
             return np.isclose(x[0], self.L/2.)
         
@@ -187,7 +184,6 @@ class PeerlingsNumeric:
         assert cells_rest.size+cells_notch.size == num_cells
 
         displacement_left = df.fem.Constant(mesh, 0.0)
-        #displacement_left = df.fem.Constant(mesh, -self.deltaL/2.0)
         displacement_right = df.fem.Constant(mesh, self.deltaL/2.0)
 
         entities_left = df.mesh.locate_entities_boundary(mixed_space.mesh,0,left_boundary)
@@ -204,67 +200,57 @@ class PeerlingsNumeric:
             1,
             self.l,
         )
-        #problem = IncrSmallStrainProblem(
-        #    [(law_el,cells_rest),(law_el_notch,cells_notch)],
-        #    u,
-        #    [bc_left, bc_right],
-        #    1,
-        #    self.l,
-        #)
 
         solver = NewtonSolver(MPI.COMM_WORLD, problem)
-        solver.rtol = 1e-7
-        solver.atol = 1e-7
+        solver.rtol = 1e-8
+        solver.atol = 1e-8
         #solver.maxit = 200
         #solver.criterion="incremental"
         displacements = np.linspace(0.0, displacement_right.value, 20)
         for d in displacements:
             displacement_right.value = d
-            try:
-                n, converged = solver.solve(u)
-                print("converged in ", n, "iterations. displ:", displacement_right.value)
-                problem.update()
-            except:
-                print("not converged")
+            n, converged = solver.solve(u)
+            print("converged in ", n, "iterations. displ:", displacement_right.value)
+            problem.update()
+
 
         self.problem = problem
 
-if __name__=="__main__":
+def test_peerlings_1d():
     analytic = PeerlingsAnalytic(100.0, 5, 0.05,0.1, 20000., 1e-4,1.0)
-    #df.cpp.log.set_log_level(df.cpp.log.LogLevel.INFO)
-    numeric = PeerlingsNumeric(100.0, 5, 0.05,0.1, 20000., 1e-4,1.0, 3)
+    numeric = PeerlingsNumeric(100.0, 5, 0.05,0.1, 20000., 1e-4,1.0, 2)
 
     u, eps_nonlocal = numeric.problem.solution.current.split()
     u = u.collapse()
     eps_nonlocal = eps_nonlocal.collapse()
     x_nodes = eps_nonlocal.function_space.tabulate_dof_coordinates()[:,0].flatten()
-    eps_nonlocal.name = "nonlocal"
-    u.name = "displacements"
+    #eps_nonlocal.name = "nonlocal"
+    #u.name = "displacements"
     e_exact = [analytic.e(x) for x in x_nodes]
-    print(np.linalg.norm(eps_nonlocal.x.array - e_exact)/np.linalg.norm(e_exact))
-    damage =numeric.problem._history_0[0]["omega"]
-    damage_1=numeric.problem._history_0[1]["omega"]  
-    strain_norm = numeric.problem.local_quantity.current
-    x_q_0 = damage.function_space.tabulate_dof_coordinates()[:,0].flatten()
-    x_q_1 = damage_1.function_space.tabulate_dof_coordinates()[:,0].flatten()
-    x_q = np.concatenate((x_q_1,x_q_0))
+    assert (np.linalg.norm(eps_nonlocal.x.array - e_exact)/np.linalg.norm(e_exact)) < 1e-3
+    #damage =numeric.problem._history_0[0]["omega"]
+    #damage_1=numeric.problem._history_0[1]["omega"]  
+    #strain_norm = numeric.problem.local_quantity.current
+    #x_q_0 = damage.function_space.tabulate_dof_coordinates()[:,0].flatten()
+    #x_q_1 = damage_1.function_space.tabulate_dof_coordinates()[:,0].flatten()
+    #x_q = np.concatenate((x_q_1,x_q_0))
    
     
-    import matplotlib.pyplot as plt
+    #import matplotlib.pyplot as plt
     
     #plt.plot(x_q,damage.x.array)
-    plt.plot(x_nodes,eps_nonlocal.x.array)
-    plt.plot(x_nodes, e_exact)
+    #plt.plot(x_nodes,eps_nonlocal.x.array)
+    #plt.plot(x_nodes, e_exact)
     #plt.plot(x_q_0, numeric.problem._del_grad_u[0].x.array)
     #plt.plot(x_q_1, numeric.problem._del_grad_u[1].x.array)
-    plt.plot(x_q, numeric.problem.local_quantity.previous.x.array)
-    plt.show()
+    #plt.plot(x_q, numeric.problem.local_quantity.previous.x.array)
+    #plt.show()
 
-    plt.plot(x_q_0, damage.x.array)
-    plt.plot(x_q_1, damage_1.x.array)
-    plt.show()
+    #plt.plot(x_q_0, damage.x.array)
+    #plt.plot(x_q_1, damage_1.x.array)
+    #plt.show()
 
-    with df.io.XDMFFile(eps_nonlocal.function_space.mesh.comm, "debug_peerlings.xdmf","w") as f:
-        f.write_mesh(eps_nonlocal.function_space.mesh)
-        f.write_function(eps_nonlocal)
-        f.write_function(u)
+    #with df.io.XDMFFile(eps_nonlocal.function_space.mesh.comm, "debug_peerlings.xdmf","w") as f:
+    #    f.write_mesh(eps_nonlocal.function_space.mesh)
+    #    f.write_function(eps_nonlocal)
+    #    f.write_function(u)
