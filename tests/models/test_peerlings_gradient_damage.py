@@ -215,7 +215,8 @@ class PeerlingsNumeric:
         solver = NewtonSolver(MPI.COMM_WORLD, problem)
         solver.rtol = 1e-7
         solver.atol = 1e-7
-        solver.criterion="incremental"
+        solver.maxit = 200
+        #solver.criterion="incremental"
         displacements = np.linspace(0.0, displacement_right.value, 100)
         for d in displacements:
             displacement_right.value = d
@@ -254,9 +255,9 @@ if __name__=="__main__":
     #plt.plot(x_q,damage.x.array)
     plt.plot(x_nodes,eps_nonlocal.x.array)
     plt.plot(x_nodes, e_exact)
-    plt.plot(x_q_0, numeric.problem._del_grad_u[0].x.array)
-    plt.plot(x_q_1, numeric.problem._del_grad_u[1].x.array)
-    #plt.plot(x_q, numeric.problem.local_quantity.previous.x.array)
+    #plt.plot(x_q_0, numeric.problem._del_grad_u[0].x.array)
+    #plt.plot(x_q_1, numeric.problem._del_grad_u[1].x.array)
+    plt.plot(x_q, numeric.problem.local_quantity.previous.x.array)
     plt.show()
 
     plt.plot(x_q_0, damage.x.array)

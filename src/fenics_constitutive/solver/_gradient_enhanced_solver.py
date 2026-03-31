@@ -82,7 +82,7 @@ class IncrSmallStrainGradientProblem(NonlinearProblem):
         self.solution = IncrementalGradientSolution.from_mixed_function(
             mixed_solution, q_degree
         )
-        
+
         u = self.solution.current.sub(0)
         nonlocal_quantity = self.solution.current.sub(1)
 
@@ -113,21 +113,26 @@ class IncrSmallStrainGradientProblem(NonlinearProblem):
         R_form = (
             ufl.inner(ufl_mandel_strain(u_test, constraint), self.stress.current)
             * self.dxm
-            + ufl.inner(l**2 * ufl.grad(nonlocal_quantity), ufl.grad(nonlocal_test))
+        )
+        R_form += (
+            ufl.inner(l**2 * ufl.grad(nonlocal_quantity), ufl.grad(nonlocal_test))
             * self.dxm
-            + (nonlocal_quantity - self.local_quantity.current) * nonlocal_test * self.dxm
+        )
+        R_form += (
+            (nonlocal_quantity - self.local_quantity.current) * nonlocal_test * self.dxm
         )
 
         if external_forces is not None:
             R_form -= sum(external_forces)
 
         dR_form = (
-                ufl.inner(
-                    ufl_mandel_strain(u_trial, constraint),
-                    ufl.dot(
-                        self.tangents.dsigma_deps, ufl_mandel_strain(u_test, constraint)
-                    ),
-                ) * self.dxm
+            ufl.inner(
+                ufl_mandel_strain(u_trial, constraint),
+                ufl.dot(
+                    self.tangents.dsigma_deps, ufl_mandel_strain(u_test, constraint)
+                ),
+            )
+            * self.dxm
             + (
                 ufl.inner(
                     ufl_mandel_strain(u_test, constraint),
@@ -143,9 +148,11 @@ class IncrSmallStrainGradientProblem(NonlinearProblem):
                 )
             )
             * self.dxm
-            + l**2 * ufl.inner(ufl.grad(nonlocal_trial), ufl.grad(nonlocal_test))
+            + l**2
+            * ufl.inner(ufl.grad(nonlocal_trial), ufl.grad(nonlocal_test))
             * self.dxm
-            + (nonlocal_trial - self.tangents.dlocal_dnonlocal * nonlocal_trial) * nonlocal_test
+            + (nonlocal_trial - self.tangents.dlocal_dnonlocal * nonlocal_trial)
+            * nonlocal_test
             * self.dxm
         )
 
@@ -174,10 +181,15 @@ class IncrSmallStrainGradientProblem(NonlinearProblem):
         self.solution.set_current(x)
 
         for law in self._law_on_submeshs:
-            law.evaluate(self.sim_time, self.solution, self.stress, self.local_quantity, self.tangents)
+            law.evaluate(
+                self.sim_time,
+                self.solution,
+                self.stress,
+                self.local_quantity,
+                self.tangents,
+            )
 
-        self.stress.scatter_current() #TODO: this scattering may not be needed because we scatter already in map_to_parent 
-        
+        self.stress.scatter_current()  # TODO: this scattering may not be needed because we scatter already in map_to_parent
 
     def update(self) -> None:
         """

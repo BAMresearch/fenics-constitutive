@@ -78,12 +78,11 @@ class PeerlingsGradientPerfectDamage(IncrSmallStrainGradientModel):
             tangents.dlocal_dnonlocal[:] = 0.0
 
             tangents.dsigma_deps[:] = np.tile(self.C.flatten(), ngauss)
-            tangents.dsigma_deps.reshape(-1, self.stress_strain_dim**2)[:] *= (
-                1 - history["omega"]
-            ).reshape(-1, 1)
+            tangents.dsigma_deps.reshape(-1, self.stress_strain_dim**2)[:] *= 1.0 - history_view
+            
             domega_dnonlocal = np.where(
                 nonlocal_quantity >= self.eps_0,
-                self.eps_0 * nonlocal_quantity / nonlocal_quantity**2,
+                self.eps_0 / nonlocal_quantity**2,
                 zeros
             )
             tangents.dsigma_dnonlocal.reshape(-1, self.stress_strain_dim)[:] = (
