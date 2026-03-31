@@ -7,6 +7,7 @@ dependencies:
   - adios4dolfinx
   - numpy
   - scipy
+  - sympy
   - pip
   - pytest
   - pytest-mpi

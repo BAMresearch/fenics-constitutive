@@ -1,4 +1,3 @@
-from fenics_constitutive.solver._lawonsubmesh import GradientLawOnSubMesh
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -19,9 +18,12 @@ from fenics_constitutive.solver._incrementalunknowns import (
     IncrementalGradientSolution,
     IncrementalLocalQuantity,
 )
-from fenics_constitutive.solver._lawonsubmesh import create_gradient_law_on_submesh
+from fenics_constitutive.solver._lawonsubmesh import (
+    GradientLawOnSubMesh,
+    create_gradient_law_on_submesh,
+)
 from fenics_constitutive.solver._solver import SimulationTime
-from fenics_constitutive.solver._spaces import GradientElements, GradientElementSpaces
+from fenics_constitutive.solver._spaces import GradientElements
 
 from ._incrementalunknowns import IncrementalDisplacement, IncrementalStress
 from ._lawonsubmesh import LawOnSubMesh, create_law_on_submesh
@@ -73,14 +75,14 @@ class IncrSmallStrainGradientProblem(NonlinearProblem):
         )
 
         elements = GradientElements.create(mesh, constraint, q_degree)
-        self.stress = IncrementalStress(fn_for(elements.stress_space(mesh)))
+        self.stress = IncrementalStress(elements.stress_space(mesh))
         self.local_quantity = IncrementalLocalQuantity(
             elements.local_quantity_space(mesh)
         )
         self.solution = IncrementalGradientSolution.from_mixed_function(
             mixed_solution, q_degree
         )
-
+        
         u = self.solution.current.sub(0)
         nonlocal_quantity = self.solution.current.sub(1)
 
@@ -93,7 +95,7 @@ class IncrSmallStrainGradientProblem(NonlinearProblem):
         )
 
         self._law_on_submeshs: list[GradientLawOnSubMesh] = []
-        self.sim_time = SimulationTime(dt=del_t)
+        self.sim_time = SimulationTime(dt_max=del_t)
 
         self._law_on_submeshs = [
             create_gradient_law_on_submesh(
@@ -111,25 +113,21 @@ class IncrSmallStrainGradientProblem(NonlinearProblem):
         R_form = (
             ufl.inner(ufl_mandel_strain(u_test, constraint), self.stress.current)
             * self.dxm
-            + l**2
-            * ufl.inner(ufl.grad(nonlocal_quantity), ufl.grad(nonlocal_test))
+            + ufl.inner(l**2 * ufl.grad(nonlocal_quantity), ufl.grad(nonlocal_test))
             * self.dxm
-            - (local_quantity - nonlocal_quantity) * nonlocal_test * self.dxm
+            + (nonlocal_quantity - self.local_quantity.current) * nonlocal_test * self.dxm
         )
 
         if external_forces is not None:
             R_form -= sum(external_forces)
 
         dR_form = (
-            (
                 ufl.inner(
                     ufl_mandel_strain(u_trial, constraint),
                     ufl.dot(
                         self.tangents.dsigma_deps, ufl_mandel_strain(u_test, constraint)
                     ),
-                )
-            )
-            * self.dxm
+                ) * self.dxm
             + (
                 ufl.inner(
                     ufl_mandel_strain(u_test, constraint),
@@ -145,9 +143,9 @@ class IncrSmallStrainGradientProblem(NonlinearProblem):
                 )
             )
             * self.dxm
-            + (l**2 * ufl.inner(ufl.grad(nonlocal_trial), ufl.grad(nonlocal_test)))
+            + l**2 * ufl.inner(ufl.grad(nonlocal_trial), ufl.grad(nonlocal_test))
             * self.dxm
-            - ((self.tangents.dlocal_dnonlocal - nonlocal_trial) * nonlocal_test)
+            + (nonlocal_trial - self.tangents.dlocal_dnonlocal * nonlocal_trial) * nonlocal_test
             * self.dxm
         )
 

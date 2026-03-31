@@ -79,7 +79,7 @@ class GradientElements:
         )
         local_quantity_element = basix.ufl.quadrature_element(
             mesh.topology.cell_name(),
-            value_shape=(1,),
+            #value_shape=(1,),
             degree=q_degree,
         )
         dsigma_deps_element = basix.ufl.quadrature_element(
@@ -102,7 +102,7 @@ class GradientElements:
         )
         dlocal_dnonlocal_element = basix.ufl.quadrature_element(
             mesh.topology.cell_name(),
-            value_shape=(1,),
+            #value_shape=(1,),
             degree=q_degree,
         )
         displacement_gradient_tensor_element = basix.ufl.quadrature_element(

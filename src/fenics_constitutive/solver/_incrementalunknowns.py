@@ -58,6 +58,7 @@ class IncrementalGradientSolution:
     previous: df.fem.Function
     current: df.fem.Function
     _del_grad_u_expr: df.fem.Expression
+    _nonlocal_expr: df.fem.Expression
 
     @staticmethod
     def from_mixed_function(
@@ -73,21 +74,26 @@ class IncrementalGradientSolution:
         solution_0 = mixed_function.copy()
         u0 = solution_0.sub(0)
         u1 = mixed_function.sub(0)
+        #if u0.ufl_shape == (1,):
+        #    del_grad_u_expr = df.fem.Expression(ufl.grad(u1 - u0), q_points)
+        #else:
         del_grad_u_expr = df.fem.Expression(ufl.nabla_grad(u1 - u0), q_points)
+        nonlocal_expr = df.fem.Expression(mixed_function.sub(1), q_points)
         return IncrementalGradientSolution(
             previous=solution_0,
             current=mixed_function,
             _del_grad_u_expr=del_grad_u_expr,
+            _nonlocal_expr=nonlocal_expr,
         )
 
     def update(self) -> None:
-        self.solution_0.x.array[:] = self.solution_1.x.array
-        self.solution_0.x.scatter_forward()
+        self.previous.x.array[:] = self.current.x.array
+        self.previous.x.scatter_forward()
 
     def set_current(self, x: PETSc.Vec) -> None:
         """Copy the solution vector x into the current displacement and update ghosts."""
-        x.copy(self.solution_1.x.petsc_vec)
-        self.solution_1.x.petsc_vec.ghostUpdate(
+        x.copy(self.current.x.petsc_vec)
+        self.current.x.petsc_vec.ghostUpdate(
             addv=PETSc.InsertMode.INSERT, mode=PETSc.ScatterMode.FORWARD
         )
 
@@ -96,7 +102,7 @@ class IncrementalGradientSolution:
     ) -> None:
         """Eval inc disp grad fun"""
         displacement_gradient_fn.interpolate(
-            self._expr,
+            self._del_grad_u_expr,
             cells0=cells,
             cells1=np.arange(cells.size, dtype=np.int32),
         )
@@ -106,8 +112,9 @@ class IncrementalGradientSolution:
         self, cells: np.ndarray, nonlocal_qp: df.fem.Function
     ):
         """Eval inc disp grad fun"""
+        
         nonlocal_qp.interpolate(
-            self.current.sub(1),
+            self._nonlocal_expr,
             cells0=cells,
             cells1=np.arange(cells.size, dtype=np.int32),
         )

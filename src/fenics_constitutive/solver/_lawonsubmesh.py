@@ -159,7 +159,7 @@ def create_gradient_law_on_submesh(
         cells=cells,
         displacement_gradient_fn=inc_disp_grad_fn,
         nonlocal_quantity_sub=nonlocal_fn,
-        local_quantity_sub=local_fn,
+        local_quantity=local_fn,
         stress=stress_fn,
         tangents_sub=tangent_functions,
         submesh_map=subspace_map,
@@ -173,7 +173,7 @@ class GradientLawOnSubMesh:
     cells: np.ndarray
     displacement_gradient_fn: df.fem.Function
     nonlocal_quantity_sub: df.fem.Function
-    local_quantity_sub: df.fem.Function
+    local_quantity: df.fem.Function
     stress: df.fem.Function
     tangents_sub: NonlocalTangentFunctions
     submesh_map: SpaceMap
@@ -183,6 +183,11 @@ class GradientLawOnSubMesh:
         """Map the global stress to the submesh"""
         self.submesh_map.map_to_sub(stress.previous, self.stress)
         return self.stress.x.array
+    
+    def local_quantity_sub(self, local_quantity: IncrementalLocalQuantity) -> np.ndarray:
+        """Map the global stress to the submesh"""
+        self.submesh_map.map_to_sub(local_quantity.previous, self.local_quantity)
+        return self.local_quantity.x.array
 
     def map_to_parent(
         self,
@@ -192,7 +197,7 @@ class GradientLawOnSubMesh:
     ) -> None:
         """Map stresses and tangents back to the main mesh"""
         self.submesh_map.map_to_parent(self.stress, global_stress.current)
-        self.submesh_map.map_to_parent(self.local_quantity_sub, global_local_quantity.current)
+        self.submesh_map.map_to_parent(self.local_quantity, global_local_quantity.current)
 
         self.submesh_map.map_to_parent(self.tangents_sub.dsigma_deps, global_tangents.dsigma_deps)
         self.submesh_map.map_to_parent(self.tangents_sub.dsigma_dnonlocal, global_tangents.dsigma_dnonlocal)
@@ -226,7 +231,7 @@ class GradientLawOnSubMesh:
                 self.displacement_gradient_fn.x.array,
                 self.nonlocal_quantity_sub.x.array,
                 self.stress_sub(global_stress),
-                self.local_quantity_sub.x.array,
+                self.local_quantity_sub(global_local_quantity),
                 tangent,
                 history_input,
             )

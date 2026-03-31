@@ -10,13 +10,15 @@ from .interfaces import (
 from .utils import get_elastic_tangent, strain_from_grad_u
 
 
-class PeerlingsGradientDamage(IncrSmallStrainGradientModel):
-    
-    def __init__(self, parameters: dict[str,float], constraint: StressStrainConstraint):
+class PeerlingsGradientPerfectDamage(IncrSmallStrainGradientModel):
+    def __init__(
+        self, parameters: dict[str, float], constraint: StressStrainConstraint
+    ):
         self._constraint = constraint
         self.C = get_elastic_tangent(parameters["E"], parameters["nu"], constraint)
+        self.eps_0 = parameters["eps_0"]
+        self.omega_max = parameters["omega_max"]
 
-    
     def evaluate(
         self,
         t: float,
@@ -40,25 +42,61 @@ class PeerlingsGradientDamage(IncrSmallStrainGradientModel):
             history: The history variable(s).
         """
         assert history is not None
+        ngauss = grad_del_u.size // self.geometric_dim**2
+        total_strain = (
+            strain_from_grad_u(grad_del_u, self._constraint) + history["total_strain"]
+        ).reshape(-1, self.stress_strain_dim)
+        history["total_strain"][:] = total_strain.flatten()
 
-        total_strain = strain_from_grad_u(grad_del_u, self._constraint) + history["total_strain"].reshape(-1, self.stress_strain_dim)
+        zeros = np.zeros(ngauss)
 
-        def omega(eps_eq: np.ndarray)->np.ndarray:
-            return eps_eq
+        def omega(eps_eq: np.ndarray) -> np.ndarray:
+            # perfect damage law
+            damage = 1 - self.eps_0 / eps_eq
+            return np.where(eps_eq >= self.eps_0, damage, zeros) * self.omega_max
+
+        def strain_norm(total_strain: np.ndarray) -> np.ndarray:
+            # euclidian norm
+            return np.linalg.norm(total_strain, axis=1)
 
         omega_new = omega(nonlocal_quantity)
         history["omega"][:] = np.maximum(history["omega"], omega_new)
+        history_view = history["omega"].reshape(-1, 1)
 
-        stress[:] = (1.0-history["omega"]) * total_strain @ self.C
-        
-        local_quantity[:] = np.linalg.norm(total_strain, axis=0)
+        stress[:] = ((1.0 - history_view) * total_strain @ self.C).flatten()
+
+        # this norm will work for the analytical solution from the peerlings paper
+        local_quantity[:] = strain_norm(total_strain)
+
+        if tangents is not None:
+            tangents.dlocal_deps[:] = np.where(
+                total_strain > 0.0,
+                total_strain / local_quantity.reshape(-1, 1),
+                zeros.reshape(-1, 1),
+            ).flatten()
+
+            tangents.dlocal_dnonlocal[:] = 0.0
+
+            tangents.dsigma_deps[:] = np.tile(self.C.flatten(), ngauss)
+            tangents.dsigma_deps.reshape(-1, self.stress_strain_dim**2)[:] *= (
+                1 - history["omega"]
+            ).reshape(-1, 1)
+            domega_dnonlocal = np.where(
+                nonlocal_quantity >= self.eps_0,
+                self.eps_0 * nonlocal_quantity / nonlocal_quantity**2,
+                zeros
+            )
+            tangents.dsigma_dnonlocal.reshape(-1, self.stress_strain_dim)[:] = (
+                -total_strain @ self.C
+            )
+            tangents.dsigma_dnonlocal.reshape(-1,self.stress_strain_dim)[:] *= domega_dnonlocal.reshape(-1,1)
 
     @property
     def constraint(self) -> StressStrainConstraint:
         """
         The constraint for the stresses or the strains.
 
-        Returns:
+        Returns
             The constraint.
         """
         return self._constraint
