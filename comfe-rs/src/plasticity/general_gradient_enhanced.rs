@@ -129,16 +129,21 @@ impl<
         let sigma_0 = SVector::<f64, 6>::from_column_slice(stress);
         let sigma_tr = model.elastic_tangent() * del_eps + sigma_0;
 
-        let alpha_0 = SVectorlocal_quantity;
+        let alpha_0 = SVector::<f64,1>::from_column_slice(local_quantity);
+        let alpha_nonlocal =SVector::<f64,1>::from_column_slice(nonlocal_quantity);
+
         let mut alpha_1 = alpha_0.clone();
         let mut sigma_1: SVector<f64,6>;
-        model.set_model_state(&sigma_0, &sigma_tr, &del_eps, &alpha_0);
+        model.set_model_state(&sigma_0, &sigma_tr, &del_eps, &alpha_0, &alpha_nonlocal);
 
         let f = model.f();
         if f <= 0.0 {
             *stress = sigma_tr.data.0[0];
-            if let Some(tangent) = tangent {
-                *tangent = model.elastic_tangent().data.0;
+            if let Some(tangents) = tangents {
+                tangents.dsigma_deps = *model.elastic_tangent();
+                tangents.dlocal_deps = 0.0;
+                tangents.dsigma_dnonlocal = 0.0;
+                tangents.dlocal_dnonlocal = 0.0;
             }
             return;
         } else {

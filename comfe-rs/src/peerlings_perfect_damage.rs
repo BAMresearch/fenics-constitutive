@@ -1,35 +1,28 @@
-use crate::consts::*;
 use crate::interfaces::*;
 use crate::mandel::*;
-use crate::{create_history_parameter_struct};
-use nalgebra::{SMatrix,  SVector, SVectorView, SVectorViewMut};
+use crate::create_history_parameter_struct;
+use nalgebra::{SMatrix, SVector, SVectorView, SVectorViewMut};
 
-//stuff
-
-const _: () = assert!(check_constitutive_model_maps::<
-    6,
-    2,
-    7,
-    4,
-    4,
-    MisesPlasticity3D,
->());
-
-/// A von Mises plasticity model with linear hardening for 3D stress states.
+/// Peerlings gradient damage model with perfect damage behavior for 3D stress states.
 ///
-/// This struct implements the von Mises yield criterion with linear isotropic hardening.
-/// The yield function is defined as: $f = \sqrt{\frac{3}{2} s:s} - \sigma_y$, where:
-/// - $s$ is the deviatoric stress tensor
-/// - $\sigma_y = y_0 + h \cdot \alpha$ is the current yield stress
-/// - $\alpha$ is the equivalent plastic strain
+/// This model is based on the paper "GRADIENT ENHANCED DAMAGE FOR QUASI-BRITTLE MATERIALS"
+/// by Peerlings et al. (1996).
+///
+/// The damage variable $\omega$ is computed from the nonlocal equivalent strain $\bar{\varepsilon}$:
+/// - $\omega = 0$ if $\bar{\varepsilon} < \varepsilon_0$
+/// - $\omega = 1 - \frac{\varepsilon_0}{\bar{\varepsilon}} \cdot \omega_{max}$ otherwise
+///
+/// The stress is computed as: $\sigma = (1 - \omega) \cdot C : \varepsilon$
+///
+/// The local quantity is the Euclidean norm of the total strain tensor.
 ///
 /// # Parameters
 /// - `mu`: Shear modulus
 /// - `kappa`: Bulk modulus
-/// - `y_0`: Initial yield stress
-/// - `h`: Linear hardening modulus
+/// - `eps_0`: Strain threshold at which damage initiates
+/// - `omega_max`: Maximum damage value (should be < 1.0 to avoid numerical issues)
 #[repr(C)]
-pub struct PeerlingdGradientPerfectDamage3D();
+pub struct PeerlingsGradientPerfectDamage3D();
 
 create_history_parameter_struct!(
     PeerlingsParameters,
@@ -42,6 +35,7 @@ create_history_parameter_struct!(
         (omega_max, (QDim::Scalar))
     ]
 );
+
 create_history_parameter_struct!(
     PeerlingsHistory3D,
     2,
@@ -52,7 +46,7 @@ create_history_parameter_struct!(
     ]
 );
 
-impl GradientConstitutiveModelFn<6, 2, 7, 4, 4> for PeerlingdGradientPerfectDamage3D {
+impl GradientConstitutiveModelFn<6, 2, 7, 4, 4> for PeerlingsGradientPerfectDamage3D {
     type History = PeerlingsHistory3D;
     type Parameters = PeerlingsParameters;
 
@@ -60,72 +54,74 @@ impl GradientConstitutiveModelFn<6, 2, 7, 4, 4> for PeerlingdGradientPerfectDama
     fn evaluate(
         _time: f64,
         _del_time: f64,
-        //_strain: &[f64; 6],
         del_strain: &[f64; 6],
+        nonlocal_quantity: &[f64; 1],
         stress: &mut [f64; 6],
-        tangent: Option<&mut [[f64; 6]; 6]>,
+        local_quantity: &mut [f64; 1],
+        tangents: Option<&mut NonlocalTangents<6>>,
         history: &mut [f64; 7],
         parameters: &[f64; 4],
     ) {
-        let mises_parameters = Self::Parameters::from_array(parameters);
-        let mu = mises_parameters.mu;
-        let kappa = mises_parameters.kappa;
-        let y_0 = mises_parameters.y_0;
-        let h = mises_parameters.h;
+        // Unpack parameters
+        let params = Self::Parameters::from_array(parameters);
+        let mu = params.mu;
+        let kappa = params.kappa;
+        let eps_0 = params.eps_0;
+        let omega_max = params.omega_max;
 
-        const SYM_ID: SMatrix<f64, 6, 1> = const { sym_id::<6>() };
-        const SYM_ID_OUTER_SYM_ID: SMatrix<f64, 6, 6> = const { sym_id_outer_sym_id::<6>() };
-        const PROJECTION_DEV: SMatrix<f64, 6, 6> = const { projection_dev::<6>() };
+        // Get elastic tangent
+        let elastic_tangent: SMatrix<f64, 6, 6> = isotropic_elastic_tangent(mu, kappa);
 
         // Unpack history
         let history_ = Self::History::from_array_mut(history);
-        let alpha = history_.alpha;
 
+        // Update total strain: total_strain += del_strain
         let del_strain_vec = SVectorView::<f64, 6>::from_array(del_strain);
-        let mut stress_vec = SVectorViewMut::<f64, 6>::from_array(stress);
+        history_.total_strain += del_strain_vec;
+        let total_strain = history_.total_strain.clone();
 
-        let (p_0, s_0) = stress_vec.vol_dev();
-        let (eps_trace, eps_dev) = del_strain_vec.trace_dev();
-        let p_1 = p_0 + kappa * eps_trace;
-
-        let s_tr = &s_0 + (2. * mu) * &eps_dev;
-        let s_tr_eq = s_tr.mises_norm();
-
-        let sigma_y = y_0 + h * alpha;
-
-        //the .max(0.0) contains the check if the stress is already above the yield surface
-        if s_tr_eq < sigma_y {
-            // Elastic step
-            stress_vec.copy_from(&(p_1 * SYM_ID + s_tr));
-            if let Some(tangent) = tangent {
-                *tangent = (kappa * &SYM_ID_OUTER_SYM_ID + (2. * mu) * &PROJECTION_DEV)
-                    .data
-                    .0;
-            }
-            return;
+        // Compute damage from nonlocal quantity
+        let eps_eq = nonlocal_quantity[0];
+        let omega_new = if eps_eq >= eps_0 {
+            1.0 - (eps_0 / eps_eq) * omega_max
         } else {
-            let del_alpha = (s_tr_eq - sigma_y) / (3. * mu + h);
-            let del_gamma = f64::sqrt(3. / 2.) * del_alpha;
-            
-            let s_tr_norm = s_tr_eq * (2_f64/3_f64).sqrt();
-            let theta = 1. - (2. * mu * del_gamma) / (s_tr_norm);
+            0.0
+        };
 
-            // Update the equivalent plastic strain
-            // determine the plastic strain
-            let n = s_tr / s_tr_norm;
-            history_.plastic_strain += del_gamma * &n;
-            history_.alpha += del_alpha;
+        // Update damage history (damage can only increase)
+        history_.omega = history_.omega.max(omega_new);
+        let omega = history_.omega;
 
-            stress_vec.copy_from(&(p_1 * &SYM_ID + &s_tr - (2.0*mu*del_gamma)*&n));
+        // Compute stress: sigma = (1 - omega) * C * total_strain
+        let mut stress_vec = SVectorViewMut::<f64, 6>::from_array(stress);
+        stress_vec.copy_from(&((1.0 - omega) * (&elastic_tangent * &total_strain)));
 
-            if let Some(tangent) = tangent {
-                let theta_bar = 1.0 / (1.0 + (h / (3.0 * mu))) - (1.0 - theta);
-                let tangent_new = kappa * &SYM_ID_OUTER_SYM_ID
-                    + (2.0 * mu * theta) * &PROJECTION_DEV
-                    - (2.0 * mu * theta_bar) * &n * &n.transpose();
-                // Copy the tangent matrix to the output
-                *tangent = tangent_new.data.0;
+        // Compute local quantity: Euclidean norm of total strain
+        local_quantity[0] = total_strain.norm();
+
+        // Compute tangents if requested
+        if let Some(tangents) = tangents {
+            // dsigma_deps = (1 - omega) * C
+            tangents.dsigma_deps = (1.0 - omega) * &elastic_tangent;
+
+            // dlocal_deps = total_strain / ||total_strain|| (gradient of norm)
+            let strain_norm = local_quantity[0];
+            if strain_norm > 0.0 {
+                tangents.dlocal_deps = total_strain.transpose() / strain_norm;
+            } else {
+                tangents.dlocal_deps = SVector::<f64, 6>::zeros().transpose();
             }
+
+            // dlocal_dnonlocal = 0 (local quantity doesn't depend on nonlocal quantity)
+            tangents.dlocal_dnonlocal = 0.0;
+
+            // dsigma_dnonlocal = -domega_dnonlocal * C * total_strain
+            let domega_dnonlocal = if eps_eq >= eps_0 {
+                (omega_max * eps_0) / (eps_eq * eps_eq)
+            } else {
+                0.0
+            };
+            tangents.dsigma_dnonlocal = -domega_dnonlocal * (&elastic_tangent * &total_strain);
         }
     }
 }
