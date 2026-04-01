@@ -8,6 +8,7 @@ import dolfinx as df
 import numpy as np
 
 __all__ = [
+    "IncrSmallStrainGradientModel",
     "IncrSmallStrainModel",
     "StressStrainConstraint",
 ]

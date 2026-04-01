@@ -28,8 +28,8 @@ from .utils import ufl_mandel_strain
 
 
 class IncrSmallStrainGradientProblem(NonlinearProblem):
-    """
-    A nonlinear problem for incremental small strain models. To be used with
+    r"""
+    A nonlinear problem for incremental small strain gradient-enhanced models. To be used with
     the dolfinx NewtonSolver.
 
     Args:
