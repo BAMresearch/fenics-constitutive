@@ -4,6 +4,8 @@ use crate::mandel::*;
 use crate::{create_history_parameter_struct};
 use nalgebra::{SMatrix,  SVector, SVectorView, SVectorViewMut};
 
+//stuff
+
 const _: () = assert!(check_constitutive_model_maps::<
     6,
     2,

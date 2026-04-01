@@ -5,6 +5,9 @@ use crate::{
     create_history_parameter_struct,
     interfaces::{ArrayEquivalent, NonlocalTangents,GradientConstitutiveModelFn, StaticMap},
 };
+
+//stuff
+
 use nalgebra::{SMatrix, SVector, RowSVector};
 pub trait GradientPlasticity<
     const STRESS_STRAIN: usize,
