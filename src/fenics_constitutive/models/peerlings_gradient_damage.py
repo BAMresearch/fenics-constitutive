@@ -91,8 +91,8 @@ class PeerlingsGradientPerfectDamage(IncrSmallStrainGradientModel):
         local_quantity[:] = strain_norm(total_strain)
 
         if tangents is not None:
-            mask = local_quantity.reshape(-1, 1) > 0.0
-            dlocal_deps = zeros.copy().reshape(-1, 1)
+            mask = (local_quantity > 0.0)
+            dlocal_deps = np.zeros((ngauss, self.stress_strain_dim))
             dlocal_deps[mask] = total_strain[mask] / local_quantity.reshape(-1, 1)[mask]
             tangents.dlocal_deps[:] = dlocal_deps.flatten()
 
