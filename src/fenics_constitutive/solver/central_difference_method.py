@@ -7,13 +7,10 @@ import dolfinx as df
 import numpy as np
 import ufl
 from mpi4py import MPI
-from petsc4py import PETSc
 from scipy.linalg import eigvals
 
 from fenics_constitutive.models import StressStrainConstraint
 from fenics_constitutive.models.interfaces import IncrSmallStrainModel
-from fenics_constitutive.solver._lawonsubmesh import LawOnSubMesh
-from fenics_constitutive.solver._solver import SimulationTime
 from fenics_constitutive.solver.utils import ufl_mandel_strain
 
 from ._solver import IncrSmallStrainProblem

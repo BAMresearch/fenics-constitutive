@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 import dolfinx as df
 import numpy as np
 import ufl
@@ -12,7 +10,6 @@ from petsc4py import PETSc
 from fenics_constitutive.models.interfaces import (
     IncrSmallStrainGradientModel,
     NonlocalTangentFunctions,
-    NonlocalTangents,
 )
 from fenics_constitutive.solver._incrementalunknowns import (
     IncrementalGradientSolution,
@@ -25,9 +22,7 @@ from fenics_constitutive.solver._lawonsubmesh import (
 from fenics_constitutive.solver._solver import SimulationTime
 from fenics_constitutive.solver._spaces import GradientElements
 
-from ._incrementalunknowns import IncrementalDisplacement, IncrementalStress
-from ._lawonsubmesh import LawOnSubMesh, create_law_on_submesh
-from ._spaces import ElementSpaces
+from ._incrementalunknowns import IncrementalStress
 from .typesafe import fn_for
 from .utils import ufl_mandel_strain
 

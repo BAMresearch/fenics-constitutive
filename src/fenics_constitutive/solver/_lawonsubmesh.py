@@ -10,7 +10,6 @@ from fenics_constitutive.models.interfaces import (
     IncrSmallStrainGradientModel,
     IncrSmallStrainModel,
     NonlocalTangentFunctions,
-    NonlocalTangents,
 )
 from fenics_constitutive.solver._incrementalunknowns import IncrementalGradientSolution
 from fenics_constitutive.solver._spaces import GradientElements

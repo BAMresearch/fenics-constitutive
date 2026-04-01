@@ -2,9 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-import dolfinx as df
-import numpy as np
-
 from fenics_constitutive.solver._incrementalunknowns import IncrementalDisplacement
 
 
