@@ -1,22 +1,18 @@
 from __future__ import annotations
 
-from typing import cast
-
 import basix
 import dolfinx as df
 import numpy as np
 import scipy.optimize
-import ufl
 from basix import ElementFamily
 from dolfinx.nls.petsc import NewtonSolver
 from mpi4py import MPI
 from sympy import N, Symbol, cos, exp, integrate, lambdify, symbols
 
-from fenics_constitutive.models import LinearElasticityModel, StressStrainConstraint
+from fenics_constitutive.models import StressStrainConstraint
 from fenics_constitutive.models.peerlings_gradient_damage import (
     PeerlingsGradientPerfectDamage,
 )
-from fenics_constitutive.solver import IncrSmallStrainProblem
 from fenics_constitutive.solver._gradient_enhanced_solver import (
     IncrSmallStrainGradientProblem,
 )
@@ -100,8 +96,9 @@ class PeerlingsAnalytic:
             global_func, [0.0, 5e2, 3e-7, 7e-3, 3e-3, 3e-1, 2e-1, 4e1]
         )
         if not result["success"]:
+            msg = "Could not find the correct coefficients. Try to tweak the initial values."
             raise RuntimeError(
-                "Could not find the correct coefficients. Try to tweak the initial values."
+                msg
             )
 
         self.coeffs = result["x"]
@@ -110,14 +107,13 @@ class PeerlingsAnalytic:
         A1, A2, B1, B2, C, b, g, w = self.coeffs
         if x <= self.W / 2.0:
             return C * np.cos(g / self.l * x)
-        elif x <= w / 2.0:
+        if x <= w / 2.0:
             return B1 * np.exp(b / self.l * x) + B2 * np.exp(-b / self.l * x)
-        else:
-            return (
-                (1.0 - b * b) * self.kappa0
-                + A1 * np.exp(x / self.l)
-                + A2 * np.exp(-x / self.l)
-            )
+        return (
+            (1.0 - b * b) * self.kappa0
+            + A1 * np.exp(x / self.l)
+            + A2 * np.exp(-x / self.l)
+        )
 
 class PeerlingsNumeric:
     def __init__(
@@ -183,8 +179,8 @@ class PeerlingsNumeric:
         
         assert cells_rest.size+cells_notch.size == num_cells
 
-        displacement_left = df.fem.Constant(mesh, 0.0)
-        displacement_right = df.fem.Constant(mesh, self.deltaL/2.0)
+        displacement_left = df.fem.Constant(mesh, np.float64(0.0))
+        displacement_right = df.fem.Constant(mesh, np.float64(self.deltaL/2.0))
 
         entities_left = df.mesh.locate_entities_boundary(mixed_space.mesh,0,left_boundary)
         entities_right = df.mesh.locate_entities_boundary(mixed_space.mesh,0,right_boundary)

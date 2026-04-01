@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 import dolfinx as df
 import numpy as np
 import ufl
@@ -12,7 +10,6 @@ from petsc4py import PETSc
 from fenics_constitutive.models.interfaces import (
     IncrSmallStrainGradientModel,
     NonlocalTangentFunctions,
-    NonlocalTangents,
 )
 from fenics_constitutive.solver._incrementalunknowns import (
     IncrementalGradientSolution,
@@ -25,27 +22,29 @@ from fenics_constitutive.solver._lawonsubmesh import (
 from fenics_constitutive.solver._solver import SimulationTime
 from fenics_constitutive.solver._spaces import GradientElements
 
-from ._incrementalunknowns import IncrementalDisplacement, IncrementalStress
-from ._lawonsubmesh import LawOnSubMesh, create_law_on_submesh
-from ._spaces import ElementSpaces
+from ._incrementalunknowns import IncrementalStress
 from .typesafe import fn_for
 from .utils import ufl_mandel_strain
 
 
 class IncrSmallStrainGradientProblem(NonlinearProblem):
-    """
-    A nonlinear problem for incremental small strain models. To be used with
+    r"""
+    A nonlinear problem for incremental small strain gradient-enhanced models. To be used with
     the dolfinx NewtonSolver.
 
     Args:
         laws: A list of tuples where the first element is the constitutive law and the second
             element is the cells for the submesh. If only one law is provided, it is assumed
             that the domain is homogenous. The cell indices should be local indices of the MPI-process.
-        mixed_solution: The mixed solution function of the displacements and nonlocal quantity. `mixed_solution.functionspace` should
-        be of type `ufl.functionspace.MixedFunctionSpace(u_space,nonlocal_space)`.
+        mixed_solution: The mixed solution function of the displacements and nonlocal quantity. This implementation
+            uses a mixed element formulation, instead of a mixed function space.
         bcs: The Dirichlet boundary conditions.
         q_degree: The quadrature degree (Polynomial degree which the quadrature rule needs to integrate exactly).
+        l: The internal length scale of the gradient model. Used as $$l^2 \nabla \cdot \nabla$$ in the weak form.
         del_t: The time increment.
+        external_forces: The external forces in the weak form. This should be a list of ufl Forms, e.g. for body forces and traction forces.
+            We usually assume that the gradient of the nonlocal quantity vnishes on the boundary, so we don't need to add the Neumann boundary
+            condition for the nonlocal quantity.
         form_compiler_options: The options for the form compiler.
         jit_options: The options for the JIT compiler.
     """
@@ -110,10 +109,12 @@ class IncrSmallStrainGradientProblem(NonlinearProblem):
         self.metadata = {"quadrature_degree": q_degree, "quadrature_scheme": "default"}
         self.dxm = ufl.dx(metadata=self.metadata)
 
+        # Define the residual form. The first term comes from the balance of linear momentum
         R_form = (
             ufl.inner(ufl_mandel_strain(u_test, constraint), self.stress.current)
             * self.dxm
         )
+        # Add terms containing the nonlocal quantity. 
         R_form += (
             ufl.inner(l**2 * ufl.grad(nonlocal_quantity), ufl.grad(nonlocal_test))
             * self.dxm
@@ -125,6 +126,8 @@ class IncrSmallStrainGradientProblem(NonlinearProblem):
         if external_forces is not None:
             R_form -= sum(external_forces)
 
+        # Define the Jacobian form. contains the 4 Gateaux derivatives of
+        # the residual form.
         dR_form = (
             ufl.inner(
                 ufl_mandel_strain(u_trial, constraint),

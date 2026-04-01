@@ -55,6 +55,11 @@ class IncrementalDisplacement:
 
 @dataclass(frozen=True)
 class IncrementalGradientSolution:
+    """This class holds the current and previous solution of the mixed formulation
+    of the gradient enhanced model. It also holds the expressions for the incremental
+    gradient of the displacement and the nonlocal quantity on quadrature points. 
+    The expressions are updated in place when the current solution is updated.
+    """
     previous: df.fem.Function
     current: df.fem.Function
     _del_grad_u_expr: df.fem.Expression
@@ -64,6 +69,7 @@ class IncrementalGradientSolution:
     def from_mixed_function(
         mixed_function: df.fem.Function, q_degree: int
     ) -> IncrementalGradientSolution:
+        
         mixed_space = mixed_function.function_space
         assert mixed_space.num_sub_spaces == 2
 
@@ -74,9 +80,7 @@ class IncrementalGradientSolution:
         solution_0 = mixed_function.copy()
         u0 = solution_0.sub(0)
         u1 = mixed_function.sub(0)
-        #if u0.ufl_shape == (1,):
-        #    del_grad_u_expr = df.fem.Expression(ufl.grad(u1 - u0), q_points)
-        #else:
+
         del_grad_u_expr = df.fem.Expression(ufl.nabla_grad(u1 - u0), q_points)
         nonlocal_expr = df.fem.Expression(mixed_function.sub(1), q_points)
         return IncrementalGradientSolution(
@@ -111,8 +115,8 @@ class IncrementalGradientSolution:
     def evaluate_nonlocal_on_quadrature_points(
         self, cells: np.ndarray, nonlocal_qp: df.fem.Function
     ):
-        """Eval inc disp grad fun"""
-        
+        """Evaluate nonlocal quantity on quadrature points"""
+
         nonlocal_qp.interpolate(
             self._nonlocal_expr,
             cells0=cells,

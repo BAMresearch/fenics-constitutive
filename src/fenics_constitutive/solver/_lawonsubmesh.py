@@ -10,7 +10,6 @@ from fenics_constitutive.models.interfaces import (
     IncrSmallStrainGradientModel,
     IncrSmallStrainModel,
     NonlocalTangentFunctions,
-    NonlocalTangents,
 )
 from fenics_constitutive.solver._incrementalunknowns import IncrementalGradientSolution
 from fenics_constitutive.solver._spaces import GradientElements
@@ -131,7 +130,7 @@ def create_gradient_law_on_submesh(
     elements: GradientElements,
     stress_space: df.fem.FunctionSpace,
 ) -> GradientLawOnSubMesh:
-    """Create a `LawOnSubMesh`"""
+    """Create a `GradientLawOnSubMesh`"""
     subspace_map, submesh, stress_vector_space = build_subspace_map(
         cells,
         stress_space,
@@ -185,7 +184,7 @@ class GradientLawOnSubMesh:
         return self.stress.x.array
     
     def local_quantity_sub(self, local_quantity: IncrementalLocalQuantity) -> np.ndarray:
-        """Map the global stress to the submesh"""
+        """Map the global local quantity to the submesh"""
         self.submesh_map.map_to_sub(local_quantity.previous, self.local_quantity)
         return self.local_quantity.x.array
 
