@@ -72,8 +72,10 @@ class PeerlingsGradientPerfectDamage(IncrSmallStrainGradientModel):
 
         def omega(eps_eq: np.ndarray) -> np.ndarray:
             # perfect damage law
-            damage = 1 - self.eps_0 / eps_eq
-            return np.where(eps_eq >= self.eps_0, damage, zeros) * self.omega_max
+            mask = eps_eq >= self.eps_0
+            damage = zeros.copy()
+            damage[mask] = 1 - self.eps_0 / eps_eq[mask] * self.omega_max
+            return damage
 
         def strain_norm(total_strain: np.ndarray) -> np.ndarray:
             # euclidian norm
@@ -89,26 +91,28 @@ class PeerlingsGradientPerfectDamage(IncrSmallStrainGradientModel):
         local_quantity[:] = strain_norm(total_strain)
 
         if tangents is not None:
-            tangents.dlocal_deps[:] = np.where(
-                total_strain > 0.0,
-                total_strain / local_quantity.reshape(-1, 1),
-                zeros.reshape(-1, 1),
-            ).flatten()
+            mask = local_quantity.reshape(-1, 1) > 0.0
+            dlocal_deps = zeros.copy().reshape(-1, 1)
+            dlocal_deps[mask] = total_strain[mask] / local_quantity.reshape(-1, 1)[mask]
+            tangents.dlocal_deps[:] = dlocal_deps.flatten()
 
+            # This tangent is only nonzero for plasticity models
             tangents.dlocal_dnonlocal[:] = 0.0
 
             tangents.dsigma_deps[:] = np.tile(self.C.flatten(), ngauss)
-            tangents.dsigma_deps.reshape(-1, self.stress_strain_dim**2)[:] *= 1.0 - history_view
-            
-            domega_dnonlocal = np.where(
-                nonlocal_quantity >= self.eps_0,
-                self.eps_0 / nonlocal_quantity**2,
-                zeros
+            tangents.dsigma_deps.reshape(-1, self.stress_strain_dim**2)[:] *= (
+                1.0 - history_view
             )
+
+            mask = nonlocal_quantity >= self.eps_0
+            domega_dnonlocal = zeros.copy()
+            domega_dnonlocal[mask] = (self.omega_max * self.eps_0) / nonlocal_quantity[
+                mask
+            ] ** 2
+
             tangents.dsigma_dnonlocal.reshape(-1, self.stress_strain_dim)[:] = (
                 -total_strain @ self.C
-            )
-            tangents.dsigma_dnonlocal.reshape(-1,self.stress_strain_dim)[:] *= domega_dnonlocal.reshape(-1,1)
+            ) * domega_dnonlocal.reshape(-1, 1)
 
     @property
     def constraint(self) -> StressStrainConstraint:
