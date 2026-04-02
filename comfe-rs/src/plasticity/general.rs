@@ -18,9 +18,7 @@ pub trait Plasticity<
     fn new(parameters: &Self::Parameters) -> Self;
     fn set_model_state(
         &mut self,
-        sigma_0: &SVector<f64, STRESS_STRAIN>,
-        sigma_1: &SVector<f64, STRESS_STRAIN>,
-        //del_eps: &SVector<f64, STRESS_STRAIN>,
+        sigma: &SVector<f64, STRESS_STRAIN>,
         kappa: &SVector<f64, KAPPA>,
     );
     fn f(&self) -> f64;
@@ -123,7 +121,7 @@ impl<
         let alpha_0 = SVector::<f64, 1>::from_element(history_.alpha);
         let mut alpha_1 = alpha_0.clone();
         let mut sigma_1: SVector<f64,6>;
-        model.set_model_state(&sigma_0, &sigma_tr, &alpha_0);
+        model.set_model_state(&sigma_tr, &alpha_0);
 
         let f = model.f();
         if f <= 0.0 {
@@ -202,7 +200,7 @@ impl<
                 del_lambda_prev = sol_0[6];
 
                 //Set all states in order to evaluate the new residuals
-                model.set_model_state(&sigma_0, &sigma_1, &alpha_1);
+                model.set_model_state(&sigma_1, &alpha_1);
 
                 res_sigma = &sigma_1 - &sigma_tr + del_lambda * model.elastic_tangent() * model.g();
                 res_kappa = &alpha_1 - &alpha_0 - del_lambda * model.k();

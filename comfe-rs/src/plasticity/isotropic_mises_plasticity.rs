@@ -65,14 +65,13 @@ impl Plasticity<6, 4, 4, 1> for IsotropicMises3D {
 
     fn set_model_state(
         &mut self,
-        sigma_0: &SVector<f64, 6>,
-        sigma_1: &SVector<f64, 6>,
+        sigma: &SVector<f64, 6>,
         kappa: &SVector<f64, 1>,
     ) {
         const PROJECTION_DEV: SMatrix<f64, 6, 6> = const { projection_dev::<6>() };
         //const SYM_ID: SVector<f64, 6> = const { sym_id::<6>() };
         // Implementation of setting model state
-        let (_i_1, s) = sigma_1.trace_dev();
+        let (_i_1, s) = sigma.trace_dev();
 
 
         let j_2 = 0.5 * s.norm_squared();
