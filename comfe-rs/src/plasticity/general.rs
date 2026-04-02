@@ -40,7 +40,7 @@ pub struct IsotropicPlasticityModel3D<
     phantom: PhantomData<MODEL>,
 }
 
-struct NewtonSolver<
+pub struct NewtonSolver<
     'a,
     const N: usize, //TODO:fix when const generics allow arithmetics
     const STRESS_STRAIN: usize,
@@ -49,16 +49,16 @@ struct NewtonSolver<
     const KAPPA: usize,
     T: Plasticity<STRESS_STRAIN, N_PARAMETERS, PARAMETERS, KAPPA>,
 > {
-    atol: f64,
-    rtol: f64,
-    maxit: usize,
-    model: &'a mut T,
+    pub atol: f64,
+    pub rtol: f64,
+    pub maxit: usize,
+    pub model: &'a mut T,
 }
-struct SolverResult<const STRESS_STRAIN: usize, const KAPPA: usize> {
-    sigma: SVector<f64, STRESS_STRAIN>,
-    kappa: SVector<f64, KAPPA>,
-    del_lambda: f64,
-    iterations: usize,
+pub struct SolverResult<const STRESS_STRAIN: usize, const KAPPA: usize> {
+    pub sigma: SVector<f64, STRESS_STRAIN>,
+    pub kappa: SVector<f64, KAPPA>,
+    pub del_lambda: f64,
+    pub iterations: usize,
 }
 
 impl<
@@ -71,7 +71,7 @@ impl<
     T: Plasticity<STRESS_STRAIN, N_PARAMETERS, PARAMETERS, KAPPA>,
 > NewtonSolver<'a, N, STRESS_STRAIN, N_PARAMETERS, PARAMETERS, KAPPA, T>
 {
-    fn new(model: &'a mut T, atol: f64, rtol: f64, maxit: usize) -> Self {
+    pub fn new(model: &'a mut T, atol: f64, rtol: f64, maxit: usize) -> Self {
         assert_eq!(N, STRESS_STRAIN + 1 + KAPPA);
         Self {
             atol,
@@ -81,7 +81,7 @@ impl<
         }
     }
 
-    fn solve(
+    pub fn solve(
         &mut self,
         sigma_tr: &SVector<f64, STRESS_STRAIN>,
         kappa_0: &SVector<f64, KAPPA>,
@@ -182,7 +182,7 @@ impl<
         });
     }
 
-    fn update_newton_matrix(&self, dres: &mut SMatrix<f64, N, N>, del_lambda: f64) {
+    pub fn update_newton_matrix(&self, dres: &mut SMatrix<f64, N, N>, del_lambda: f64) {
         assert!(dres.ncols() == dres.nrows() && dres.ncols() == STRESS_STRAIN + KAPPA + 1);
         // fill dres_sigma_dsigma
         dres.fixed_view_mut::<STRESS_STRAIN, STRESS_STRAIN>(0, 0)
