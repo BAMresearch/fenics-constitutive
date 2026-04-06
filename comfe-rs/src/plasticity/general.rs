@@ -293,6 +293,7 @@ impl<
                     inverse.fixed_view::<6, 6>(0, 0) * model.elastic_tangent();
                 plastic_tangent.transpose_mut(); //TODO: move the transpose to the python bindings
                 *tangent = plastic_tangent.data.0;
+                
             }
         }
     }

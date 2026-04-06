@@ -109,6 +109,12 @@ impl<
             if let Some(tangents) = tangents {
                 let mut dres = SMatrix::<f64, 8, 8>::zeros();
                 solver.update_newton_matrix(&mut dres, result.del_lambda);
+
+                model.set_nonlocal_derivatives(&result.sigma, &result.kappa);
+                let mut nonlocal_derivatives = SMatrix::<f64, 8,1>::zeros();
+                nonlocal_derivatives.fixed_rows_mut::<6>(0).copy_from(&(-result.del_lambda * model.elastic_tangent() * model.dg_dkappa_nonlocal()));
+                nonlocal_derivatives.fixed_rows_mut::<1>(6).copy_from(&(-model.df_dkappa_nonlocal()));
+                nonlocal_derivatives.fixed_rows_mut::<1>(7).copy_from(model.dk_dkappa_nonlocal());
                 //let inverse = dres
                 //    .try_inverse()
                 //    .expect("Plasticity3D: Failed to calculate tangent");
