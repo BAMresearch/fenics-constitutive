@@ -17,7 +17,11 @@ pub trait GradientPlasticity<
 >: Plasticity<STRESS_STRAIN, N_PARAMETERS, PARAMETERS, KAPPA>
 {
     //must be used once
-    fn set_nonlocal_state(&mut self, kappa_nonlocal: &SVector<f64, KAPPA>);
+    fn set_nonlocal_state(
+        &mut self,
+        kappa_nonlocal: &SVector<f64, KAPPA>,
+        kappa_nonlocal_max: &SVector<f64, KAPPA>,
+    );
 
     //must only be used when determining the tangents of the model
     fn set_nonlocal_derivatives(
@@ -79,11 +83,17 @@ impl<
 
         let alpha_0 = SVector::<f64, 1>::from_column_slice(local_quantity);
         let alpha_nonlocal = SVector::<f64, 1>::from_column_slice(nonlocal_quantity);
-
-        //let mut alpha_1 = alpha_0.clone();
-        //let mut sigma_1: SVector<f64,6>;
+        let alpha_nonlocal_max = SVector::<f64, 1>::from_element(f64::max(
+            alpha_nonlocal.x,
+            history_.alpha_nonlocal_max,
+        ));
+        history_.alpha_nonlocal_max = alpha_nonlocal_max.x;
+        
+        model.set_nonlocal_state(
+            &alpha_nonlocal,
+            &alpha_nonlocal_max,
+        );
         model.set_model_state(&sigma_tr, &alpha_0);
-        model.set_nonlocal_state(&alpha_nonlocal);
 
         let f = model.f();
         if f <= 0.0 {
@@ -109,29 +119,32 @@ impl<
             if let Some(tangents) = tangents {
                 let mut dres = SMatrix::<f64, 8, 8>::zeros();
                 solver.update_newton_matrix(&mut dres, result.del_lambda);
-                
+
                 let inverse = dres
                     .try_inverse()
                     .expect("Plasticity3D: Failed to calculate tangent");
 
                 model.set_nonlocal_derivatives(&result.sigma, &result.kappa);
-                let mut nonlocal_derivatives = SMatrix::<f64, 8,1>::zeros();
-                nonlocal_derivatives.fixed_rows_mut::<6>(0).copy_from(&(-result.del_lambda * model.elastic_tangent() * model.dg_dkappa_nonlocal()));
-                nonlocal_derivatives.fixed_rows_mut::<1>(6).copy_from(&(-model.df_dkappa_nonlocal()));
-                nonlocal_derivatives.fixed_rows_mut::<1>(7).copy_from(model.dk_dkappa_nonlocal());
+                let mut nonlocal_derivatives = SMatrix::<f64, 8, 1>::zeros();
+                nonlocal_derivatives.fixed_rows_mut::<6>(0).copy_from(
+                    &(-result.del_lambda * model.elastic_tangent() * model.dg_dkappa_nonlocal()),
+                );
+                nonlocal_derivatives
+                    .fixed_rows_mut::<1>(6)
+                    .copy_from(&(-model.df_dkappa_nonlocal()));
+                nonlocal_derivatives
+                    .fixed_rows_mut::<1>(7)
+                    .copy_from(model.dk_dkappa_nonlocal());
                 let tangent_vector = &inverse * &nonlocal_derivatives;
 
                 let mut plastic_tangent: SMatrix<f64, 6, 6> =
                     inverse.fixed_view::<6, 6>(0, 0) * model.elastic_tangent();
                 plastic_tangent.transpose_mut(); //TODO: move the transpose to the python bindings
-                
+
                 tangents.dsigma_deps = plastic_tangent;
-                tangents.dlocal_deps =
-                    inverse.fixed_view::<1, 6>(7, 0) *
-                    model.elastic_tangent();
+                tangents.dlocal_deps = inverse.fixed_view::<1, 6>(7, 0) * model.elastic_tangent();
                 tangents.dsigma_dnonlocal = tangent_vector.fixed_rows::<6>(0).into();
                 tangents.dlocal_dnonlocal = tangent_vector[7];
-                
             }
         }
     }
