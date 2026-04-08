@@ -48,7 +48,6 @@ pub struct IsotropicMises3D {
     k: SVector<f64, 1>,
     dk_dsigma: SMatrix<f64, 1, 6>,
     dk_dkappa: SMatrix<f64, 1, 1>,
-    del_plastic_strain: SVector<f64, 6>,
 }
 
 impl Plasticity<6, 4, 4, 1> for IsotropicMises3D {

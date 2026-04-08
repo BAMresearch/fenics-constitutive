@@ -6,7 +6,9 @@ use crate::{
     mandel::{MandelView, MandelViewMut, nonsymmetric_tensor_to_mandel},
 };
 use konst::{const_eq, eq_str};
-use nalgebra::{RowSVector, SMatrix, SMatrixViewMut, SVector, SVectorView, SVectorViewMut, Scalar};
+use nalgebra::{
+    ArrayStorage, RowSVector, SMatrix, SMatrixViewMut, SVector, SVectorView, SVectorViewMut, Scalar,
+};
 
 pub enum StressStrainConstraint {
     UNIAXIAL_STRAIN = 1,
@@ -263,21 +265,6 @@ pub trait ConstitutiveModelFn<
         history: &mut [f64; HISTORY],
         parameters: &[f64; PARAMETERS],
     );
-
-    //fn evaluate_all(
-    //    time: f64,
-    //    del_time: f64,
-    //    //strain: &[f64],
-    //    del_strain: &[f64],
-    //    stress: &mut [f64],
-    //    tangent: Option<&mut [f64]>,
-    //    history: &mut [f64],
-    //    parameters: &[f64],
-    //) {
-    //    evaluate_model::<STRESS_STRAIN, N_HISTORY, HISTORY, N_PARAMETERS, PARAMETERS, Self>(
-    //        time, del_time, del_strain, stress, tangent, history, parameters
-    //    );
-    //}
 }
 
 pub struct NonlocalTangents<const STRESS_STRAIN: usize> {
@@ -314,47 +301,6 @@ pub trait GradientConstitutiveModelFn<
         tangents: Option<&mut NonlocalTangents<STRESS_STRAIN>>,
         history: &mut [f64; HISTORY],
         parameters: &[f64; PARAMETERS],
-    );
-}
-
-trait SmallStrainConstitutiveModel<
-    const STRESS_STRAIN: usize,
-    const N_HISTORY: usize,
-    const HISTORY: usize,
-    const N_PARAMETERS: usize,
-    const PARAMETERS: usize,
-> where
-    Self: Sized,
-{
-    type History: ArrayEquivalent<HISTORY> + StaticMap<N_HISTORY, QDim>;
-    type Parameters: ArrayEquivalent<PARAMETERS> + StaticMap<N_PARAMETERS, QDim>;
-
-    const STRESS_STRAIN: usize = STRESS_STRAIN;
-    const N_HISTORY: usize = N_HISTORY;
-    const HISTORY: usize = HISTORY;
-    const N_PARAMETERS: usize = N_PARAMETERS;
-    const PARAMETERS: usize = PARAMETERS;
-
-    fn evaluate(
-        time: f64,
-        del_time: f64,
-        //strain: &SVector<f64, STRESS_STRAIN>,
-        del_strain: &SVector<f64, STRESS_STRAIN>,
-        stress: &mut SVector<f64, STRESS_STRAIN>,
-        tangent: Option<&mut SMatrix<f64, STRESS_STRAIN, STRESS_STRAIN>>,
-        history: &mut Self::History,
-        parameters: &Self::Parameters,
-    );
-
-    fn evaluate_all(
-        time: f64,
-        del_time: f64,
-        //strain: &[f64],
-        del_strain: &[f64],
-        stress: &mut [f64],
-        tangent: Option<&mut [f64]>,
-        history: &mut [f64],
-        parameters: &[f64],
     );
 }
 
@@ -414,7 +360,7 @@ pub fn evaluate_model<
 
     let (stress_, stress_rest) = stress.as_chunks_mut::<STRESS_STRAIN>();
     //let (strain_, strain_rest) = strain.as_chunks::<STRESS_STRAIN>();
-    let (del_grad_u_, del_grad_u_rest) = del_grad_u.as_chunks::<GEOMETRY>();
+    let (del_grad_u_, _del_grad_u_rest) = del_grad_u.as_chunks::<GEOMETRY>();
     let (del_grad_u_, del_grad_u_rest) = del_grad_u_.as_chunks::<GEOMETRY>();
 
     let mut tangent_ = {
@@ -489,5 +435,171 @@ pub fn evaluate_model<
             &mut history_[i],
             &parameters,
         );
+    }
+}
+
+/// Evaluates a constitutive model with input for more than one quadrature point.
+/// Panics if the sizes of the input are inconsistent.
+pub fn evaluate_gradient_model<
+    const STRESS_STRAIN: usize,
+    const GEOMETRY: usize,
+    const N_HISTORY: usize,
+    const HISTORY: usize,
+    const N_PARAMETERS: usize,
+    const PARAMETERS: usize,
+    MODEL: GradientConstitutiveModelFn<STRESS_STRAIN, N_HISTORY, HISTORY, N_PARAMETERS, PARAMETERS>
+        + Sized,
+>(
+    time: f64,
+    del_time: f64,
+    //strain: &[f64],
+    del_grad_u: &[f64],
+    nonlocal_quantity: &[f64],
+    stress: &mut [f64],
+    local_quantity: &mut [f64],
+    tangents: Option<(&mut [f64], &mut [f64], &mut [f64], &mut [f64])>,
+    history: &mut [f64],
+    parameters: &[f64],
+) {
+    let parameters: [f64; PARAMETERS] = parameters.try_into().expect(&format!(
+        "Length of parameters slice does not match the expected length. Expected: {}, got: {}.",
+        PARAMETERS,
+        parameters.len()
+    ));
+
+    let (stress_, stress_rest) = stress.as_chunks_mut::<STRESS_STRAIN>();
+    //let (strain_, strain_rest) = strain.as_chunks::<STRESS_STRAIN>();
+    let (del_grad_u_, _del_grad_u_rest) = del_grad_u.as_chunks::<GEOMETRY>();
+    let (del_grad_u_, del_grad_u_rest) = del_grad_u_.as_chunks::<GEOMETRY>();
+    let (nonlocal_quantity_, nonlocal_rest) = nonlocal_quantity.as_chunks::<1>();
+    let (local_quantity_, local_rest) = local_quantity.as_chunks_mut::<1>();
+
+    let mut tangents_ = {
+        match tangents {
+            Some(t) => {
+                let (dsigma_deps, tangent_rest_00) = t.0.as_chunks_mut::<STRESS_STRAIN>();
+                let (dsigma_deps, tangent_rest_01) = dsigma_deps.as_chunks_mut::<STRESS_STRAIN>();
+
+                let (dsigma_dnonlocal, tangent_rest_1) = t.1.as_chunks_mut::<STRESS_STRAIN>();
+                let (dlocal_deps, tangent_rest_2) = t.2.as_chunks_mut::<STRESS_STRAIN>();
+                let dlocal_dnonlocal = t.3;
+
+                assert!(
+                    tangent_rest_1.is_empty()
+                        && tangent_rest_2.is_empty()
+                        && tangent_rest_00.is_empty()
+                        && tangent_rest_01.is_empty()
+                );
+                assert!(
+                    dsigma_deps.len() == dsigma_dnonlocal.len()
+                        && dsigma_dnonlocal.len() == dlocal_deps.len()
+                        && dlocal_deps.len() == dlocal_dnonlocal.len()
+                );
+                Some((dsigma_deps, dsigma_dnonlocal, dlocal_deps, dlocal_dnonlocal))
+            }
+            None => None,
+        }
+    };
+
+    let stress_len = stress_.len();
+
+    let del_grad_u_len = del_grad_u_.len();
+
+    let local_len = local_quantity_.len();
+
+    let nonlocal_len = nonlocal_quantity_.len();
+
+    let tangent_len = tangents_.as_ref().map_or(0, |t| t.0.len());
+
+    assert!(
+        stress_len == del_grad_u_len
+            && stress_len == local_len
+            && stress_len == nonlocal_len
+            && (stress_len == tangent_len || tangents_.is_none()),
+        "Stress, strain, local, nonlocal, and tangent lengths do not match: \
+        stress_len: {}, del_grad_u_len: {}, local_len: {}, nonlocal_len: {}, tangent_len: {}",
+        stress_len,
+        del_grad_u_len,
+        local_len,
+        nonlocal_len,
+        tangent_len
+    );
+
+    //deal with special case that history is zero-sized
+    let mut zero_history: Vec<[f64; HISTORY]> = vec![];
+    if HISTORY == 0 {
+        zero_history.resize(stress_len, [0.0; HISTORY]);
+    }
+    let (history_, history_rest) = {
+        if HISTORY == 0 {
+            //let history_chunks : &mut [[f64; HISTORY];0] =  &mut[];
+            let history_rest: &mut [f64] = &mut [];
+            (zero_history.as_mut_slice(), history_rest)
+        } else {
+            history.as_chunks_mut::<HISTORY>()
+        }
+    };
+    assert!(stress_len == history_.len());
+
+    assert!(
+        stress_rest.is_empty()
+            && del_grad_u_rest.is_empty()
+            && local_rest.is_empty()
+            && nonlocal_rest.is_empty()
+            && history_rest.is_empty(),
+        "Input slices are not of the correct length: \
+        stress_rest: {:?}, del_grad_u_rest: {:?}, local_rest: {:?}, nonlocal_rest: {:?}, history_rest: {:?}",
+        stress_rest.len(),
+        del_grad_u_rest.len(),
+        local_rest.len(),
+        nonlocal_rest.len(),
+        history_rest.len()
+    );
+
+    for i in 0..stress_len {
+        let mut tangent_chunk = match &tangents_ {
+            Some(t) => Some(NonlocalTangents {
+                dsigma_deps: SMatrix::<f64, STRESS_STRAIN, STRESS_STRAIN>::from_array_storage(
+                    ArrayStorage(t.0[i]),
+                ),
+                dsigma_dnonlocal: SVector::<f64, STRESS_STRAIN>::from_array_storage(ArrayStorage(
+                    [t.1[i]],
+                )),
+                dlocal_deps: SVector::<f64, STRESS_STRAIN>::from_array_storage(ArrayStorage([
+                    t.1[i]
+                ]))
+                .transpose(),
+                dlocal_dnonlocal: t.3[i],
+            }),
+            None => None,
+        };
+
+        let del_strain_chunk: [f64; STRESS_STRAIN] = nonsymmetric_tensor_to_mandel(del_grad_u_[i]);
+
+        MODEL::evaluate(
+            time,
+            del_time,
+            &del_strain_chunk,
+            &nonlocal_quantity_[i],
+            &mut stress_[i],
+            &mut local_quantity_[i],
+            tangent_chunk.as_mut(),
+            &mut history_[i],
+            &parameters,
+        );
+        match (&mut tangents_, &tangent_chunk) {
+            (Some(t), Some(t_c)) => {
+                t.0[i] = t_c.dsigma_deps.data.0;
+                t.1[i] = t_c.dsigma_dnonlocal.data.0[0];
+                t.2[i] = t_c.dlocal_deps.transpose().data.0[0];
+                t.3[i] = t_c.dlocal_dnonlocal;
+            }
+            (None, None) => {
+                //nothing to do here
+            }
+            (_, _) => {
+                panic!("Something went wrong here");
+            }
+        }
     }
 }
