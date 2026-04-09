@@ -1,6 +1,7 @@
 use comfe::interfaces::*;
 use comfe::linear_elasticity::LinearElasticity3D;
 use comfe::mises_plasticity::MisesPlasticity3D;
+use comfe::peerlings_perfect_damage::PeerlingsGradientPerfectDamage3D;
 use comfe::plasticity::{
     DPHDamage3D, DruckerPrager3D, DruckerPragerHyperbolic3D, IsotropicGradientPlasticityModel3D,
     IsotropicMises3D, IsotropicPlasticityModel3D,
@@ -322,6 +323,12 @@ fn _bindings(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m,
         PyDPHDamage3D,
         IsotropicGradientPlasticityModel3D<13,13, DPHDamage3D>,
+        StressStrainConstraint::FULL
+    );
+    implement_gradient_python_model!(
+        m,
+        PyPeerlings3D,
+        PeerlingsGradientPerfectDamage3D,
         StressStrainConstraint::FULL
     );
 

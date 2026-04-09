@@ -13,6 +13,7 @@ from fenics_constitutive.models import StressStrainConstraint
 from fenics_constitutive.models.peerlings_gradient_damage import (
     PeerlingsGradientPerfectDamage,
 )
+from fenics_constitutive.models.rust_models import PeerlingsGradientPerfectDamage3D
 from fenics_constitutive.solver._gradient_enhanced_solver import (
     IncrSmallStrainGradientProblem,
 )
@@ -540,12 +541,166 @@ class PeerlingsNumeric3D:
 
         self.problem = problem
 
+class PeerlingsNumericRust3D:
+    def __init__(
+        self,
+        L: float,
+        W_half_percentage: int,
+        deltaL: float,
+        alpha: float,
+        E: float,
+        eps_0: float,
+        l: float,
+        h_refinement: int,
+    ):
+        assert W_half_percentage < 50
+        W = W_half_percentage / 100.0 * 2 * L
+        self.L, self.W, self.deltaL, self.alpha = (
+            L,
+            W,
+            deltaL,
+            alpha,
+        )  # 100.0, 10.0, 0.05, 0.1
+        self.E, self.kappa0, self.l = np.array([E]), np.array([eps_0]), l  # 20000.0, 1.0e-4, 1.0
+        n_elements = 50 * h_refinement
+        mesh = df.mesh.create_box(
+            MPI.COMM_WORLD,
+            np.array([[0.0, 0.0, 0.0], [L / 2.0, 1.0, 1.0]]),
+            [n_elements, 1,1],
+            cell_type=df.mesh.CellType.hexahedron,
+        )
+
+        element_d = basix.ufl.element(
+            ElementFamily.P, basix.CellType.hexahedron, 1, shape=(3,)
+        )
+        element_eps = basix.ufl.element(
+            ElementFamily.P, basix.CellType.hexahedron, 1
+        )
+        mixed_element = basix.ufl.mixed_element([element_d, element_eps])
+        mixed_space = df.fem.functionspace(mesh, mixed_element)
+        u = df.fem.Function(mixed_space)
+
+        kappa = self.E/(3-6*0.3)
+        mu = self.E/(2*(0.3+1))
+        law = PeerlingsGradientPerfectDamage3D(
+            parameters={
+                "mu": mu,
+                "kappa": kappa,
+                "eps_0": self.kappa0,
+                "omega_max": np.array([1.0]),
+            },  # nu does not do anythng in uniaxial stress
+        )
+
+        law_notch = PeerlingsGradientPerfectDamage3D(
+            parameters={
+                "mu": mu * (1.0 - self.alpha),
+                "kappa": kappa*(1.0-self.alpha),
+                "eps_0": self.kappa0,
+                "omega_max": np.array([1.0]),
+            },  # nu does not do anythng in uniaxial stress
+        )
+
+        def left_boundary(x):
+            return np.isclose(x[0], 0.0)
+            # return np.isclose(x[0], -self.L/2.)
+
+        def right_boundary(x):
+            return np.isclose(x[0], self.L / 2.0)
+
+        def boundary_top_bottom(x):
+            return np.isclose(x[1], 1.0) | np.isclose(x[1], 0.0)
+        
+        def boundary_sides(x):
+            return np.isclose(x[2], 0.0) | np.isclose(x[2], 1.0)
+
+        eps_mesh = (L / 2 / n_elements) * 1e-4
+
+        def notch_marker(x):
+            return x[0] <= self.W / 2.0 + eps_mesh
+            # return (x[0]>=-self.W/2.0-eps_mesh) & (x[0]<=self.W/2.0+eps_mesh)
+
+        def rest_marker(x):
+            return x[0] >= self.W / 2.0 - eps_mesh
+            # return (x[0]<=-self.W/2.0+eps_mesh) | (x[0]>=self.W/2.0-eps_mesh)
+
+        cells_notch = df.mesh.locate_entities(mesh, mesh.topology.dim, notch_marker)
+        cells_rest = df.mesh.locate_entities(mesh, mesh.topology.dim, rest_marker)
+        print(cells_rest.shape, cells_notch.shape)
+        map_c = mesh.topology.index_map(mesh.topology.dim)
+        num_cells = map_c.size_local + map_c.num_ghosts
+
+        assert cells_rest.size + cells_notch.size == num_cells
+
+        displacement_zero = df.fem.Constant(mesh, np.float64(0.0))
+        displacement_right = df.fem.Constant(mesh, np.float64(self.deltaL / 2.0))
+
+        entities_left = df.mesh.locate_entities_boundary(
+            mixed_space.mesh, 2, left_boundary
+        )
+        entities_right = df.mesh.locate_entities_boundary(
+            mixed_space.mesh, 2, right_boundary
+        )
+        entities_top_bottom = df.mesh.locate_entities_boundary(
+            mixed_space.mesh, 2, boundary_top_bottom
+        )
+        entities_sides = df.mesh.locate_entities_boundary(
+            mixed_space.mesh, 2, boundary_sides
+        )
+
+        dofs_left = df.fem.locate_dofs_topological(
+            mixed_space.sub(0).sub(0), 2, entities_left
+        )
+        dofs_right = df.fem.locate_dofs_topological(
+            mixed_space.sub(0).sub(0), 2, entities_right
+        )
+        dofs_top_bottom = df.fem.locate_dofs_topological(
+            mixed_space.sub(0).sub(1), 2, entities_top_bottom
+        )
+        dofs_sides = df.fem.locate_dofs_topological(
+            mixed_space.sub(0).sub(2), 2, entities_sides
+        )
+
+        bc_left = df.fem.dirichletbc(
+            displacement_zero, dofs_left, mixed_space.sub(0).sub(0)
+        )
+        bc_right = df.fem.dirichletbc(
+            displacement_right, dofs_right, mixed_space.sub(0).sub(0)
+        )
+        bc_top_bottom = df.fem.dirichletbc(
+            displacement_zero, dofs_top_bottom, mixed_space.sub(0).sub(1)
+        )
+        bc_sides = df.fem.dirichletbc(
+            displacement_zero, dofs_sides, mixed_space.sub(0).sub(2)
+        )
+
+        problem = IncrSmallStrainGradientProblem(
+            [(law, cells_rest), (law_notch, cells_notch)],
+            u,
+            [bc_left, bc_right, bc_top_bottom, bc_sides],
+            2,
+            self.l,
+        )
+
+        solver = NewtonSolver(MPI.COMM_WORLD, problem)
+        solver.rtol = 1e-8
+        solver.atol = 1e-8
+        # solver.maxit = 200
+        # solver.criterion="incremental"
+        displacements = np.linspace(0.0, displacement_right.value, 20)
+        for d in displacements:
+            displacement_right.value = d
+            n, converged = solver.solve(u)
+            print("converged in ", n, "iterations. displ:", displacement_right.value)
+            problem.update()
+
+        self.problem = problem
 
 def test_peerlings_1d():
     analytic = PeerlingsAnalytic(100.0, 5, 0.05, 0.1, 20000.0, 1e-4, 1.0)
     numeric = PeerlingsNumeric(100.0, 5, 0.05, 0.1, 20000.0, 1e-4, 1.0, 2)
     numeric2D = PeerlingsNumericPlaneStrain(100.0, 5, 0.05, 0.1, 20000.0, 1e-4, 1.0, 2)
     numeric3D = PeerlingsNumeric3D(100.0, 5, 0.05, 0.1, 20000.0, 1e-4, 1.0, 2)
+    numeric3D_2 = PeerlingsNumericRust3D(100.0, 5, 0.05, 0.1, 20000.0, 1e-4, 1.0, 2)
 
     u, eps_nonlocal = numeric.problem.solution.current.split()
     u = u.collapse()
@@ -563,6 +718,11 @@ def test_peerlings_1d():
     eps_nonlocal_3d = eps_nonlocal_3d.collapse()
     x_nodes_3d = eps_nonlocal_3d.function_space.tabulate_dof_coordinates()[:, 0].flatten()
     e_exact_3d = [analytic.e(x) for x in x_nodes_3d]
+    
+    u_3d_2, eps_nonlocal_3d_2 = numeric3D_2.problem.solution.current.split()
+    eps_nonlocal_3d_2 = eps_nonlocal_3d_2.collapse()
+    #x_nodes_3d = eps_nonlocal_3d.function_space.tabulate_dof_coordinates()[:, 0].flatten()
+    #e_exact_3d = [analytic.e(x) for x in x_nodes_3d]
 
     assert (
         np.linalg.norm(eps_nonlocal.x.array - e_exact) / np.linalg.norm(e_exact)
@@ -579,3 +739,9 @@ def test_peerlings_1d():
     assert (
         rel_error_3d
     ) < 1e-2, f"absolute error {abs_error_3d}, relative error {rel_error_3d}"
+    
+    abs_error_3d_2 = np.linalg.norm(eps_nonlocal_3d_2.x.array - e_exact_3d)
+    rel_error_3d_2 =  abs_error_3d_2/ np.linalg.norm(e_exact_3d)
+    assert (
+        rel_error_3d_2
+    ) < 1e-2, f"absolute error {abs_error_3d_2}, relative error {rel_error_3d_2}"

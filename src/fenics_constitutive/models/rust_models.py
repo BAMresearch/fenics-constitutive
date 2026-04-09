@@ -1,4 +1,3 @@
-from fenics_constitutive.models.interfaces import NonlocalTangents
 from __future__ import annotations
 
 import numpy as np
@@ -10,12 +9,14 @@ from fenics_constitutive._bindings import (
     PyIsotropicMises3D,
     PyLinearElasticity3D,
     PyMisesPlasticity3D,
+    PyPeerlings3D,
 )
+from fenics_constitutive.models.interfaces import NonlocalTangents
 
 from .interfaces import (
+    IncrSmallStrainGradientModel,
     IncrSmallStrainModel,
     StressStrainConstraint,
-    IncrSmallStrainGradientModel,
 )
 
 __all__ = ["LinearElasticity3D", "MisesPlasticityLinearHardening3D"]
@@ -270,6 +271,12 @@ class IsotropicMises3D(IncrSmallStrainModel):
 
 @fenics_constitutive_gradient_wrapper(PyDPHDamage3D)
 class DPHDamage3D(IncrSmallStrainGradientModel):
+    """
+    TODO
+    """
+
+@fenics_constitutive_gradient_wrapper(PyPeerlings3D)
+class PeerlingsGradientPerfectDamage3D(IncrSmallStrainGradientModel):
     """
     TODO
     """
