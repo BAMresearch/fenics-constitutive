@@ -4,14 +4,12 @@ use crate::interfaces::*;
 use crate::mandel::*;
 use crate::plasticity::*;
 use nalgebra::RowSVector;
-use nalgebra::Scalar;
-//use crate::impl_from_array;
 use nalgebra::{SMatrix, SVector};
 
 create_history_parameter_struct!(
     DPHDamageParameters,
-    12,
-    12,
+    13,
+    13,
     [
         (mu, (QDim::Scalar)),
         (kappa, (QDim::Scalar)),
@@ -24,7 +22,8 @@ create_history_parameter_struct!(
         (e_f, (QDim::Scalar)),
         (h, (QDim::Scalar)),
         (radial_factor, (QDim::Scalar)),
-        (alpha_0, (QDim::Scalar))
+        (alpha_0, (QDim::Scalar)),
+        (omega_max, (QDim::Scalar))
     ]
 );
 
@@ -73,7 +72,7 @@ pub struct DPHDamage3D {
     domega_dkappa_nonlocal: f64,
 }
 
-impl Plasticity<6, 12, 12, 1> for DPHDamage3D {
+impl Plasticity<6, 13, 13, 1> for DPHDamage3D {
     type Parameters = DPHDamageParameters;
 
     fn new(parameters: &Self::Parameters) -> Self {
@@ -180,14 +179,22 @@ impl Plasticity<6, 12, 12, 1> for DPHDamage3D {
     }
 }
 
-impl GradientPlasticity<6, 12, 12, 1> for DPHDamage3D {
+impl GradientPlasticity<6, 13, 13, 1> for DPHDamage3D {
     fn set_nonlocal_state(
         &mut self,
         kappa_nonlocal: &SVector<f64, 1>,
         kappa_nonlocal_max: &SVector<f64, 1>,
     ) {
-        self.omega =
-            1. - f64::exp((self.parameters.alpha_0 - kappa_nonlocal_max.x) / self.parameters.e_f);
+        if kappa_nonlocal_max.x >= self.parameters.alpha_0 {
+            self.omega = (1.
+                - f64::exp((self.parameters.alpha_0 - kappa_nonlocal_max.x) / self.parameters.e_f))
+                * self.parameters.omega_max;
+            self.domega_dkappa_nonlocal = (self.parameters.omega_max / self.parameters.e_f)
+                * f64::exp((self.parameters.alpha_0 - kappa_nonlocal_max.x) / self.parameters.e_f);
+        } else {
+            self.omega = 0.0;
+            self.domega_dkappa_nonlocal = 0.0;
+        }
 
         //TODO
     }
@@ -203,16 +210,18 @@ impl GradientPlasticity<6, 12, 12, 1> for DPHDamage3D {
             + self.omega * self.parameters.b_r;
         let a = (1.0 + self.parameters.h * kappa.x) * (1.0 - self.omega) * self.parameters.a_y
             + self.omega * self.parameters.a_r;
-        //let d = (1.0 + self.parameters.h * kappa.x) * (1.0 - self.omega) * self.parameters.d_y
-        //    + self.omega * self.parameters.d_r;
+
         let domega_dkappa = self.domega_dkappa_nonlocal;
 
-        let db_dkappa_nonlocal = - (1.0 + self.parameters.h * kappa.x) *domega_dkappa* self.parameters.b_y
-            + domega_dkappa * self.parameters.b_r ;
-        let da_dkappa_nonlocal =- (1.0 + self.parameters.h * kappa.x) *domega_dkappa* self.parameters.a_y
-            + domega_dkappa * self.parameters.a_r ;
-        let dd_dkappa_nonlocal = - (1.0 + self.parameters.h * kappa.x) *domega_dkappa* self.parameters.d_y
-            + domega_dkappa * self.parameters.d_r;
+        let db_dkappa_nonlocal =
+            -(1.0 + self.parameters.h * kappa.x) * domega_dkappa * self.parameters.b_y
+                + domega_dkappa * self.parameters.b_r;
+        let da_dkappa_nonlocal =
+            -(1.0 + self.parameters.h * kappa.x) * domega_dkappa * self.parameters.a_y
+                + domega_dkappa * self.parameters.a_r;
+        let dd_dkappa_nonlocal =
+            -(1.0 + self.parameters.h * kappa.x) * domega_dkappa * self.parameters.d_y
+                + domega_dkappa * self.parameters.d_r;
 
         self.df_dkappa_nonlocal.x = -(j_2 + b.powi(2)).sqrt() * a * db_dkappa_nonlocal / b.powi(2)
             + (j_2 + b.powi(2)).sqrt() * da_dkappa_nonlocal / b
@@ -224,10 +233,10 @@ impl GradientPlasticity<6, 12, 12, 1> for DPHDamage3D {
                 + (1_f64 / 2.0) * da_dkappa_nonlocal * (j_2 + b.powi(2)).sqrt().recip() * b.recip()
                 - 1_f64 / 2.0 * a * db_dkappa_nonlocal * (j_2 + b.powi(2)).powf(-3_f64 / 2.0);
         self.dg_dkappa_nonlocal = df_dj_2_dkappa_nonlocal * &s;
-        
+
         let g_norm = self.g.norm();
-        self.dk_dkappa_nonlocal = ((2_f64 / 3_f64).sqrt() / g_norm) * self.g.transpose() * &self.dg_dkappa_nonlocal;
-        
+        self.dk_dkappa_nonlocal =
+            ((2_f64 / 3_f64).sqrt() / g_norm) * self.g.transpose() * &self.dg_dkappa_nonlocal;
     }
 
     fn df_dkappa_nonlocal(&self) -> &RowSVector<f64, 1> {
