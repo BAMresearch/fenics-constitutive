@@ -1,16 +1,22 @@
+from fenics_constitutive.models.interfaces import NonlocalTangents
 from __future__ import annotations
 
 import numpy as np
 
 from fenics_constitutive._bindings import (
+    PyDPHDamage3D,
     PyDruckerPrager3D,
     PyDruckerPragerHyperbolic3D,
+    PyIsotropicMises3D,
     PyLinearElasticity3D,
     PyMisesPlasticity3D,
-    PyIsotropicMises3D,
 )
 
-from .interfaces import IncrSmallStrainModel, StressStrainConstraint
+from .interfaces import (
+    IncrSmallStrainModel,
+    StressStrainConstraint,
+    IncrSmallStrainGradientModel,
+)
 
 __all__ = ["LinearElasticity3D", "MisesPlasticityLinearHardening3D"]
 
@@ -40,7 +46,7 @@ def fenics_constitutive_wrapper(rust_model):
             del_t: float,
             grad_del_u: np.ndarray,
             stress: np.ndarray,
-            tangent: np.ndarray,
+            tangent: np.ndarray | None,
             history: dict[str, np.ndarray] | None,
         ) -> None:
             self.model.evaluate(
@@ -48,7 +54,85 @@ def fenics_constitutive_wrapper(rust_model):
                 del_t,
                 grad_del_u,
                 stress,
-                tangent,
+                tangent if tangent is not None else None,
+                history,
+            )
+
+        # Add constraint property
+        def constraint(self) -> StressStrainConstraint:
+            return self._constraint
+
+        # Add history_dim property
+        def history_dim(self) -> dict[str, int | tuple[int, int]] | None:
+            # Your implementation here
+            return self.model.history_dim
+
+        cls.__init__ = __init__
+
+        cls.evaluate = evaluate
+
+        cls.constraint = property(constraint)
+
+        cls.history_dim = property(history_dim)
+
+        # check that the only abstract fields in cls are the ones that we define
+        assert "evaluate" in cls.__abstractmethods__
+        assert "constraint" in cls.__abstractmethods__
+        assert "history_dim" in cls.__abstractmethods__
+        assert len(cls.__abstractmethods__) == 3
+
+        # empty the abstract methods field to signal that all methods are overwritten
+        cls.__abstractmethods__ = frozenset()
+        return cls
+
+    return decorator
+
+
+def fenics_constitutive_gradient_wrapper(rust_model):
+    def decorator(cls):
+        assert issubclass(cls, IncrSmallStrainGradientModel), (
+            "decorator can only be used on subclasses of IncrSmallStrainModel"
+        )
+
+        # Overwrite __init__
+        def __init__(self, parameters: dict[str, np.ndarray]) -> None:
+            self.model = rust_model(parameters)
+            self._constraint = StressStrainConstraint[
+                str(self.model.constraint).split(".")[-1]
+            ]
+            assert (
+                self._constraint.stress_strain_dim
+                == self.model.constraint.stress_strain_dim
+            )
+            assert self._constraint.geometric_dim == self.model.geometric_dim
+
+        # Add evaluate method
+        def evaluate(
+            self,
+            t: float,
+            del_t: float,
+            grad_del_u: np.ndarray,
+            nonlocal_quantity: np.ndarray,
+            stress: np.ndarray,
+            local_quantity: np.ndarray,
+            tangents: NonlocalTangents | None,
+            history: dict[str, np.ndarray] | None,
+        ) -> None:
+            self.model.evaluate(
+                t,
+                del_t,
+                grad_del_u,
+                nonlocal_quantity,
+                stress,
+                local_quantity,
+                (
+                    tangents.dsigma_deps,
+                    tangents.dsigma_dnonlocal,
+                    tangents.dlocal_deps,
+                    tangents.dlocal_dnonlocal,
+                )
+                if tangents is not None
+                else None,
                 history,
             )
 
@@ -149,19 +233,20 @@ class MisesPlasticityLinearHardening3D(IncrSmallStrainModel):
 
     This class implements the von Mises yield criterion with linear isotropic hardening.
     The yield function is defined as: $f = \sqrt{3/2 \cdot s:s} - \sigma_y$, where:
-     
+
     - $s$ is the deviatoric stress tensor
     - $\sigma_y = y_0 + h \cdot \alpha$ is the current yield stress
     - $\alpha$ is the equivalent plastic strain
 
     Args:
         parameters (dict[str, np.ndarray]): A dictionary containing:
-            
+
             - "mu": Shear modulus
             - "kappa": Bulk modulus
             - "y_0": Initial yield stress
             - "h": Linear hardening modulus
     """
+
 
 @fenics_constitutive_wrapper(PyIsotropicMises3D)
 class IsotropicMises3D(IncrSmallStrainModel):
@@ -180,4 +265,11 @@ class IsotropicMises3D(IncrSmallStrainModel):
             - "kappa": Bulk modulus
             - "y_0": Initial yield stress
             - "h": Linear hardening modulus
+    """
+
+
+@fenics_constitutive_gradient_wrapper(PyDPHDamage3D)
+class DPHDamage3D(IncrSmallStrainGradientModel):
+    """
+    TODO
     """
