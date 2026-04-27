@@ -1,7 +1,9 @@
 use std::marker::PhantomData;
 
 use crate::QDim; // Ensure QDim is imported from the correct module
-use crate::general::{NewtonSolver, Plasticity};
+use crate::general::Plasticity;
+use crate::newton_solvers::{NewtonSchurComplementSolver, NewtonSolver};
+use crate::plasticity::NewtonSolverStrain;
 use crate::{
     create_history_parameter_struct,
     interfaces::{ArrayEquivalent, GradientConstitutiveModelFn, NonlocalTangents, StaticMap},
@@ -87,12 +89,10 @@ impl<
             alpha_nonlocal.x,
             history_.alpha_nonlocal_max,
         ));
+        let old_max = history_.alpha_nonlocal_max;
         history_.alpha_nonlocal_max = alpha_nonlocal_max.x;
-        
-        model.set_nonlocal_state(
-            &alpha_nonlocal,
-            &alpha_nonlocal_max,
-        );
+
+        model.set_nonlocal_state(&alpha_nonlocal, &alpha_nonlocal_max);
         model.set_model_state(&sigma_tr, &alpha_0);
 
         let f = model.f();
@@ -106,11 +106,16 @@ impl<
             }
             return;
         } else {
-            let mut solver = NewtonSolver::new(&mut model, 1e-8, 1e-8, 50);
-
+            //let mut solver =
+            //    NewtonSchurComplementSolver::<8, 6, N_PARAMETERS, PARAMETERS, 1, 2, MODEL>::new(
+            //        &mut model, 1e-8, 1e-8, 50,
+            //    );
+            //let mut solver = NewtonSolver::new(&mut model, 1e-8, 1e-8, 50);
+            let mut solver = NewtonSolverStrain::new(&mut model, 1e-8, 1e-8, 50);
+            let msg = format!("Plasticity failed to converge on sigma_tr {}, sigma_0 {}, alpha_max_old {}", sigma_tr, sigma_0, old_max);
             let result = solver
                 .solve(&sigma_tr, &alpha_0)
-                .expect("Plasticity model failed to converge");
+                .expect(&msg);
 
             // Update the stress and history
             *stress = result.sigma.data.0[0];
@@ -118,11 +123,11 @@ impl<
             history_.plastic_strain += result.del_lambda * solver.model.g();
             if let Some(tangents) = tangents {
                 let mut dres = SMatrix::<f64, 8, 8>::zeros();
-                solver.update_newton_matrix(&mut dres, result.del_lambda);
+                solver.update_newton_matrix(&mut dres, result.del_lambda, (1.0, 1.0, 1.0));
 
                 let inverse = dres
                     .try_inverse()
-                    .expect("Plasticity3D: Failed to calculate tangent");
+                    .expect("Plasticity3D: Failed to calculate tangent.");
 
                 model.set_nonlocal_derivatives(&result.sigma, &result.kappa);
                 let mut nonlocal_derivatives = SMatrix::<f64, 8, 1>::zeros();
@@ -134,7 +139,7 @@ impl<
                     .copy_from(&(-model.df_dkappa_nonlocal()));
                 nonlocal_derivatives
                     .fixed_rows_mut::<1>(7)
-                    .copy_from(model.dk_dkappa_nonlocal());
+                    .copy_from(&(result.del_lambda * model.dk_dkappa_nonlocal()));
                 let tangent_vector = &inverse * &nonlocal_derivatives;
 
                 let mut plastic_tangent: SMatrix<f64, 6, 6> =

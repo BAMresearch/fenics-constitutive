@@ -14,4 +14,5 @@ from .central_difference_method import (
 from .corotational_solver import CorotationalIncrSmallStrainProblem
 from .utils import *
 
+
 __all__ = ["CDMSolver", "CorotationalIncrSmallStrainProblem", "IncrSmallStrainGradientProblem", "IncrSmallStrainProblem", "critical_timestep", "diagonal_inverted_mass"]

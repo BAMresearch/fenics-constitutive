@@ -75,7 +75,17 @@ impl Plasticity<6, 7, 7, 1> for DruckerPragerHyperbolic3D {
             ..Default::default()
         }
     }
+    fn calculate_f_only(&mut self, sigma: &SVector<f64, 6>, kappa: &SVector<f64, 1>)->f64 {
+        let (i_1, s) = sigma.trace_dev();
+        let j_2 = 0.5 * s.norm_squared();
 
+        let a = (1.0+self.parameters.h * kappa.x)*self.parameters.a;
+        let d = (1.0+self.parameters.h * kappa.x)*self.parameters.d;
+        let b = self.parameters.b;
+
+
+        return (j_2+(d*b).powi(2)).sqrt() + b * i_1 - a;
+    }
     fn set_model_state(
         &mut self,
         sigma: &SVector<f64, 6>,

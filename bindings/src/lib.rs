@@ -1,10 +1,11 @@
+use comfe::engelen_analytical::EngelenAnalytical3D;
 use comfe::interfaces::*;
 use comfe::linear_elasticity::LinearElasticity3D;
 use comfe::mises_plasticity::MisesPlasticity3D;
 use comfe::peerlings_perfect_damage::PeerlingsGradientPerfectDamage3D;
 use comfe::plasticity::{
     DPHDamage3D, DruckerPrager3D, DruckerPragerHyperbolic3D, IsotropicGradientPlasticityModel3D,
-    IsotropicMises3D, IsotropicPlasticityModel3D,
+    IsotropicMises3D, IsotropicPlasticityModel3D, Engelen3D
 };
 use pyo3::prelude::*;
 
@@ -325,10 +326,28 @@ fn _bindings(m: &Bound<'_, PyModule>) -> PyResult<()> {
         IsotropicGradientPlasticityModel3D<13,13, DPHDamage3D>,
         StressStrainConstraint::FULL
     );
+    implement_python_model!(
+        m,
+        PyDPHWithoutDamage3D,
+        IsotropicPlasticityModel3D<13,13, DPHDamage3D>,
+        StressStrainConstraint::FULL
+    );
     implement_gradient_python_model!(
         m,
         PyPeerlings3D,
         PeerlingsGradientPerfectDamage3D,
+        StressStrainConstraint::FULL
+    );
+    implement_gradient_python_model!(
+        m,
+        PyEngelen3D,
+        IsotropicGradientPlasticityModel3D<7,7, Engelen3D>,
+        StressStrainConstraint::FULL
+    );
+    implement_gradient_python_model!(
+        m,
+        PyEngelenAnalytical3D,
+        EngelenAnalytical3D,
         StressStrainConstraint::FULL
     );
 

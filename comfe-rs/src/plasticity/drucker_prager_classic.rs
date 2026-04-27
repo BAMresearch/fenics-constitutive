@@ -70,7 +70,14 @@ impl Plasticity<6, 5, 5, 1> for DruckerPrager3D {
             ..Default::default()
         }
     }
+    fn calculate_f_only(&mut self, sigma: &SVector<f64, 6>, kappa: &SVector<f64, 1>)->f64 {
+        let (i_1, s) = sigma.trace_dev();
 
+        assert!(i_1 < self.parameters.a/self.parameters.b , "non-differentiable tip of Drucker-Prager surface reached");
+
+        let j_2 = 0.5 * s.norm_squared();
+        return j_2.sqrt() + self.parameters.b * i_1 - self.parameters.a;
+    }
     fn set_model_state(
         &mut self,
         sigma: &SVector<f64, 6>,

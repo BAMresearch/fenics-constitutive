@@ -83,7 +83,19 @@ impl Plasticity<6, 13, 13, 1> for DPHDamage3D {
             ..Default::default()
         }
     }
+    fn calculate_f_only(&mut self, sigma: &SVector<f64, 6>, kappa: &SVector<f64, 1>) ->f64{
+        let (i_1, s) = sigma.trace_dev();
+        let j_2 = 0.5 * s.norm_squared();
 
+        let b = (1.0 + self.parameters.h * kappa.x) * (1.0 - self.omega) * self.parameters.b_y
+            + self.omega * self.parameters.b_r;
+        let a = (1.0 + self.parameters.h * kappa.x) * (1.0 - self.omega) * self.parameters.a_y
+            + self.omega * self.parameters.a_r;
+        let d = (1.0 + self.parameters.h * kappa.x) * (1.0 - self.omega) * self.parameters.d_y
+            + self.omega * self.parameters.d_r;
+
+        return i_1 + a * (j_2 + b.powi(2)).sqrt() / b - d;
+    }
     fn set_model_state(&mut self, sigma: &SVector<f64, 6>, kappa: &SVector<f64, 1>) {
         const PROJECTION_DEV: SMatrix<f64, 6, 6> = const { projection_dev::<6>() };
         const SYM_ID: SVector<f64, 6> = const { sym_id::<6>() };
@@ -118,7 +130,7 @@ impl Plasticity<6, 13, 13, 1> for DPHDamage3D {
         self.g = (1.0 - self.parameters.radial_factor) * &SYM_ID + df_dj_2 * &s;
         let df_di_1i_1 = 0.0;
         let df_dj_2j_2 =
-            -1_f64 / 4.0 * self.parameters.a_y / ((j_2 + b.powi(2)).powf(3_f64 / 2.0) * b);
+            -1_f64 / 4.0 * a / ((j_2 + b.powi(2)).powf(3_f64 / 2.0) * b);
         self.dg_dsigma = &s * df_dj_2j_2 * &s.transpose() + df_dj_2 * &PROJECTION_DEV;
         let df_dj_2kappa = -1.0 / 2.0 * a * db_dkappa / ((j_2 + b.powi(2)).sqrt() * b.powi(2))
             + (1.0 / 2.0) * da_dkappa / ((j_2 + b.powi(2)).sqrt() * b)
@@ -177,6 +189,28 @@ impl Plasticity<6, 13, 13, 1> for DPHDamage3D {
         // Implementation of elastic_tangent_inv
         &self.elastic_tangent_inv
     }
+    fn residual_scaling(&self, sigma: &SVector<f64, 6>, kappa: &SVector<f64, 1>) -> (f64,f64,f64) {
+        let b = self.parameters.b_y;
+        let a = self.parameters.a_y;
+        let d = self.parameters.d_y;
+
+        let db_dkappa = self.parameters.h  * self.parameters.b_y;
+        let da_dkappa = self.parameters.h  * self.parameters.a_y;
+        let dd_dkappa = self.parameters.h  * self.parameters.d_y;
+        
+        let i_1 = 0.0;
+        let j_2 = (d*b/a).powi(2) - b.powi(2);
+
+        assert!(j_2>0.0);
+        let mises = (3.0*j_2).sqrt();
+
+        let df_dkappa = -(j_2 + b.powi(2)).sqrt() * a * db_dkappa / b.powi(2)
+            + (j_2 + b.powi(2)).sqrt() * da_dkappa / b
+            - dd_dkappa
+            + a * db_dkappa / (j_2 + b.powi(2)).sqrt();
+        assert!(df_dkappa<0.0);
+        return (1.0/mises, 1.0/mises, -df_dkappa/mises)
+    }
 }
 
 impl GradientPlasticity<6, 13, 13, 1> for DPHDamage3D {
@@ -195,6 +229,28 @@ impl GradientPlasticity<6, 13, 13, 1> for DPHDamage3D {
             self.omega = 0.0;
             self.domega_dkappa_nonlocal = 0.0;
         }
+        // self.omega = {
+        //     if kappa_nonlocal_max.x >= self.parameters.alpha_0 {
+        //         (1. - f64::exp(
+        //             (self.parameters.alpha_0 - kappa_nonlocal_max.x) / self.parameters.e_f,
+        //         )) * self.parameters.omega_max
+        //     } else {
+        //         0.0
+        //     }
+        // };
+
+        // self.domega_dkappa_nonlocal = {
+        //     if kappa_nonlocal_max.x > kappa_nonlocal.x {
+        //         //no growth of damage because the current kappa is smaller than 
+        //         // the previous max, so derivative is zero
+        //         0.0
+        //     } else {
+        //         (self.parameters.omega_max / self.parameters.e_f)
+        //             * f64::exp(
+        //                 (self.parameters.alpha_0 - kappa_nonlocal_max.x) / self.parameters.e_f,
+        //             )
+        //     }
+        // }
 
         //TODO
     }
