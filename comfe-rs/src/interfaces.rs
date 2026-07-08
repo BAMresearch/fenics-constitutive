@@ -6,7 +6,7 @@ use crate::{
     mandel::{MandelView, MandelViewMut, nonsymmetric_tensor_to_mandel},
 };
 use konst::{const_eq, eq_str};
-use nalgebra::{SMatrix, SMatrixViewMut, SVector, SVectorView, SVectorViewMut, Scalar};
+use nalgebra::{RowSVector, SMatrix, SMatrixViewMut, SVector, SVectorView, SVectorViewMut, Scalar};
 
 pub enum StressStrainConstraint {
     UNIAXIAL_STRAIN = 1,
@@ -103,8 +103,8 @@ macro_rules! q_dim_try_from {
     }};
     ((QDim::RotatableMatrix($size:expr)),$data:expr) => {{
         //let temp: [f64; $size] = $data.try_into().ok()?;
-        if $data.len()==$size*$size {
-            return None
+        if $data.len() == $size * $size {
+            return None;
         }
         SMatrix::<f64, $size, $size>::from_column_slice($data)
     }};
@@ -278,6 +278,43 @@ pub trait ConstitutiveModelFn<
     //        time, del_time, del_strain, stress, tangent, history, parameters
     //    );
     //}
+}
+
+pub struct NonlocalTangents<const STRESS_STRAIN: usize> {
+    pub dsigma_deps: SMatrix<f64, STRESS_STRAIN, STRESS_STRAIN>,
+    pub dsigma_dnonlocal: SVector<f64, STRESS_STRAIN>,
+    pub dlocal_deps: RowSVector<f64, STRESS_STRAIN>,
+    pub dlocal_dnonlocal: f64,
+}
+pub trait GradientConstitutiveModelFn<
+    const STRESS_STRAIN: usize,
+    const N_HISTORY: usize,
+    const HISTORY: usize,
+    const N_PARAMETERS: usize,
+    const PARAMETERS: usize,
+> where
+    Self: Sized,
+{
+    type History: ArrayEquivalent<HISTORY> + StaticMap<N_HISTORY, QDim>;
+    type Parameters: ArrayEquivalent<PARAMETERS> + StaticMap<N_PARAMETERS, QDim>;
+
+    const STRESS_STRAIN: usize = STRESS_STRAIN;
+    const N_HISTORY: usize = N_HISTORY;
+    const HISTORY: usize = HISTORY;
+    const N_PARAMETERS: usize = N_PARAMETERS;
+    const PARAMETERS: usize = PARAMETERS;
+
+    fn evaluate(
+        time: f64,
+        del_time: f64,
+        del_strain: &[f64; STRESS_STRAIN],
+        nonlocal_quantity: &[f64; 1],
+        stress: &mut [f64; STRESS_STRAIN],
+        local_quantity: &mut [f64; 1],
+        tangents: Option<&mut NonlocalTangents<STRESS_STRAIN>>,
+        history: &mut [f64; HISTORY],
+        parameters: &[f64; PARAMETERS],
+    );
 }
 
 trait SmallStrainConstitutiveModel<
