@@ -597,7 +597,7 @@ pub fn evaluate_gradient_model<
                     [t.1[i]],
                 )),
                 dlocal_deps: SVector::<f64, STRESS_STRAIN>::from_array_storage(ArrayStorage([
-                    t.1[i]
+                    t.2[i]
                 ]))
                 .transpose(),
                 dlocal_dnonlocal: t.3[i],

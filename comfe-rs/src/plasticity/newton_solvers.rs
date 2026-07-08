@@ -1,4 +1,4 @@
-use nalgebra::{DMatrix, LU, RowSVector, SMatrix, SVector};
+use nalgebra::{DMatrix, SMatrix, SVector};
 
 use crate::{consts::id, plasticity::Plasticity};
 pub struct NewtonSolver<
@@ -129,7 +129,7 @@ impl<
         let mut del_lambda_prev: f64;
         let mut res_sigma_norm: Vec<f64> = vec![res_sigma.norm()];
         let mut res_kappa_norm: Vec<f64> = vec![res_kappa.norm()];
-        let mut res_f_norm: Vec<f64> = vec![res_f];
+        let mut res_f_norm: Vec<f64> = vec![res_f.abs()];
         let mut sigma_error_incr: Vec<f64> = vec![0.0];
         let mut kappa_error_incr: Vec<f64> = vec![0.0];
         let mut lambda_error_incr: Vec<f64> = vec![0.0];
@@ -165,6 +165,7 @@ impl<
             }
 
             // extract solution and calcualte new residual
+            i += 1;
             sigma = sol_1.fixed_rows::<STRESS_STRAIN>(0).into();
             kappa = sol_1.fixed_rows::<KAPPA>(STRESS_STRAIN + 1).into();
             del_lambda = sol_1[STRESS_STRAIN];
@@ -195,7 +196,7 @@ impl<
             kappa_error_incr.push((kappa - kappa_prev).norm());
             lambda_error_incr.push((del_lambda - del_lambda_prev).abs());
             let converged_res: bool = res_sigma.norm() < self.atol
-                && res_kappa[0].abs() < self.atol
+                && res_kappa.norm() < self.atol
                 && res_f.abs() < self.atol;
             let converged_incr: bool = (sigma - sigma_prev).norm()
                 < self.atol + self.rtol * sigma.norm()
@@ -207,17 +208,20 @@ impl<
             if converged_incr {
                 break;
             }
-            if i > self.maxit {
+            if i >= self.maxit {
                 let mut dres_dyn = DMatrix::<f64>::zeros(N, N);
                 dres_dyn.copy_from(&dres);
                 println!(
                     "dres_dyn: stress row {}",
-                    dres_dyn.view((0, 0), (6, 8)).norm()
+                    dres_dyn.view((0, 0), (STRESS_STRAIN, N)).norm()
                 );
-                println!("dres_dyn: f row {}", dres_dyn.view((6, 0), (1, 8)).norm());
+                println!(
+                    "dres_dyn: f row {}",
+                    dres_dyn.view((STRESS_STRAIN, 0), (1, N)).norm()
+                );
                 println!(
                     "dres_dyn: kappa row {}",
-                    dres_dyn.view((7, 0), (1, 8)).norm()
+                    dres_dyn.view((STRESS_STRAIN + 1, 0), (KAPPA, N)).norm()
                 );
                 let svd = &dres_dyn.svd_unordered(false, false);
                 return Err(SolverError {
@@ -231,7 +235,6 @@ impl<
                     condition: svd.singular_values.max() / svd.singular_values.min(),
                 });
             }
-            i += 1;
         }
         return Ok(SolverResult {
             sigma,
@@ -322,7 +325,6 @@ impl<
         let mut kappa = *kappa_0;
 
         let mut sol_rest = SVector::<f64, KAPPA_P1>::zeros();
-        let mut sol_rest_prev = SVector::<f64, KAPPA_P1>::zeros();
         sol_rest.fixed_rows_mut::<KAPPA>(1).copy_from(kappa_0);
 
         // sol_1.fixed_rows_mut::<STRESS_STRAIN>(0).copy_from(sigma_tr);
@@ -358,7 +360,7 @@ impl<
         let mut del_lambda_prev: f64;
         let mut res_sigma_norm: Vec<f64> = vec![res_sigma.norm()];
         let mut res_kappa_norm: Vec<f64> = vec![res_kappa.norm()];
-        let mut res_f_norm: Vec<f64> = vec![res_f];
+        let mut res_f_norm: Vec<f64> = vec![res_f.abs()];
         let mut sigma_error_incr: Vec<f64> = vec![0.0];
         let mut kappa_error_incr: Vec<f64> = vec![0.0];
         let mut lambda_error_incr: Vec<f64> = vec![0.0];
@@ -447,6 +449,7 @@ impl<
             //sigma = sigma_trial;
             sol_rest -= &del_rest;
             sigma -= &del_sigma;
+            i += 1;
             kappa = sol_rest.fixed_rows::<KAPPA>(1).into();
             del_lambda = sol_rest[0];
             //assert!(del_lambda>0.0);
@@ -475,7 +478,7 @@ impl<
             kappa_error_incr.push((kappa - kappa_prev).norm()*s_kappa);
             lambda_error_incr.push((del_lambda - del_lambda_prev).abs());
             let converged_res: bool = res_sigma.norm() < self.atol
-                && res_kappa[0].abs() < self.atol
+                && res_kappa.norm() < self.atol
                 && res_f.abs() < self.atol;
             let converged_incr: bool = (sigma - sigma_prev).norm()
                 < self.atol + self.rtol * sigma.norm()
@@ -487,7 +490,7 @@ impl<
             if converged_incr {
                 break;
             }
-            if i > self.maxit {
+            if i >= self.maxit {
                 //let mut Jss_dyn = DMatrix::<f64>::zeros(STRESS_STRAIN, STRESS_STRAIN);
                 //Jss_dyn.copy_from(&Jss);
                 //let svd = Jss_dyn.svd_unordered(false, false);
@@ -506,7 +509,6 @@ impl<
                     //    / schur_svd.singular_values.min(),
                 });
             }
-            i += 1;
         }
         return Ok(SolverResult {
             sigma,
@@ -651,7 +653,7 @@ impl<
         let mut del_lambda_prev: f64;
         let mut res_eps_norm: Vec<f64> = vec![res_eps.norm()];
         let mut res_kappa_norm: Vec<f64> = vec![res_kappa.norm()];
-        let mut res_f_norm: Vec<f64> = vec![res_f];
+        let mut res_f_norm: Vec<f64> = vec![res_f.abs()];
         let mut eps_error_incr: Vec<f64> = vec![0.0];
         let mut kappa_error_incr: Vec<f64> = vec![0.0];
         let mut lambda_error_incr: Vec<f64> = vec![0.0];
@@ -687,6 +689,7 @@ impl<
             }
 
             // extract solution and calcualte new residual
+            i += 1;
             del_eps_pl = sol_1.fixed_rows::<STRESS_STRAIN>(0).into();
             kappa = sol_1.fixed_rows::<KAPPA>(STRESS_STRAIN + 1).into();
             del_lambda = sol_1[STRESS_STRAIN];
@@ -719,7 +722,7 @@ impl<
             kappa_error_incr.push((kappa - kappa_prev).norm());
             lambda_error_incr.push((del_lambda - del_lambda_prev).abs());
             let converged_res: bool = res_eps.norm() < self.atol
-                && res_kappa[0].abs() < self.atol
+                && res_kappa.norm() < self.atol
                 && res_f.abs() < self.atol;
             let converged_incr: bool = (del_eps_pl -del_eps_pl_prev).norm()
                 < self.atol + self.rtol * del_eps_pl.norm()
@@ -731,17 +734,20 @@ impl<
             if converged_incr {
                 break;
             }
-            if i > self.maxit {
+            if i >= self.maxit {
                 let mut dres_dyn = DMatrix::<f64>::zeros(N, N);
                 dres_dyn.copy_from(&dres);
                 println!(
                     "dres_dyn: stress row {}",
-                    dres_dyn.view((0, 0), (6, 8)).norm()
+                    dres_dyn.view((0, 0), (STRESS_STRAIN, N)).norm()
                 );
-                println!("dres_dyn: f row {}", dres_dyn.view((6, 0), (1, 8)).norm());
+                println!(
+                    "dres_dyn: f row {}",
+                    dres_dyn.view((STRESS_STRAIN, 0), (1, N)).norm()
+                );
                 println!(
                     "dres_dyn: kappa row {}",
-                    dres_dyn.view((7, 0), (1, 8)).norm()
+                    dres_dyn.view((STRESS_STRAIN + 1, 0), (KAPPA, N)).norm()
                 );
                 let svd = &dres_dyn.svd_unordered(false, false);
                 return Err(SolverError {
@@ -755,7 +761,6 @@ impl<
                     condition: svd.singular_values.max() / svd.singular_values.min(),
                 });
             }
-            i += 1;
         }
         return Ok(SolverResult {
             sigma,
