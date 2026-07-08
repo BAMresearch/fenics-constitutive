@@ -2,7 +2,7 @@ use core::f64;
 
 use crate::consts::*;
 use nalgebra::{
-    Const, SMatrix, SVD, SVector, SVectorView, SVectorViewMut, Storage, Vector, coordinates::XYZWAB,
+    SMatrix, SVector, SVectorView, SVectorViewMut,
 };
 
 pub trait Mandel<const DIM: usize> {
@@ -190,10 +190,10 @@ mod tests_mandel {
             [0., 0., 0., 0., 2. * MU, 0.],
             [0., 0., 0., 0., 0., 2. * MU],
         ])); //Note that the memory layout is column wise, but the matrix is symmetric, so it does not matter
-    static gradient_3d: [[f64; 3]; 3] = [[1., 2., 3.], [4., 5., 6.], [7., 8., 9.]];
-    static gradient_2d: [[f64;2];2] = [[1.,2.],[3.,4.]];
-    static gradient_1d: [[f64;1];1] = [[1.]];
-    static strain_3d: [f64; 6] = [
+    static GRADIENT_3D: [[f64; 3]; 3] = [[1., 2., 3.], [4., 5., 6.], [7., 8., 9.]];
+    static GRADIENT_2D: [[f64;2];2] = [[1.,2.],[3.,4.]];
+    static GRADIENT_1D: [[f64;1];1] = [[1.]];
+    static STRAIN_3D: [f64; 6] = [
         1.,
         5.,
         9.,
@@ -201,8 +201,8 @@ mod tests_mandel {
         (3. + 7.) * f64::consts::FRAC_1_SQRT_2,
         (6. + 8.) * f64::consts::FRAC_1_SQRT_2,
     ];
-    static strain_2d:[f64;4] = [1.,4., 0., (2.+3.)*f64::consts::FRAC_1_SQRT_2];
-    static strain_1d:[f64;1] = [1.];
+    static STRAIN_2D:[f64;4] = [1.,4., 0., (2.+3.)*f64::consts::FRAC_1_SQRT_2];
+    static STRAIN_1D:[f64;1] = [1.];
 
     #[test]
     fn test_tangent() {
@@ -221,23 +221,23 @@ mod tests_mandel {
     }
     #[test]
     fn test_nonsymmetric_to_mandel_3d() {
-        let strain: [f64; 6] = nonsymmetric_tensor_to_mandel(gradient_3d);
+        let strain: [f64; 6] = nonsymmetric_tensor_to_mandel(GRADIENT_3D);
         let strain_vec = SVector::<f64, 6>::from_column_slice(&strain);
-        let strain_solution = SVector::<f64, 6>::from_column_slice(&strain_3d);
+        let strain_solution = SVector::<f64, 6>::from_column_slice(&STRAIN_3D);
         assert!((strain_vec - strain_solution).norm() < 1e-14);
     }
     #[test]
     fn test_nonsymmetric_to_mandel_2d() {
-        let strain: [f64; 4] = nonsymmetric_tensor_to_mandel(gradient_2d);
+        let strain: [f64; 4] = nonsymmetric_tensor_to_mandel(GRADIENT_2D);
         let strain_vec = SVector::<f64, 4>::from_column_slice(&strain);
-        let strain_solution = SVector::<f64, 4>::from_column_slice(&strain_2d);
+        let strain_solution = SVector::<f64, 4>::from_column_slice(&STRAIN_2D);
         assert!((strain_vec - strain_solution).norm() < 1e-14);
     }
     #[test]
     fn test_nonsymmetric_to_mandel_1d() {
-        let strain: [f64; 1] = nonsymmetric_tensor_to_mandel(gradient_1d);
+        let strain: [f64; 1] = nonsymmetric_tensor_to_mandel(GRADIENT_1D);
         let strain_vec = SVector::<f64, 1>::from_column_slice(&strain);
-        let strain_solution = SVector::<f64, 1>::from_column_slice(&strain_1d);
+        let strain_solution = SVector::<f64, 1>::from_column_slice(&STRAIN_1D);
         assert!((strain_vec - strain_solution).norm() < 1e-14);
     }
 

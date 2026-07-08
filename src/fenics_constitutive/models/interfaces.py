@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from enum import Enum
 
+import dolfinx as df
 import numpy as np
 
 __all__ = [
+    "IncrSmallStrainGradientModel",
     "IncrSmallStrainModel",
     "StressStrainConstraint",
 ]
@@ -97,6 +100,104 @@ class IncrSmallStrainModel(ABC):
             grad_del_u: The gradient of the increment of the displacement field $\nabla\delta$ with $\delta=u_{n+1}-u_n$.
             stress: The current stress in Mandel notation.
             tangent: The tangent compatible with Mandel notation. `None` if you don't need the tangent like in explicit dynamics.
+            history: The history variable(s).
+        """
+
+    @property
+    @abstractmethod
+    def constraint(self) -> StressStrainConstraint:
+        """
+        The constraint for the stresses or the strains.
+
+        Returns:
+            The constraint.
+        """
+
+    @property
+    def stress_strain_dim(self) -> int:
+        """
+        The stress-strain dimension that the model is implemented for.
+
+        Returns:
+            The stress-strain dimension.
+        """
+        return self.constraint.stress_strain_dim
+
+    @property
+    def geometric_dim(self) -> int:
+        """
+        The geometric dimension that the model is implemented for.
+
+        Returns:
+            The geometric dimension.
+        """
+        return self.constraint.geometric_dim
+
+    @property
+    @abstractmethod
+    def history_dim(self) -> dict[str, int | tuple[int, int]] | None:
+        """
+        The dimensions of history variable(s). This is needed to tell the solver which quadrature
+        spaces or arrays to build. If it is not none, a dictionary is returned with the name of the
+        history variable as key and the dimension of the history variable as value.
+
+        Returns:
+            The dimension of the history variable(s).
+        """
+
+
+@dataclass
+class NonlocalTangentFunctions:
+    dsigma_deps: df.fem.Function
+    dsigma_dnonlocal: df.fem.Function
+    dlocal_deps: df.fem.Function
+    dlocal_dnonlocal: df.fem.Function
+
+    def to_nonlocal_tangents(self) -> NonlocalTangents:
+        return NonlocalTangents(
+            dsigma_deps=self.dsigma_deps.x.array,
+            dsigma_dnonlocal=self.dsigma_dnonlocal.x.array,
+            dlocal_deps=self.dlocal_deps.x.array,
+            dlocal_dnonlocal=self.dlocal_dnonlocal.x.array,
+        )
+
+
+@dataclass
+class NonlocalTangents:
+    dsigma_deps: np.ndarray
+    dsigma_dnonlocal: np.ndarray
+    dlocal_deps: np.ndarray
+    dlocal_dnonlocal: np.ndarray
+
+
+class IncrSmallStrainGradientModel(ABC):
+    """
+    Interface for incremental small strain models with gradient plasticity and/or damage formulation.
+    """
+
+    @abstractmethod
+    def evaluate(
+        self,
+        t: float,
+        del_t: float,
+        grad_del_u: np.ndarray,
+        nonlocal_quantity: np.ndarray,
+        stress: np.ndarray,
+        local_quantity: np.ndarray,
+        tangents: NonlocalTangents | None,
+        history: dict[str, np.ndarray] | None,
+    ) -> None:
+        r"""
+        Evaluate the constitutive model and overwrite the stress, tangent and history.
+
+        Args:
+            t: The current global time $t_n$.
+            del_t: The time increment $\Delta t$. The time at the end of the increment is $t_{n+1}=t_n+\Delta t$.
+            grad_del_u: The gradient of the increment of the displacement field $\nabla\delta$ with $\delta=u_{n+1}-u_n$.
+            nonlocal_quantity: The nonlocal equivalent of the local variable, e.g. equivalent plastic strain or a strain norm.
+            stress: The current stress in Mandel notation.
+            local_quantity: The local variable, e.g. equivalent plastic strain or a strain norm.
+            tangents: The tangents compatible with Mandel notation. `None` if you don't need the tangents like in explicit dynamics.
             history: The history variable(s).
         """
 

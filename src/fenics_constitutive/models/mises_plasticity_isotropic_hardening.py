@@ -183,5 +183,5 @@ class VonMises3D(IncrSmallStrainModel):
         return StressStrainConstraint.FULL
 
     @property
-    def history_dim(self) -> int:
+    def history_dim(self) -> dict[str, int | tuple[int, int]]:
         return {"eps_n": self.constraint.stress_strain_dim, "alpha": 1}
