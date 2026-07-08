@@ -74,7 +74,7 @@ class PeerlingsGradientPerfectDamage(IncrSmallStrainGradientModel):
             # perfect damage law
             mask = eps_eq >= self.eps_0
             damage = zeros.copy()
-            damage[mask] = 1 - self.eps_0 / eps_eq[mask] * self.omega_max
+            damage[mask] = (1 - self.eps_0 / eps_eq[mask]) * self.omega_max
             return damage
 
         def strain_norm(total_strain: np.ndarray) -> np.ndarray:

@@ -304,6 +304,37 @@ pub trait GradientConstitutiveModelFn<
     );
 }
 
+trait SmallStrainConstitutiveModel<
+    const STRESS_STRAIN: usize,
+    const N_HISTORY: usize,
+    const HISTORY: usize,
+    const N_PARAMETERS: usize,
+    const PARAMETERS: usize,
+> where
+    Self: Sized,
+{
+    type History: ArrayEquivalent<HISTORY> + StaticMap<N_HISTORY, QDim>;
+    type Parameters: ArrayEquivalent<PARAMETERS> + StaticMap<N_PARAMETERS, QDim>;
+
+    const STRESS_STRAIN: usize = STRESS_STRAIN;
+    const N_HISTORY: usize = N_HISTORY;
+    const HISTORY: usize = HISTORY;
+    const N_PARAMETERS: usize = N_PARAMETERS;
+    const PARAMETERS: usize = PARAMETERS;
+
+    fn evaluate(
+        time: f64,
+        del_time: f64,
+        del_strain: &[f64; STRESS_STRAIN],
+        nonlocal_quantity: &[f64; 1],
+        stress: &mut [f64; STRESS_STRAIN],
+        local_quantity: &mut [f64; 1],
+        tangents: Option<&mut NonlocalTangents<STRESS_STRAIN>>,
+        history: &mut [f64; HISTORY],
+        parameters: &[f64; PARAMETERS],
+    );
+}
+
 /// A function that checks if the combined length of the history and the parameters is equal to `HISTORY` and `PARAMETERS`.
 /// This is needed because both the number of history values and parameters and the size of both (which are different if we have
 /// for example one vector-valued history variable) are defined seperately.
