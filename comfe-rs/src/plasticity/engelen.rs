@@ -163,27 +163,27 @@ impl GradientPlasticity<6, 7, 7, 1> for Engelen3D {
             self.omega = (1.
                 - f64::exp((self.parameters.alpha_0 - kappa_nonlocal_max.x) / self.parameters.e_f))
                 * self.parameters.omega_max;
-            self.domega_dkappa_nonlocal = (self.parameters.omega_max / self.parameters.e_f)
-                * f64::exp((self.parameters.alpha_0 - kappa_nonlocal_max.x) / self.parameters.e_f);
+            // damage only grows while the current nonlocal quantity drives the maximum;
+            // otherwise omega is frozen and does not change with kappa_nonlocal
+            self.domega_dkappa_nonlocal = if kappa_nonlocal.x >= kappa_nonlocal_max.x {
+                (self.parameters.omega_max / self.parameters.e_f)
+                    * f64::exp((self.parameters.alpha_0 - kappa_nonlocal_max.x) / self.parameters.e_f)
+            } else {
+                0.0
+            };
         } else {
             self.omega = 0.0;
             self.domega_dkappa_nonlocal = 0.0;
         }
-
-        //TODO
     }
 
-    fn set_nonlocal_derivatives(&mut self, sigma: &SVector<f64, 6>, kappa: &SVector<f64, 1>) {
-        //const PROJECTION_DEV: SMatrix<f64, 6, 6> = const { projection_dev::<6>() };
-        //const SYM_ID: SVector<f64, 6> = const { sym_id::<6>() };
-        // Implementation of setting model state
-        let (_i_1, s) = sigma.trace_dev();
-        let j_2 = 0.5 * s.norm_squared();
-
+    fn set_nonlocal_derivatives(&mut self, _sigma: &SVector<f64, 6>, kappa: &SVector<f64, 1>) {
+        // f = sqrt(3 J_2) - (1 - omega) * (y_0 + h * kappa)
+        // => df/dkappa_nonlocal = (y_0 + h * kappa) * domega/dkappa_nonlocal
         let domega_dkappa = self.domega_dkappa_nonlocal;
 
-
-        self.df_dkappa_nonlocal.x = self.omega*(self.parameters.y_0 + self.parameters.h * kappa.x)*domega_dkappa;
+        self.df_dkappa_nonlocal.x =
+            (self.parameters.y_0 + self.parameters.h * kappa.x) * domega_dkappa;
     }
 
     fn df_dkappa_nonlocal(&self) -> &RowSVector<f64, 1> {

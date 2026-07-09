@@ -107,7 +107,7 @@ impl Plasticity<6, 7, 7, 1> for DruckerPragerHyperbolic3D {
         let df_di_1 = b;
         let df_dj_2 = (1_f64/2.0)*(j_2 + b.powi(2)*d.powi(2)).sqrt().recip();
         let _df_di_1i_1 = 0.0;
-        let df_dj_2j_2 = -1.0/4.0*(j_2 + d.powi(2)).powf(-3_f64/2.0);
+        let df_dj_2j_2 = -1.0/4.0*(j_2 + b.powi(2)*d.powi(2)).powf(-3_f64/2.0);
 
         let df_dsigma = df_di_1 * &SYM_ID + df_dj_2 * &s;
         self.df_dsigma = df_dsigma.transpose();

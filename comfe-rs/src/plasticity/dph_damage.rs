@@ -223,36 +223,18 @@ impl GradientPlasticity<6, 13, 13, 1> for DPHDamage3D {
             self.omega = (1.
                 - f64::exp((self.parameters.alpha_0 - kappa_nonlocal_max.x) / self.parameters.e_f))
                 * self.parameters.omega_max;
-            self.domega_dkappa_nonlocal = (self.parameters.omega_max / self.parameters.e_f)
-                * f64::exp((self.parameters.alpha_0 - kappa_nonlocal_max.x) / self.parameters.e_f);
+            // damage only grows while the current nonlocal quantity drives the maximum;
+            // otherwise omega is frozen and does not change with kappa_nonlocal
+            self.domega_dkappa_nonlocal = if kappa_nonlocal.x >= kappa_nonlocal_max.x {
+                (self.parameters.omega_max / self.parameters.e_f)
+                    * f64::exp((self.parameters.alpha_0 - kappa_nonlocal_max.x) / self.parameters.e_f)
+            } else {
+                0.0
+            };
         } else {
             self.omega = 0.0;
             self.domega_dkappa_nonlocal = 0.0;
         }
-        // self.omega = {
-        //     if kappa_nonlocal_max.x >= self.parameters.alpha_0 {
-        //         (1. - f64::exp(
-        //             (self.parameters.alpha_0 - kappa_nonlocal_max.x) / self.parameters.e_f,
-        //         )) * self.parameters.omega_max
-        //     } else {
-        //         0.0
-        //     }
-        // };
-
-        // self.domega_dkappa_nonlocal = {
-        //     if kappa_nonlocal_max.x > kappa_nonlocal.x {
-        //         //no growth of damage because the current kappa is smaller than 
-        //         // the previous max, so derivative is zero
-        //         0.0
-        //     } else {
-        //         (self.parameters.omega_max / self.parameters.e_f)
-        //             * f64::exp(
-        //                 (self.parameters.alpha_0 - kappa_nonlocal_max.x) / self.parameters.e_f,
-        //             )
-        //     }
-        // }
-
-        //TODO
     }
 
     fn set_nonlocal_derivatives(&mut self, sigma: &SVector<f64, 6>, kappa: &SVector<f64, 1>) {

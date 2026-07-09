@@ -80,16 +80,17 @@ impl GradientConstitutiveModelFn<6, 2, 7, 4, 4> for PeerlingsGradientPerfectDama
         history_.total_strain += del_strain_vec;
         let total_strain = history_.total_strain.clone();
 
-        // Compute damage from nonlocal quantity
+        // Compute damage from nonlocal quantity (same law as the Python reference model)
         let eps_eq = nonlocal_quantity[0];
         let omega_new = if eps_eq >= eps_0 {
-            1.0 - (eps_0 / eps_eq) * omega_max
+            (1.0 - eps_0 / eps_eq) * omega_max
         } else {
             0.0
         };
 
         // Update damage history (damage can only increase)
-        history_.omega = history_.omega.max(omega_new);
+        let omega_old = history_.omega;
+        history_.omega = omega_old.max(omega_new);
         let omega = history_.omega;
 
         // Compute stress: sigma = (1 - omega) * C * total_strain
@@ -116,7 +117,8 @@ impl GradientConstitutiveModelFn<6, 2, 7, 4, 4> for PeerlingsGradientPerfectDama
             tangents.dlocal_dnonlocal = 0.0;
 
             // dsigma_dnonlocal = -domega_dnonlocal * C * total_strain
-            let domega_dnonlocal = if eps_eq >= eps_0 {
+            // zero while damage is frozen (omega_new below the stored maximum)
+            let domega_dnonlocal = if eps_eq >= eps_0 && omega_new >= omega_old {
                 (omega_max * eps_0) / (eps_eq * eps_eq)
             } else {
                 0.0
