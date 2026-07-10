@@ -2,8 +2,7 @@ use std::marker::PhantomData;
 
 use crate::QDim; // Ensure QDim is imported from the correct module
 use crate::general::Plasticity;
-use crate::newton_solvers::{NewtonSchurComplementSolver, NewtonSolver};
-use crate::plasticity::NewtonSolverStrain;
+use crate::newton_solvers::{NewtonSolver, NewtonSolverStrain};
 use crate::{
     create_history_parameter_struct,
     interfaces::{ArrayEquivalent, GradientConstitutiveModelFn, NonlocalTangents, StaticMap},
