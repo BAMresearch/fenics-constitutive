@@ -130,9 +130,9 @@ class IncrSmallStrainGradientProblem(NonlinearProblem):
         # the residual form.
         dR_form = (
             ufl.inner(
-                ufl_mandel_strain(u_trial, constraint),
+                ufl_mandel_strain(u_test, constraint),
                 ufl.dot(
-                    self.tangents.dsigma_deps, ufl_mandel_strain(u_test, constraint)
+                    self.tangents.dsigma_deps, ufl_mandel_strain(u_trial, constraint)
                 ),
             )
             * self.dxm

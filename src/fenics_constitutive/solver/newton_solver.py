@@ -80,8 +80,20 @@ class NewtonLinesearch:
         r0_norm = 1.0
 
         for i in range(max_it):
-            self.problem.form(x_petsc)
-            self.problem.F(x_petsc, self._b)
+            try:
+                self.problem.form(x_petsc)
+                self.problem.F(x_petsc, self._b)
+            except (KeyboardInterrupt, SystemExit):
+                raise
+            except BaseException:
+                # constitutive evaluation failed (e.g. Rust panic in the
+                # return mapping) at the current iterate -> give up, let the
+                # caller cut the load step
+                x0_petsc.copy(result=x_petsc)
+                u.x.scatter_forward()
+                dx.destroy()
+                b_trial.destroy()
+                return i + 1, False
             r_norm = self._b.norm()
 
             if i == 0:
@@ -108,8 +120,18 @@ class NewtonLinesearch:
                 x0_petsc.copy(result=x_petsc)
                 x_petsc.axpy(alpha, dx)
 
-                self.problem.form(x_petsc)
-                self.problem.F(x_petsc, b_trial)
+                try:
+                    self.problem.form(x_petsc)
+                    self.problem.F(x_petsc, b_trial)
+                except (KeyboardInterrupt, SystemExit):
+                    raise
+                except BaseException:
+                    # constitutive evaluation failed at the trial point
+                    # (e.g. Rust panic on an absurd overshoot) -> treat as
+                    # a rejected step and backtrack
+                    print("line search: constitutive evaluation failed, halving step")
+                    alpha *= 0.5
+                    continue
                 r_trial_norm = b_trial.norm()
 
                 if r_trial_norm < r_norm:

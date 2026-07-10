@@ -668,8 +668,8 @@ impl<
             dres_dyn.copy_from(&dres);
             let lu = dres_dyn.lu();
             let result = lu.solve(&res);
-            match result {
-                Some(sol) => sol_1 = sol_0 - sol,
+            let dx = match result {
+                Some(sol) => sol,
                 None => {
                     let mut dres_dyn = DMatrix::<f64>::zeros(N, N);
                     dres_dyn.copy_from(&dres);
@@ -686,33 +686,57 @@ impl<
                         condition: svd.singular_values.max() / svd.singular_values.min(),
                     });
                 }
-            }
+            };
 
-            // extract solution and calcualte new residual
             i += 1;
-            del_eps_pl = sol_1.fixed_rows::<STRESS_STRAIN>(0).into();
-            kappa = sol_1.fixed_rows::<KAPPA>(STRESS_STRAIN + 1).into();
-            del_lambda = sol_1[STRESS_STRAIN];
-
             del_eps_pl_prev = sol_0.fixed_rows::<STRESS_STRAIN>(0).into();
             kappa_prev = sol_0.fixed_rows::<KAPPA>(STRESS_STRAIN + 1).into();
             del_lambda_prev = sol_0[STRESS_STRAIN];
 
+            // Backtracking line search: plain Newton cycles without converging
+            // when the return maps far into the (damage-shrunk) yield surface,
+            // e.g. near the hyperbola apex. Halve the step until the residual
+            // norm decreases; accept the last trial step if it never does.
+            let res_norm_prev = res.norm();
+            let mut alpha = 1.0;
+            let mut ls_iter = 0;
+            loop {
+                sol_1 = sol_0 - alpha * dx;
 
-            sigma = sigma_tr - self.model.elastic_tangent()*&del_eps_pl;
-            //Set all states in order to evaluate the new residuals
-            self.model.set_model_state(&sigma, &kappa);
+                del_eps_pl = sol_1.fixed_rows::<STRESS_STRAIN>(0).into();
+                kappa = sol_1.fixed_rows::<KAPPA>(STRESS_STRAIN + 1).into();
+                del_lambda = sol_1[STRESS_STRAIN];
 
-            res_eps = del_eps_pl - del_lambda * self.model.g();
-                //+ del_lambda * self.model.elastic_tangent() * self.model.g())
-                //* scaling_factors.0;
-            res_kappa = (&kappa - kappa_0 - del_lambda * self.model.k());// * scaling_factors.2;
-            res_f = self.model.f()* scaling_factors.1;
+                // Reject trials with negative plastic multiplier or negative
+                // kappa: besides being unphysical, kappa < -1/h makes the
+                // hardening factor (1 + h*kappa) negative, which crosses a
+                // singularity of the yield function (b -> 0) where Newton
+                // stagnates.
+                if (del_lambda < 0.0 || kappa.min() < 0.0) && ls_iter < 20 {
+                    alpha *= 0.5;
+                    ls_iter += 1;
+                    continue;
+                }
 
-            res.fixed_rows_mut::<STRESS_STRAIN>(0).copy_from(&res_eps);
-            res.fixed_rows_mut::<1>(STRESS_STRAIN).x = res_f;
-            res.fixed_rows_mut::<KAPPA>(STRESS_STRAIN + 1)
-                .copy_from(&res_kappa);
+                sigma = sigma_tr - self.model.elastic_tangent() * &del_eps_pl;
+                //Set all states in order to evaluate the new residuals
+                self.model.set_model_state(&sigma, &kappa);
+
+                res_eps = del_eps_pl - del_lambda * self.model.g();
+                res_kappa = &kappa - kappa_0 - del_lambda * self.model.k();
+                res_f = self.model.f() * scaling_factors.1;
+
+                res.fixed_rows_mut::<STRESS_STRAIN>(0).copy_from(&res_eps);
+                res.fixed_rows_mut::<1>(STRESS_STRAIN).x = res_f;
+                res.fixed_rows_mut::<KAPPA>(STRESS_STRAIN + 1)
+                    .copy_from(&res_kappa);
+
+                if res.norm() <= (1.0 - 1e-4 * alpha) * res_norm_prev || ls_iter >= 20 {
+                    break;
+                }
+                alpha *= 0.5;
+                ls_iter += 1;
+            }
 
             res_eps_norm.push(res_eps.norm());
             res_kappa_norm.push(res_kappa.norm());

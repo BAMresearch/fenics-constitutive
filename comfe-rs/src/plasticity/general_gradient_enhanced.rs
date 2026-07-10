@@ -112,7 +112,7 @@ impl<
             //    );
             //let mut solver = NewtonSolver::new(&mut model, 1e-8, 1e-8, 50);
             let mut solver = NewtonSolverStrain::new(&mut model, 1e-8, 1e-8, 50);
-            let msg = format!("Plasticity failed to converge on sigma_tr {}, sigma_0 {}, alpha_max_old {}", sigma_tr, sigma_0, old_max);
+            let msg = format!("Plasticity failed to converge on sigma_tr {}, sigma_0 {}, alpha_max_old {}, alpha_0 {}, alpha_nonlocal {}", sigma_tr, sigma_0, old_max, alpha_0, alpha_nonlocal);
             let result = solver
                 .solve(&sigma_tr, &alpha_0)
                 .expect(&msg);
