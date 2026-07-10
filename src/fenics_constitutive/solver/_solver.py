@@ -120,8 +120,8 @@ class IncrSmallStrainProblem(NonlinearProblem):
         
         dR_form = (
             ufl.inner(
-                ufl_mandel_strain(du, constraint),
-                ufl.dot(self.tangent, ufl_mandel_strain(u_, constraint)),
+                ufl_mandel_strain(u_, constraint),
+                ufl.dot(self.tangent, ufl_mandel_strain(du, constraint)),
             )
             * self.dxm
         )
