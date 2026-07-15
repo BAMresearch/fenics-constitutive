@@ -197,4 +197,8 @@ impl GradientPlasticity<6, 7, 7, 1> for Engelen3D {
     fn dk_dkappa_nonlocal(&self) -> &SMatrix<f64, 1, 1> {
         &self.dk_dkappa_nonlocal
     }
+
+    fn omega(&self) -> f64 {
+        self.omega
+    }
 }

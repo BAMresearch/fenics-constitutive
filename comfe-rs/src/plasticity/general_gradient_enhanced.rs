@@ -23,7 +23,6 @@ pub trait GradientPlasticity<
         kappa_nonlocal: &SVector<f64, KAPPA>,
         kappa_nonlocal_max: &SVector<f64, KAPPA>,
     );
-
     //must only be used when determining the tangents of the model
     fn set_nonlocal_derivatives(
         &mut self,
@@ -33,6 +32,7 @@ pub trait GradientPlasticity<
     fn df_dkappa_nonlocal(&self) -> &RowSVector<f64, KAPPA>;
     fn dg_dkappa_nonlocal(&self) -> &SMatrix<f64, STRESS_STRAIN, KAPPA>;
     fn dk_dkappa_nonlocal(&self) -> &SMatrix<f64, KAPPA, KAPPA>;
+    fn omega(&self) -> f64; 
 }
 
 pub struct IsotropicGradientPlasticityModel3D<
@@ -45,9 +45,10 @@ pub struct IsotropicGradientPlasticityModel3D<
 
 create_history_parameter_struct!(
     IsotropicGradientPlasticityHistory3D,
-    2,
-    7,
+    3,
+    8,
     [
+        (omega,(QDim::Scalar)),
         (alpha_nonlocal_max, (QDim::Scalar)),
         (plastic_strain, (QDim::RotatableVector(6)))
     ]
@@ -57,7 +58,7 @@ impl<
     const N_PARAMETERS: usize,
     const PARAMETERS: usize,
     MODEL: GradientPlasticity<6, N_PARAMETERS, PARAMETERS, 1>,
-> GradientConstitutiveModelFn<6, 2, 7, N_PARAMETERS, PARAMETERS>
+> GradientConstitutiveModelFn<6, 3, 8, N_PARAMETERS, PARAMETERS>
     for IsotropicGradientPlasticityModel3D<N_PARAMETERS, PARAMETERS, MODEL>
 {
     type History = IsotropicGradientPlasticityHistory3D;
@@ -71,7 +72,7 @@ impl<
         stress: &mut [f64; 6],
         local_quantity: &mut [f64; 1],
         tangents: Option<&mut NonlocalTangents<6>>,
-        history: &mut [f64; 7],
+        history: &mut [f64; 8],
         parameters: &[f64; PARAMETERS],
     ) {
         let parameters_ = Self::Parameters::from_array(parameters);
@@ -120,6 +121,7 @@ impl<
             *stress = result.sigma.data.0[0];
             *local_quantity = result.kappa.data.0[0];
             history_.plastic_strain += result.del_lambda * solver.model.g();
+            history_.omega = solver.model.omega();
             if let Some(tangents) = tangents {
                 let mut dres = SMatrix::<f64, 8, 8>::zeros();
                 solver.update_newton_matrix(&mut dres, result.del_lambda, (1.0, 1.0, 1.0));
