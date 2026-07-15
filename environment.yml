@@ -14,3 +14,4 @@ dependencies:
   - maturin
   - pip:
     - -e .
+    - dolfinx-external-operator @ git+https://github.com/a-latyshev/dolfinx-external-operator.git@v0.9.0
