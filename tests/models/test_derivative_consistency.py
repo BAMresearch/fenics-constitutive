@@ -218,6 +218,21 @@ def check_gradient_tangents(law, steps, test_eps, nonlocal_factor=1.0) -> bool:
     )
 
 
+def assert_laws_match(laws, make_state, step, n_steps, checks) -> list[dict]:
+    """Drives each law in ``laws`` through ``n_steps`` identical ``step(law,
+    state)`` calls (mutating ``state`` in place), asserting that every
+    ``state[key]`` named in ``checks`` (a ``key -> (atol, rtol)`` mapping)
+    agrees across laws after every step. Returns the final states."""
+    states = [make_state(law) for law in laws]
+    for _ in range(n_steps):
+        for law, state in zip(laws, states, strict=True):
+            step(law, state)
+        for key, (atol, rtol) in checks.items():
+            for other in states[1:]:
+                assert np.allclose(states[0][key], other[key], atol=atol, rtol=rtol), key
+    return states
+
+
 @pytest.mark.parametrize(
     "make_law",
     [
@@ -233,6 +248,33 @@ def test_mises_tangent(make_law):
     assert not check_local_tangent(make_law(), [], 5e-4 * MIX)
     assert check_local_tangent(make_law(), [2e-3 * MIX] * 3, 1e-3 * MIX)
     assert check_local_tangent(make_law(), [2e-3 * MIX] * 3, 1e-3 * SHEAR)
+
+
+@pytest.mark.parametrize(
+    "eps6",
+    [UNI, np.array([1.0, 1, 0, 0, 0, 0]) / SQ2, RAND / np.linalg.norm(RAND)],
+    ids=["uniaxial-strain", "plane-strain", "random"],
+)
+def test_mises_analytical_matches_newton(eps6):
+    """IsotropicMises3D's closed-form radial return must reproduce the general
+    Newton return mapping (MisesPlasticityLinearHardening3D) over repeated
+    increments, to solver precision."""
+    laws = [IsotropicMises3D(MISES_PARAMS), MisesPlasticityLinearHardening3D(MISES_PARAMS)]
+
+    def make_state(law):
+        return {"stress": np.zeros(6), "tangent": np.zeros(36), "history": make_history(law)}
+
+    def step(law, state):
+        law.evaluate(
+            0.0, 0.0, mandel_to_grad(1e-3 * eps6),
+            state["stress"], state["tangent"], state["history"],
+        )
+
+    states = assert_laws_match(
+        laws, make_state, step, n_steps=10,
+        checks={"stress": (1e-12, 1e-14), "tangent": (1e-12, 1e-14)},
+    )
+    assert states[0]["history"]["history"][0] > 0, "plastic strain not reached in test"
 
 
 @pytest.mark.parametrize("b_flow", [0.05, 0.01], ids=["associated", "non-associated"])
@@ -285,18 +327,20 @@ def test_engelen_analytical_matches_newton():
     """The closed-form radial return must reproduce the general Newton return
     mapping (same yield function) to solver accuracy."""
     laws = [Engelen3D(ENGELEN_PARAMS), EngelenAnalytical3D(ENGELEN_PARAMS)]
-    states = [
-        {"stress": np.zeros(6), "local": np.zeros(1), "history": make_history(law)}
-        for law in laws
-    ]
-    for _ in range(8):
-        for law, st in zip(laws, states):
-            law.evaluate(
-                0.0, 0.0, mandel_to_grad(2e-3 * MIX), st["local"].copy(),
-                st["stress"], st["local"], None, st["history"],
-            )
-        assert np.allclose(states[0]["stress"], states[1]["stress"], atol=1e-7)
-        assert np.allclose(states[0]["local"], states[1]["local"], atol=1e-9)
+
+    def make_state(law):
+        return {"stress": np.zeros(6), "local": np.zeros(1), "history": make_history(law)}
+
+    def step(law, state):
+        law.evaluate(
+            0.0, 0.0, mandel_to_grad(2e-3 * MIX), state["local"].copy(),
+            state["stress"], state["local"], None, state["history"],
+        )
+
+    states = assert_laws_match(
+        laws, make_state, step, n_steps=8,
+        checks={"stress": (1e-7, 1e-5), "local": (1e-9, 1e-5)},
+    )
     assert states[0]["local"][0] > 0.0, "plasticity was not reached in test"
 
 
