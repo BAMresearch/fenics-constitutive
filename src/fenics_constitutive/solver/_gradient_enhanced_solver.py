@@ -108,7 +108,7 @@ class IncrSmallStrainGradientProblem(NonlinearProblem):
 
         self.metadata = {"quadrature_degree": q_degree, "quadrature_scheme": "default"}
         self.dxm = ufl.dx(metadata=self.metadata)
-
+        
         # Define the residual form. The first term comes from the balance of linear momentum
         R_form = (
             ufl.inner(ufl_mandel_strain(u_test, constraint), self.stress.current)
@@ -130,9 +130,9 @@ class IncrSmallStrainGradientProblem(NonlinearProblem):
         # the residual form.
         dR_form = (
             ufl.inner(
-                ufl_mandel_strain(u_trial, constraint),
+                ufl_mandel_strain(u_test, constraint),
                 ufl.dot(
-                    self.tangents.dsigma_deps, ufl_mandel_strain(u_test, constraint)
+                    self.tangents.dsigma_deps, ufl_mandel_strain(u_trial, constraint)
                 ),
             )
             * self.dxm

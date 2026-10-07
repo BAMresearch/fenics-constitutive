@@ -75,17 +75,26 @@ impl Plasticity<6, 7, 7, 1> for DruckerPragerHyperbolic3D {
             ..Default::default()
         }
     }
+    fn calculate_f_only(&mut self, sigma: &SVector<f64, 6>, kappa: &SVector<f64, 1>)->f64 {
+        let (i_1, s) = sigma.trace_dev();
+        let j_2 = 0.5 * s.norm_squared();
 
+        let a = (1.0+self.parameters.h * kappa.x)*self.parameters.a;
+        let d = (1.0+self.parameters.h * kappa.x)*self.parameters.d;
+        let b = self.parameters.b;
+
+
+        return (j_2+(d*b).powi(2)).sqrt() + b * i_1 - a;
+    }
     fn set_model_state(
         &mut self,
-        sigma_0: &SVector<f64, 6>,
-        sigma_1: &SVector<f64, 6>,
+        sigma: &SVector<f64, 6>,
         kappa: &SVector<f64, 1>,
     ) {
         const PROJECTION_DEV: SMatrix<f64, 6, 6> = const { projection_dev::<6>() };
         const SYM_ID: SVector<f64, 6> = const { sym_id::<6>() };
         // Implementation of setting model state
-        let (i_1, s) = sigma_1.trace_dev();
+        let (i_1, s) = sigma.trace_dev();
         let j_2 = 0.5 * s.norm_squared();
 
         let a = (1.0+self.parameters.h * kappa.x)*self.parameters.a;
@@ -98,7 +107,7 @@ impl Plasticity<6, 7, 7, 1> for DruckerPragerHyperbolic3D {
         let df_di_1 = b;
         let df_dj_2 = (1_f64/2.0)*(j_2 + b.powi(2)*d.powi(2)).sqrt().recip();
         let _df_di_1i_1 = 0.0;
-        let df_dj_2j_2 = -1.0/4.0*(j_2 + d.powi(2)).powf(-3_f64/2.0);
+        let df_dj_2j_2 = -1.0/4.0*(j_2 + b.powi(2)*d.powi(2)).powf(-3_f64/2.0);
 
         let df_dsigma = df_di_1 * &SYM_ID + df_dj_2 * &s;
         self.df_dsigma = df_dsigma.transpose();
