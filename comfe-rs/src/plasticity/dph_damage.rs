@@ -3,7 +3,6 @@ use crate::create_history_parameter_struct;
 use crate::interfaces::*;
 use crate::mandel::*;
 use crate::plasticity::*;
-use nalgebra::RowSVector;
 use nalgebra::{SMatrix, SVector};
 
 create_history_parameter_struct!(
@@ -56,20 +55,76 @@ pub struct DPHDamage3D {
     parameters: DPHDamageParameters,
     elastic_tangent: SMatrix<f64, 6, 6>,
     elastic_tangent_inv: SMatrix<f64, 6, 6>,
-    f: f64,
-    df_dsigma: RowSVector<f64, 6>,
-    df_dkappa: RowSVector<f64, 1>,
-    g: SVector<f64, 6>,
-    dg_dkappa: SMatrix<f64, 6, 1>,
-    dg_dsigma: SMatrix<f64, 6, 6>,
-    k: SVector<f64, 1>,
-    dk_dsigma: SMatrix<f64, 1, 6>,
-    dk_dkappa: SMatrix<f64, 1, 1>,
+    // damage and its derivative are set once per evaluation by `set_nonlocal_state`
     omega: f64,
-    df_dkappa_nonlocal: RowSVector<f64, 1>,
-    dg_dkappa_nonlocal: SMatrix<f64, 6, 1>,
-    dk_dkappa_nonlocal: SMatrix<f64, 1, 1>,
     domega_dkappa_nonlocal: f64,
+}
+
+/// The parameters $a$, $b$, $d$ of the yield surface, or their derivatives with
+/// respect to a scalar quantity.
+#[derive(Clone, Copy)]
+struct YieldParameters {
+    a: f64,
+    b: f64,
+    d: f64,
+}
+
+impl DPHDamage3D {
+    /// Interpolates between the hardened yield surface and the residual surface:
+    /// $x = (1 + h\kappa)(1 - \omega) x_y + \omega x_r$ for $x \in \{a, b, d\}$.
+    fn yield_parameters(&self, kappa: f64, omega: f64) -> YieldParameters {
+        let p = &self.parameters;
+        let factor = (1.0 + p.h * kappa) * (1.0 - omega);
+        YieldParameters {
+            a: factor * p.a_y + omega * p.a_r,
+            b: factor * p.b_y + omega * p.b_r,
+            d: factor * p.d_y + omega * p.d_r,
+        }
+    }
+
+    fn dyield_parameters_dkappa(&self, omega: f64) -> YieldParameters {
+        let p = &self.parameters;
+        let factor = p.h * (1.0 - omega);
+        YieldParameters {
+            a: factor * p.a_y,
+            b: factor * p.b_y,
+            d: factor * p.d_y,
+        }
+    }
+
+    fn dyield_parameters_domega(&self, kappa: f64) -> YieldParameters {
+        let p = &self.parameters;
+        let factor = -(1.0 + p.h * kappa);
+        YieldParameters {
+            a: factor * p.a_y + p.a_r,
+            b: factor * p.b_y + p.b_r,
+            d: factor * p.d_y + p.d_r,
+        }
+    }
+}
+
+/// $f = I_1 + a\sqrt{J_2 + b^2}/b - d$
+fn yield_function(i_1: f64, j_2: f64, y: YieldParameters) -> f64 {
+    i_1 + y.a * (j_2 + y.b.powi(2)).sqrt() / y.b - y.d
+}
+
+/// Derivative of the yield function with respect to a scalar quantity $t$,
+/// given the derivatives `dy` of $a$, $b$, $d$ with respect to $t$.
+fn df_dparameter(j_2: f64, y: YieldParameters, dy: YieldParameters) -> f64 {
+    let (a, b) = (y.a, y.b);
+    -(j_2 + b.powi(2)).sqrt() * a * dy.b / b.powi(2)
+        + (j_2 + b.powi(2)).sqrt() * dy.a / b
+        - dy.d
+        + a * dy.b / (j_2 + b.powi(2)).sqrt()
+}
+
+/// Derivative of $\partial f/\partial J_2$ with respect to a scalar quantity $t$,
+/// given the derivatives `dy` of $a$, $b$, $d$ with respect to $t$.
+fn ddf_dj_2_dparameter(j_2: f64, y: YieldParameters, dy: YieldParameters) -> f64 {
+    let (a, b) = (y.a, y.b);
+    -1.0 / 2.0 * a * dy.b / ((j_2 + b.powi(2)).sqrt() * b.powi(2))
+        + (1.0 / 2.0) * dy.a / ((j_2 + b.powi(2)).sqrt() * b)
+        - 1.0 / 2.0 * a * dy.b / (j_2 + b.powi(2)).powf(3.0 / 2.0)
 }
 
 impl Plasticity<6, 13, 13, 1> for DPHDamage3D {
@@ -83,104 +138,48 @@ impl Plasticity<6, 13, 13, 1> for DPHDamage3D {
             ..Default::default()
         }
     }
-    fn calculate_f_only(&mut self, sigma: &SVector<f64, 6>, kappa: &SVector<f64, 1>) ->f64{
+    fn calculate_f_only(&self, sigma: &SVector<f64, 6>, kappa: &SVector<f64, 1>) ->f64{
         let (i_1, s) = sigma.trace_dev();
         let j_2 = 0.5 * s.norm_squared();
-
-        let b = (1.0 + self.parameters.h * kappa.x) * (1.0 - self.omega) * self.parameters.b_y
-            + self.omega * self.parameters.b_r;
-        let a = (1.0 + self.parameters.h * kappa.x) * (1.0 - self.omega) * self.parameters.a_y
-            + self.omega * self.parameters.a_r;
-        let d = (1.0 + self.parameters.h * kappa.x) * (1.0 - self.omega) * self.parameters.d_y
-            + self.omega * self.parameters.d_r;
-
-        return i_1 + a * (j_2 + b.powi(2)).sqrt() / b - d;
+        yield_function(i_1, j_2, self.yield_parameters(kappa.x, self.omega))
     }
-    fn set_model_state(&mut self, sigma: &SVector<f64, 6>, kappa: &SVector<f64, 1>) {
+    fn set_model_state(
+        &self,
+        sigma: &SVector<f64, 6>,
+        kappa: &SVector<f64, 1>,
+        state: &mut PlasticityState<6, 13, 13, 1>,
+    ) {
         const PROJECTION_DEV: SMatrix<f64, 6, 6> = const { projection_dev::<6>() };
         const SYM_ID: SVector<f64, 6> = const { sym_id::<6>() };
-        // Implementation of setting model state
         let (i_1, s) = sigma.trace_dev();
         let j_2 = 0.5 * s.norm_squared();
 
-        let b = (1.0 + self.parameters.h * kappa.x) * (1.0 - self.omega) * self.parameters.b_y
-            + self.omega * self.parameters.b_r;
-        let a = (1.0 + self.parameters.h * kappa.x) * (1.0 - self.omega) * self.parameters.a_y
-            + self.omega * self.parameters.a_r;
-        let d = (1.0 + self.parameters.h * kappa.x) * (1.0 - self.omega) * self.parameters.d_y
-            + self.omega * self.parameters.d_r;
-        let db_dkappa = self.parameters.h * (1.0 - self.omega) * self.parameters.b_y;
-        let da_dkappa = self.parameters.h * (1.0 - self.omega) * self.parameters.a_y;
-        let dd_dkappa = self.parameters.h * (1.0 - self.omega) * self.parameters.d_y;
+        let y = self.yield_parameters(kappa.x, self.omega);
+        let dy_dkappa = self.dyield_parameters_dkappa(self.omega);
+        let (a, b) = (y.a, y.b);
 
-        self.f = i_1 + a * (j_2 + b.powi(2)).sqrt() / b - d;
-        assert!(!self.f.is_nan(), "f is NaN");
-        assert!(!self.f.is_infinite(), "f is infinite");
+        state.f = yield_function(i_1, j_2, y);
+        assert!(!state.f.is_nan(), "f is NaN");
+        assert!(!state.f.is_infinite(), "f is infinite");
 
-        let df_di_1 = 1.0;
-
+        // df_di_1 = 1
         let df_dj_2 = (1.0 / 2.0) * a / ((j_2 + b.powi(2)).sqrt() * b);
 
-        self.df_dkappa.x = -(j_2 + b.powi(2)).sqrt() * a * db_dkappa / b.powi(2)
-            + (j_2 + b.powi(2)).sqrt() * da_dkappa / b
-            - dd_dkappa
-            + a * db_dkappa / (j_2 + b.powi(2)).sqrt();
+        state.df_dkappa.x = df_dparameter(j_2, y, dy_dkappa);
 
-        self.df_dsigma = (&SYM_ID + df_dj_2 * &s).transpose();
-        self.g = (1.0 - self.parameters.radial_factor) * &SYM_ID + df_dj_2 * &s;
-        let df_di_1i_1 = 0.0;
+        state.df_dsigma = (&SYM_ID + df_dj_2 * &s).transpose();
+        state.g = (1.0 - self.parameters.radial_factor) * &SYM_ID + df_dj_2 * &s;
         let df_dj_2j_2 =
             -1_f64 / 4.0 * a / ((j_2 + b.powi(2)).powf(3_f64 / 2.0) * b);
-        self.dg_dsigma = &s * df_dj_2j_2 * &s.transpose() + df_dj_2 * &PROJECTION_DEV;
-        let df_dj_2kappa = -1.0 / 2.0 * a * db_dkappa / ((j_2 + b.powi(2)).sqrt() * b.powi(2))
-            + (1.0 / 2.0) * da_dkappa / ((j_2 + b.powi(2)).sqrt() * b)
-            - 1.0 / 2.0 * a * db_dkappa / (j_2 + b.powi(2)).powf(3.0 / 2.0);
-        self.dg_dkappa = df_dj_2kappa * &s;
+        state.dg_dsigma = &s * df_dj_2j_2 * &s.transpose() + df_dj_2 * &PROJECTION_DEV;
+        state.dg_dkappa = ddf_dj_2_dparameter(j_2, y, dy_dkappa) * &s;
 
-        //let pl_norm = self.state.del_plastic_strain.norm();
-
-        let g_norm = self.g.norm();
-        self.k.x = (2_f64 / 3_f64).sqrt() * g_norm;
-        self.dk_dsigma = ((2_f64 / 3_f64).sqrt() / g_norm) * self.g.transpose() * &self.dg_dsigma;
-        self.dk_dkappa = ((2_f64 / 3_f64).sqrt() / g_norm) * self.g.transpose() * &self.dg_dkappa;
+        let g_norm = state.g.norm();
+        state.k.x = (2_f64 / 3_f64).sqrt() * g_norm;
+        state.dk_dsigma = ((2_f64 / 3_f64).sqrt() / g_norm) * state.g.transpose() * &state.dg_dsigma;
+        state.dk_dkappa = ((2_f64 / 3_f64).sqrt() / g_norm) * state.g.transpose() * &state.dg_dkappa;
     }
 
-    fn f(&self) -> f64 {
-        // Implementation of f function
-        self.f
-    }
-    fn df_dsigma(&self) -> &RowSVector<f64, 6> {
-        // Implementation of df_dsigma
-        &self.df_dsigma
-    }
-    fn df_dkappa(&self) -> &RowSVector<f64, 1> {
-        // Implementation of df_dkappa
-        &self.df_dkappa
-    }
-    fn g(&self) -> &SVector<f64, 6> {
-        // Implementation of g function
-        &self.g
-    }
-    fn dg_dkappa(&self) -> &SMatrix<f64, 6, 1> {
-        // Implementation of dg_dkappa
-        &self.dg_dkappa
-    }
-    fn dg_dsigma(&self) -> &SMatrix<f64, 6, 6> {
-        // Implementation of dg_dsigma
-        &self.dg_dsigma
-    }
-    fn k(&self) -> &SVector<f64, 1> {
-        // Implementation of k function
-        &self.k
-    }
-    fn dk_dsigma(&self) -> &SMatrix<f64, 1, 6> {
-        // Implementation of dk_dsigma
-        &self.dk_dsigma
-    }
-    fn dk_dkappa(&self) -> &SMatrix<f64, 1, 1> {
-        // Implementation of dk_dkappa
-        &self.dk_dkappa
-    }
     fn elastic_tangent(&self) -> &SMatrix<f64, 6, 6> {
         // Implementation of elastic_tangent
         &self.elastic_tangent
@@ -189,27 +188,20 @@ impl Plasticity<6, 13, 13, 1> for DPHDamage3D {
         // Implementation of elastic_tangent_inv
         &self.elastic_tangent_inv
     }
-    fn residual_scaling(&self, sigma: &SVector<f64, 6>, kappa: &SVector<f64, 1>) -> (f64,f64,f64) {
-        let b = self.parameters.b_y;
-        let a = self.parameters.a_y;
-        let d = self.parameters.d_y;
-
-        let db_dkappa = self.parameters.h  * self.parameters.b_y;
-        let da_dkappa = self.parameters.h  * self.parameters.a_y;
-        let dd_dkappa = self.parameters.h  * self.parameters.d_y;
-        
-        let i_1 = 0.0;
-        let j_2 = (d*b/a).powi(2) - b.powi(2);
-
-        assert!(j_2>0.0);
-        let mises = (3.0*j_2).sqrt();
-
-        let df_dkappa = -(j_2 + b.powi(2)).sqrt() * a * db_dkappa / b.powi(2)
-            + (j_2 + b.powi(2)).sqrt() * da_dkappa / b
-            - dd_dkappa
-            + a * db_dkappa / (j_2 + b.powi(2)).sqrt();
-        assert!(df_dkappa<0.0);
-        return (1.0/mises, 1.0/mises, -df_dkappa/mises)
+    fn characteristic_stress(&self, sigma_tr: &SVector<f64, 6>) -> f64 {
+        // von Mises stress on the undamaged, unhardened yield surface at i_1 = 0
+        let y = self.yield_parameters(0.0, 0.0);
+        let j_2 = (y.d * y.b / y.a).powi(2) - y.b.powi(2);
+        if j_2 > 0.0 {
+            (3.0 * j_2).sqrt()
+        } else {
+            sigma_tr.norm().max(f64::MIN_POSITIVE)
+        }
+    }
+    fn is_admissible(&self, kappa: &SVector<f64, 1>) -> bool {
+        // kappa < -1/h makes the hardening factor (1 + h*kappa) negative, which crosses a
+        // singularity of the yield function (b -> 0) where Newton stagnates
+        kappa.x >= 0.0
     }
 }
 
@@ -237,56 +229,33 @@ impl GradientPlasticity<6, 13, 13, 1> for DPHDamage3D {
         }
     }
 
-    fn set_nonlocal_derivatives(&mut self, sigma: &SVector<f64, 6>, kappa: &SVector<f64, 1>) {
-        //const PROJECTION_DEV: SMatrix<f64, 6, 6> = const { projection_dev::<6>() };
-        //const SYM_ID: SVector<f64, 6> = const { sym_id::<6>() };
-        // Implementation of setting model state
+    fn set_nonlocal_derivatives(
+        &self,
+        sigma: &SVector<f64, 6>,
+        kappa: &SVector<f64, 1>,
+        state: &PlasticityState<6, 13, 13, 1>,
+        nonlocal_state: &mut NonlocalState<6, 13, 13, 1>,
+    ) {
         let (_i_1, s) = sigma.trace_dev();
         let j_2 = 0.5 * s.norm_squared();
 
-        let b = (1.0 + self.parameters.h * kappa.x) * (1.0 - self.omega) * self.parameters.b_y
-            + self.omega * self.parameters.b_r;
-        let a = (1.0 + self.parameters.h * kappa.x) * (1.0 - self.omega) * self.parameters.a_y
-            + self.omega * self.parameters.a_r;
+        // chain rule: d(a, b, d)/dkappa_nonlocal = d(a, b, d)/domega * domega/dkappa_nonlocal
+        let y = self.yield_parameters(kappa.x, self.omega);
+        let dy_domega = self.dyield_parameters_domega(kappa.x);
+        let domega = self.domega_dkappa_nonlocal;
+        let dy_dkappa_nonlocal = YieldParameters {
+            a: dy_domega.a * domega,
+            b: dy_domega.b * domega,
+            d: dy_domega.d * domega,
+        };
 
-        let domega_dkappa = self.domega_dkappa_nonlocal;
+        nonlocal_state.df_dkappa_nonlocal.x = df_dparameter(j_2, y, dy_dkappa_nonlocal);
+        nonlocal_state.dg_dkappa_nonlocal = ddf_dj_2_dparameter(j_2, y, dy_dkappa_nonlocal) * &s;
 
-        let db_dkappa_nonlocal =
-            -(1.0 + self.parameters.h * kappa.x) * domega_dkappa * self.parameters.b_y
-                + domega_dkappa * self.parameters.b_r;
-        let da_dkappa_nonlocal =
-            -(1.0 + self.parameters.h * kappa.x) * domega_dkappa * self.parameters.a_y
-                + domega_dkappa * self.parameters.a_r;
-        let dd_dkappa_nonlocal =
-            -(1.0 + self.parameters.h * kappa.x) * domega_dkappa * self.parameters.d_y
-                + domega_dkappa * self.parameters.d_r;
-
-        self.df_dkappa_nonlocal.x = -(j_2 + b.powi(2)).sqrt() * a * db_dkappa_nonlocal / b.powi(2)
-            + (j_2 + b.powi(2)).sqrt() * da_dkappa_nonlocal / b
-            - dd_dkappa_nonlocal
-            + a * db_dkappa_nonlocal / (j_2 + b.powi(2)).sqrt();
-
-        let df_dj_2_dkappa_nonlocal =
-            -1_f64 / 2.0 * a * db_dkappa_nonlocal * (j_2 + b.powi(2)).sqrt().recip() * b.powi(-2)
-                + (1_f64 / 2.0) * da_dkappa_nonlocal * (j_2 + b.powi(2)).sqrt().recip() * b.recip()
-                - 1_f64 / 2.0 * a * db_dkappa_nonlocal * (j_2 + b.powi(2)).powf(-3_f64 / 2.0);
-        self.dg_dkappa_nonlocal = df_dj_2_dkappa_nonlocal * &s;
-
-        let g_norm = self.g.norm();
-        self.dk_dkappa_nonlocal =
-            ((2_f64 / 3_f64).sqrt() / g_norm) * self.g.transpose() * &self.dg_dkappa_nonlocal;
-    }
-
-    fn df_dkappa_nonlocal(&self) -> &RowSVector<f64, 1> {
-        &self.df_dkappa_nonlocal
-    }
-
-    fn dg_dkappa_nonlocal(&self) -> &SMatrix<f64, 6, 1> {
-        &self.dg_dkappa_nonlocal
-    }
-
-    fn dk_dkappa_nonlocal(&self) -> &SMatrix<f64, 1, 1> {
-        &self.dk_dkappa_nonlocal
+        let g_norm = state.g.norm();
+        nonlocal_state.dk_dkappa_nonlocal = ((2_f64 / 3_f64).sqrt() / g_norm)
+            * state.g.transpose()
+            * &nonlocal_state.dg_dkappa_nonlocal;
     }
 
     fn omega(&self) -> f64 {

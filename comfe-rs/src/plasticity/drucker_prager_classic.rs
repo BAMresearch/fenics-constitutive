@@ -4,7 +4,6 @@ use crate::interfaces::*;
 use crate::mandel::*;
 use crate::plasticity::*;
 use crate::create_history_parameter_struct;
-use nalgebra::RowSVector;
 //, q_dim_data_type};
 //use crate::impl_from_array;
 use nalgebra::{SMatrix, SVector};
@@ -47,16 +46,6 @@ pub struct DruckerPrager3D {
     parameters: DruckerPragerParameters,
     elastic_tangent: SMatrix<f64, 6, 6>,
     elastic_tangent_inv: SMatrix<f64, 6, 6>,
-    f: f64,
-    df_dsigma: RowSVector<f64, 6>,
-    df_dkappa: RowSVector<f64, 1>,
-    g: SVector<f64, 6>,
-    dg_dkappa: SMatrix<f64, 6, 1>,
-    dg_dsigma: SMatrix<f64, 6, 6>,
-    k: SVector<f64, 1>,
-    dk_dsigma: SMatrix<f64, 1, 6>,
-    dk_dkappa: SMatrix<f64, 1, 1>,
-    del_plastic_strain: SVector<f64, 6>,
 }
 
 impl Plasticity<6, 5, 5, 1> for DruckerPrager3D {
@@ -70,7 +59,7 @@ impl Plasticity<6, 5, 5, 1> for DruckerPrager3D {
             ..Default::default()
         }
     }
-    fn calculate_f_only(&mut self, sigma: &SVector<f64, 6>, kappa: &SVector<f64, 1>)->f64 {
+    fn calculate_f_only(&self, sigma: &SVector<f64, 6>, kappa: &SVector<f64, 1>)->f64 {
         let (i_1, s) = sigma.trace_dev();
 
         assert!(i_1 < self.parameters.a/self.parameters.b , "non-differentiable tip of Drucker-Prager surface reached");
@@ -79,9 +68,10 @@ impl Plasticity<6, 5, 5, 1> for DruckerPrager3D {
         return j_2.sqrt() + self.parameters.b * i_1 - self.parameters.a;
     }
     fn set_model_state(
-        &mut self,
+        &self,
         sigma: &SVector<f64, 6>,
         kappa: &SVector<f64, 1>,
+        state: &mut PlasticityState<6, 5, 5, 1>,
     ) {
         const PROJECTION_DEV: SMatrix<f64, 6, 6> = const { projection_dev::<6>() };
         const SYM_ID: SVector<f64, 6> = const { sym_id::<6>() };
@@ -91,16 +81,16 @@ impl Plasticity<6, 5, 5, 1> for DruckerPrager3D {
         assert!(i_1 < self.parameters.a/self.parameters.b , "non-differentiable tip of Drucker-Prager surface reached");
 
         let j_2 = 0.5 * s.norm_squared();
-        self.f = j_2.sqrt() + self.parameters.b * i_1 - self.parameters.a;
+        state.f = j_2.sqrt() + self.parameters.b * i_1 - self.parameters.a;
         let df_di_1 = self.parameters.b;
         let df_dj_2 = 0.5 / j_2.sqrt();
         let _df_di_1i_1 = 0.0;
         let df_dj_2j_2 = -0.25 / (j_2 * j_2.sqrt());
 
         let df_dsigma = df_di_1 * &SYM_ID + df_dj_2 * &s;
-        self.df_dsigma = df_dsigma.transpose();
+        state.df_dsigma = df_dsigma.transpose();
         
-        self.g = {
+        state.g = {
             if self.parameters.b == self.parameters.b_flow {
                 // associated flow
                 df_dsigma
@@ -110,50 +100,17 @@ impl Plasticity<6, 5, 5, 1> for DruckerPrager3D {
             }
         };
         // This derivative is the same for both associated and non-associated flow
-        self.dg_dsigma = &s * df_dj_2j_2 * &s.transpose() + df_dj_2 * &PROJECTION_DEV;
+        state.dg_dsigma = &s * df_dj_2j_2 * &s.transpose() + df_dj_2 * &PROJECTION_DEV;
+        // no hardening: neither f nor g depend on kappa
+        state.df_dkappa.x = 0.0;
+        state.dg_dkappa = SMatrix::zeros();
 
-        let g_norm = self.g.norm();
-        self.k = SVector::from_element((2_f64/3_f64).sqrt()*g_norm);
-        self.dk_dsigma = ((2_f64/3_f64).sqrt()/g_norm)* self.g.transpose() * &self.dg_dsigma;
-        self.dk_dkappa = ((2_f64/3_f64).sqrt()/g_norm)* self.g.transpose() * &self.dg_dkappa;
+        let g_norm = state.g.norm();
+        state.k = SVector::from_element((2_f64/3_f64).sqrt()*g_norm);
+        state.dk_dsigma = ((2_f64/3_f64).sqrt()/g_norm)* state.g.transpose() * &state.dg_dsigma;
+        state.dk_dkappa = ((2_f64/3_f64).sqrt()/g_norm)* state.g.transpose() * &state.dg_dkappa;
     }
 
-    fn f(&self) -> f64 {
-        // Implementation of f function
-        self.f
-    }
-    fn df_dsigma(&self) -> &RowSVector<f64, 6> {
-        // Implementation of df_dsigma
-        &self.df_dsigma
-    }
-    fn df_dkappa(&self) -> &RowSVector<f64, 1> {
-        // Implementation of df_dkappa
-        &self.df_dkappa
-    }
-    fn g(&self) -> &SVector<f64, 6> {
-        // Implementation of g function
-        &self.g
-    }
-    fn dg_dkappa(&self) -> &SMatrix<f64, 6, 1> {
-        // Implementation of dg_dkappa
-        &self.dg_dkappa
-    }
-    fn dg_dsigma(&self) -> &SMatrix<f64, 6, 6> {
-        // Implementation of dg_dsigma
-        &self.dg_dsigma
-    }
-    fn k(&self) -> &SVector<f64, 1> {
-        // Implementation of k function
-        &self.k
-    }
-    fn dk_dsigma(&self) -> &SMatrix<f64, 1, 6> {
-        // Implementation of dk_dsigma
-        &self.dk_dsigma
-    }
-    fn dk_dkappa(&self) -> &SMatrix<f64, 1, 1> {
-        // Implementation of dk_dkappa
-        &self.dk_dkappa
-    }
     fn elastic_tangent(&self) -> &SMatrix<f64, 6, 6> {
         // Implementation of elastic_tangent
         &self.elastic_tangent

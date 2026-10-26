@@ -1,8 +1,8 @@
 use std::marker::PhantomData;
 
 use crate::QDim; // Ensure QDim is imported from the correct module
-use crate::general::Plasticity;
-use crate::newton_solvers::{NewtonSolver, NewtonSolverStrain};
+use crate::general::{Plasticity, PlasticityState};
+use crate::newton_solvers::{NewtonSolverStrain, stress_based_jacobian};
 use crate::{
     create_history_parameter_struct,
     interfaces::{ArrayEquivalent, GradientConstitutiveModelFn, NonlocalTangents, StaticMap},
@@ -10,6 +10,35 @@ use crate::{
 //stuff
 
 use nalgebra::{RowSVector, SMatrix, SVector};
+
+/// Derivatives of the yield function, flow direction and hardening function
+/// with respect to the nonlocal quantity. They are only needed for the tangents.
+pub struct NonlocalState<
+    const STRESS_STRAIN: usize,
+    const N_PARAMETERS: usize,
+    const PARAMETERS: usize,
+    const KAPPA: usize,
+> {
+    pub df_dkappa_nonlocal: RowSVector<f64, KAPPA>,
+    pub dg_dkappa_nonlocal: SMatrix<f64, STRESS_STRAIN, KAPPA>,
+    pub dk_dkappa_nonlocal: SMatrix<f64, KAPPA, KAPPA>,
+}
+impl<
+    const STRESS_STRAIN: usize,
+    const N_PARAMETERS: usize,
+    const PARAMETERS: usize,
+    const KAPPA: usize,
+> NonlocalState<STRESS_STRAIN, N_PARAMETERS, PARAMETERS, KAPPA>
+{
+    pub fn zeros() -> NonlocalState<STRESS_STRAIN, N_PARAMETERS, PARAMETERS, KAPPA> {
+        NonlocalState {
+            df_dkappa_nonlocal: RowSVector::zeros(),
+            dg_dkappa_nonlocal: SMatrix::zeros(),
+            dk_dkappa_nonlocal: SMatrix::zeros(),
+        }
+    }
+}
+
 pub trait GradientPlasticity<
     const STRESS_STRAIN: usize,
     const N_PARAMETERS: usize,
@@ -17,22 +46,22 @@ pub trait GradientPlasticity<
     const KAPPA: usize,
 >: Plasticity<STRESS_STRAIN, N_PARAMETERS, PARAMETERS, KAPPA>
 {
-    //must be used once
+    //must be used once before evaluating the plasticity state, since it determines omega
     fn set_nonlocal_state(
         &mut self,
         kappa_nonlocal: &SVector<f64, KAPPA>,
         kappa_nonlocal_max: &SVector<f64, KAPPA>,
     );
-    //must only be used when determining the tangents of the model
+    //must only be used when determining the tangents of the model. `state` is the
+    //plasticity state at `sigma` and `kappa`.
     fn set_nonlocal_derivatives(
-        &mut self,
+        &self,
         sigma: &SVector<f64, STRESS_STRAIN>,
         kappa: &SVector<f64, KAPPA>,
+        state: &PlasticityState<STRESS_STRAIN, N_PARAMETERS, PARAMETERS, KAPPA>,
+        nonlocal_state: &mut NonlocalState<STRESS_STRAIN, N_PARAMETERS, PARAMETERS, KAPPA>,
     );
-    fn df_dkappa_nonlocal(&self) -> &RowSVector<f64, KAPPA>;
-    fn dg_dkappa_nonlocal(&self) -> &SMatrix<f64, STRESS_STRAIN, KAPPA>;
-    fn dk_dkappa_nonlocal(&self) -> &SMatrix<f64, KAPPA, KAPPA>;
-    fn omega(&self) -> f64; 
+    fn omega(&self) -> f64;
 }
 
 pub struct IsotropicGradientPlasticityModel3D<
@@ -93,9 +122,7 @@ impl<
         history_.alpha_nonlocal_max = alpha_nonlocal_max.x;
 
         model.set_nonlocal_state(&alpha_nonlocal, &alpha_nonlocal_max);
-        model.set_model_state(&sigma_tr, &alpha_0);
-
-        let f = model.f();
+        let f = model.calculate_f_only(&sigma_tr, &alpha_0);
         if f <= 0.0 {
             *stress = sigma_tr.data.0[0];
             if let Some(tangents) = tangents {
@@ -106,41 +133,56 @@ impl<
             }
             return;
         } else {
-            //let mut solver =
-            //    NewtonSchurComplementSolver::<8, 6, N_PARAMETERS, PARAMETERS, 1, 2, MODEL>::new(
-            //        &mut model, 1e-8, 1e-8, 50,
-            //    );
-            //let mut solver = NewtonSolver::new(&mut model, 1e-8, 1e-8, 50);
-            let mut solver = NewtonSolverStrain::new(&mut model, 1e-8, 1e-8, 50);
-            let msg = format!("Plasticity failed to converge on sigma_tr {}, sigma_0 {}, alpha_max_old {}, alpha_0 {}, alpha_nonlocal {}", sigma_tr, sigma_0, old_max, alpha_0, alpha_nonlocal);
+            let solver = NewtonSolverStrain::<8, 6, N_PARAMETERS, PARAMETERS, 1, MODEL>::new(
+                &model, 1e-12, 1e-12, 50,
+            );
+            let mut state = PlasticityState::zeros();
             let result = solver
-                .solve(&sigma_tr, &alpha_0)
-                .expect(&msg);
+                .solve(&sigma_tr, &alpha_0, &mut state)
+                .unwrap_or_else(|err| {
+                    panic!(
+                        "Plasticity failed to converge on sigma_tr {}, sigma_0 {}, alpha_max_old {}, alpha_0 {}, alpha_nonlocal {}: {:?}",
+                        sigma_tr, sigma_0, old_max, alpha_0, alpha_nonlocal, err
+                    )
+                });
 
             // Update the stress and history
             *stress = result.sigma.data.0[0];
             *local_quantity = result.kappa.data.0[0];
-            history_.plastic_strain += result.del_lambda * solver.model.g();
-            history_.omega = solver.model.omega();
+            history_.plastic_strain += result.del_plastic_strain;
+            history_.omega = model.omega();
             if let Some(tangents) = tangents {
                 let mut dres = SMatrix::<f64, 8, 8>::zeros();
-                solver.update_newton_matrix(&mut dres, result.del_lambda, (1.0, 1.0, 1.0));
+                stress_based_jacobian(
+                    model.elastic_tangent(),
+                    &state,
+                    &mut dres,
+                    result.del_lambda,
+                );
 
                 let inverse = dres
                     .try_inverse()
                     .expect("Plasticity3D: Failed to calculate tangent.");
 
-                model.set_nonlocal_derivatives(&result.sigma, &result.kappa);
+                let mut nonlocal_state = NonlocalState::zeros();
+                model.set_nonlocal_derivatives(
+                    &result.sigma,
+                    &result.kappa,
+                    &state,
+                    &mut nonlocal_state,
+                );
                 let mut nonlocal_derivatives = SMatrix::<f64, 8, 1>::zeros();
                 nonlocal_derivatives.fixed_rows_mut::<6>(0).copy_from(
-                    &(-result.del_lambda * model.elastic_tangent() * model.dg_dkappa_nonlocal()),
+                    &(model.elastic_tangent()
+                        * nonlocal_state.dg_dkappa_nonlocal
+                        * (-result.del_lambda)),
                 );
                 nonlocal_derivatives
                     .fixed_rows_mut::<1>(6)
-                    .copy_from(&(-model.df_dkappa_nonlocal()));
+                    .copy_from(&(-nonlocal_state.df_dkappa_nonlocal));
                 nonlocal_derivatives
                     .fixed_rows_mut::<1>(7)
-                    .copy_from(&(result.del_lambda * model.dk_dkappa_nonlocal()));
+                    .copy_from(&(nonlocal_state.dk_dkappa_nonlocal * result.del_lambda));
                 let tangent_vector = &inverse * &nonlocal_derivatives;
 
                 let mut plastic_tangent: SMatrix<f64, 6, 6> =
