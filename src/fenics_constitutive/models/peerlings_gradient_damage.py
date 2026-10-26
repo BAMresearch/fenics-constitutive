@@ -82,7 +82,8 @@ class PeerlingsGradientPerfectDamage(IncrSmallStrainGradientModel):
             return np.linalg.norm(total_strain, axis=1)
 
         omega_new = omega(nonlocal_quantity)
-        history["omega"][:] = np.maximum(history["omega"], omega_new)
+        omega_old = history["omega"].copy()
+        history["omega"][:] = np.maximum(omega_old, omega_new)
         history_view = history["omega"].reshape(-1, 1)
 
         stress[:] = ((1.0 - history_view) * total_strain @ self.C).flatten()
@@ -104,7 +105,8 @@ class PeerlingsGradientPerfectDamage(IncrSmallStrainGradientModel):
                 1.0 - history_view
             )
 
-            mask = nonlocal_quantity >= self.eps_0
+            # zero while damage is frozen (omega_new below the stored maximum)
+            mask = (nonlocal_quantity >= self.eps_0) & (omega_new >= omega_old)
             domega_dnonlocal = zeros.copy()
             domega_dnonlocal[mask] = (self.omega_max * self.eps_0) / nonlocal_quantity[
                 mask

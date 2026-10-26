@@ -67,6 +67,7 @@ nav:
     - custom_models/rust_elasticity.md
     - custom_models/cpp_elasticity.md
     - custom_models/umat_elasticity.md
+    - custom_models/dph_damage.md
   - API: API
 
 
