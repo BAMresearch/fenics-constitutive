@@ -10,6 +10,7 @@ import numpy as np
 __all__ = [
     "IncrSmallStrainGradientModel",
     "IncrSmallStrainModel",
+    "LargeStrainModel",
     "StressStrainConstraint",
 ]
 
@@ -242,3 +243,81 @@ class IncrSmallStrainGradientModel(ABC):
         Returns:
             The dimension of the history variable(s).
         """
+
+
+class LargeStrainModel(ABC):
+    r"""
+    Interface for large-strain models in 3D with a total-Lagrangian kinematic description. The
+    model maps the deformation gradient $\mathbf F$ to the Kirchhoff stress
+    $\boldsymbol\tau = J\boldsymbol\sigma$ and the tangent
+    $\mathbb a = \partial\boldsymbol\tau/\partial\mathbf d$, where $\mathbf d$ is the symmetric part
+    of $\mathbf l = \delta\mathbf F\mathbf F^{-1}$.
+
+    The skew part $\mathbf w$ of $\mathbf l$ is not part of the tangent. For every objective
+    model it changes the stress by $\mathbf w\boldsymbol\tau - \boldsymbol\tau\mathbf w$, which
+    the solver adds itself. Models must therefore be objective: history variables have to be
+    stored in a configuration that is not affected by superposed rigid rotations.
+
+    All arrays are flat and contain the values of all quadrature points. $\mathbf F$ is stored
+    row-major per point (`F[9 * q + 3 * i + J]` $= F_{iJ}$), $\boldsymbol\tau$ in Mandel notation
+    (6 values per point) and $\mathbb a$ as a row-major 6x6 matrix in Mandel notation, like the
+    tangent of `IncrSmallStrainModel`.
+    """
+
+    @abstractmethod
+    def evaluate(
+        self,
+        t: float,
+        del_t: float,
+        F: np.ndarray,
+        tau: np.ndarray,
+        tangent: np.ndarray | None,
+        history: dict[str, np.ndarray] | None,
+    ) -> None:
+        r"""
+        Evaluate the constitutive model and overwrite the stress, tangent and history.
+
+        Args:
+            t: The current global time $t_n$.
+            del_t: The time increment $\Delta t$.
+            F: The deformation gradient $\mathbf F_{n+1}$.
+            tau: Output, the Kirchhoff stress $\boldsymbol\tau_{n+1}$ in Mandel notation.
+            tangent: Output, $\partial\boldsymbol\tau/\partial\mathbf d$ in Mandel notation. `None`
+                if the tangent is not needed.
+            history: The history variable(s), at $t_n$ on input and at $t_{n+1}$ on output.
+
+        Raises:
+            ValueError: If the model cannot be evaluated at a point, e.g. for $\det\mathbf F\le 0$
+                or if the return mapping does not converge.
+        """
+
+    @property
+    @abstractmethod
+    def history_dim(self) -> dict[str, int | tuple[int, int]] | None:
+        """
+        The dimensions of history variable(s), see `IncrSmallStrainModel.history_dim`.
+
+        Returns:
+            The dimension of the history variable(s).
+        """
+
+    @abstractmethod
+    def initial_history(self) -> dict[str, np.ndarray] | None:
+        """
+        The history of one quadrature point in the undeformed, stress-free state. In contrast to
+        small-strain models this is in general not zero, e.g. the inverse plastic right
+        Cauchy-Green tensor is the identity.
+
+        Returns:
+            The history of one point for each history variable, or `None` without history.
+        """
+
+    @property
+    def geometric_dim(self) -> int:
+        """
+        The geometric dimension that the model is implemented for.
+
+        Returns:
+            The geometric dimension.
+        """
+        return 3

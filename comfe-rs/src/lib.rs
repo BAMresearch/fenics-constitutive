@@ -11,3 +11,4 @@ pub mod linear_elasticity;
 pub mod mises_plasticity;
 pub mod mandel;
 pub mod plasticity;
+pub mod finite_strain;

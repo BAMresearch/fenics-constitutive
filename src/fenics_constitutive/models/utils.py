@@ -10,6 +10,8 @@ __all__ = [
     "get_elastic_tangent",
     "get_identity",
     "strain_from_grad_u",
+    "mandel_to_tensor",
+    "tensor_to_mandel",
     "UniaxialStrainFrom3D",
     "PlaneStrainFrom3D",
 ]
@@ -206,6 +208,59 @@ def strain_from_grad_u(
             msg = "Constraint not supported."
             raise NotImplementedError(msg)
     return strain
+
+
+def mandel_to_tensor(values: np.ndarray) -> np.ndarray:
+    """
+    Symmetric 3x3 tensors from Mandel vectors
+    $[a_{11}, a_{22}, a_{33}, \sqrt2 a_{12}, \sqrt2 a_{13}, \sqrt2 a_{23}]$.
+
+    Args:
+        values: Array whose last axis has length 6, e.g. one vector, an array of shape
+            (n, 6) or a flat array of length 6 n reshaped by the caller.
+
+    Returns:
+        Array of shape `values.shape[:-1] + (3, 3)`.
+    """
+    v = np.asarray(values)
+    if v.shape[-1] != 6:
+        msg = f"Expected Mandel vectors with 6 components, got shape {v.shape}."
+        raise ValueError(msg)
+    s = 1.0 / np.sqrt(2.0)
+    tensor = np.empty((*v.shape[:-1], 3, 3), dtype=v.dtype)
+    tensor[..., 0, 0] = v[..., 0]
+    tensor[..., 1, 1] = v[..., 1]
+    tensor[..., 2, 2] = v[..., 2]
+    tensor[..., 0, 1] = tensor[..., 1, 0] = s * v[..., 3]
+    tensor[..., 0, 2] = tensor[..., 2, 0] = s * v[..., 4]
+    tensor[..., 1, 2] = tensor[..., 2, 1] = s * v[..., 5]
+    return tensor
+
+
+def tensor_to_mandel(tensors: np.ndarray) -> np.ndarray:
+    """
+    Mandel vectors $[a_{11}, a_{22}, a_{33}, \sqrt2 a_{12}, \sqrt2 a_{13}, \sqrt2 a_{23}]$ of the
+    symmetric part of 3x3 tensors, the inverse of `mandel_to_tensor`.
+
+    Args:
+        tensors: Array of shape `(..., 3, 3)`.
+
+    Returns:
+        Array of shape `tensors.shape[:-2] + (6,)`.
+    """
+    a = np.asarray(tensors)
+    if a.shape[-2:] != (3, 3):
+        msg = f"Expected 3x3 tensors, got shape {a.shape}."
+        raise ValueError(msg)
+    s = 1.0 / np.sqrt(2.0)
+    values = np.empty((*a.shape[:-2], 6), dtype=a.dtype)
+    values[..., 0] = a[..., 0, 0]
+    values[..., 1] = a[..., 1, 1]
+    values[..., 2] = a[..., 2, 2]
+    values[..., 3] = s * (a[..., 0, 1] + a[..., 1, 0])
+    values[..., 4] = s * (a[..., 0, 2] + a[..., 2, 0])
+    values[..., 5] = s * (a[..., 1, 2] + a[..., 2, 1])
+    return values
 
 
 class UniaxialStrainFrom3D(IncrSmallStrainModel):

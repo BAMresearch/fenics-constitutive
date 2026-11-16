@@ -67,6 +67,9 @@ nav:
     - custom_models/rust_elasticity.md
     - custom_models/cpp_elasticity.md
     - custom_models/umat_elasticity.md
+  - Large Strains:
+    - large_strain/theory.md
+    - large_strain/stress_rates.ipynb
   - API: API
 
 

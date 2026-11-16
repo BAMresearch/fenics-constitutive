@@ -5,14 +5,28 @@ import numpy as np
 from fenics_constitutive._bindings import (
     PyDruckerPrager3D,
     PyDruckerPragerHyperbolic3D,
+    PyHenckyDruckerPrager3D,
+    PyHenckyDruckerPragerCauchyYield3D,
+    PyHenckyDruckerPragerHyperbolic3D,
+    PyHenckyDruckerPragerHyperbolicCauchyYield3D,
+    PyHenckyElasticity3D,
+    PyHenckyMises3D,
+    PyHenckyMisesCauchyYield3D,
     PyLinearElasticity3D,
     PyMisesPlasticity3D,
     PyIsotropicMises3D,
 )
 
-from .interfaces import IncrSmallStrainModel, StressStrainConstraint
+from .interfaces import IncrSmallStrainModel, LargeStrainModel, StressStrainConstraint
 
-__all__ = ["LinearElasticity3D", "MisesPlasticityLinearHardening3D"]
+__all__ = [
+    "HenckyDruckerPrager3D",
+    "HenckyDruckerPragerHyperbolic3D",
+    "HenckyElasticity3D",
+    "HenckyMises3D",
+    "LinearElasticity3D",
+    "MisesPlasticityLinearHardening3D",
+]
 
 
 def fenics_constitutive_wrapper(rust_model):
@@ -181,3 +195,120 @@ class IsotropicMises3D(IncrSmallStrainModel):
             - "y_0": Initial yield stress
             - "h": Linear hardening modulus
     """
+
+
+def finite_strain_wrapper(rust_model, rust_model_cauchy_yield=None):
+    """Adapts a compiled large-strain model to the `LargeStrainModel` interface. If
+    `rust_model_cauchy_yield` is given, the class accepts `yield_stress="kirchhoff"` (default,
+    `rust_model`) or `yield_stress="cauchy"` (`rust_model_cauchy_yield`)."""
+
+    def decorator(cls):
+        assert issubclass(cls, LargeStrainModel), (
+            "decorator can only be used on subclasses of LargeStrainModel"
+        )
+
+        def __init__(
+            self, parameters: dict[str, np.ndarray], yield_stress: str = "kirchhoff"
+        ) -> None:
+            models = {"kirchhoff": rust_model}
+            if rust_model_cauchy_yield is not None:
+                models["cauchy"] = rust_model_cauchy_yield
+            if yield_stress not in models:
+                msg = f"yield_stress must be one of {list(models)}, got {yield_stress!r}"
+                raise ValueError(msg)
+            self.yield_stress = yield_stress
+            self.model = models[yield_stress](parameters)
+
+        def evaluate(
+            self,
+            t: float,
+            del_t: float,
+            F: np.ndarray,
+            tau: np.ndarray,
+            tangent: np.ndarray | None,
+            history: dict[str, np.ndarray] | None,
+        ) -> None:
+            self.model.evaluate(t, del_t, F, tau, tangent, history)
+
+        def history_dim(self) -> dict[str, int | tuple[int, int]] | None:
+            return self.model.history_dim
+
+        def initial_history(self) -> dict[str, np.ndarray] | None:
+            history = self.model.initial_history()
+            if history is None:
+                return None
+            return {key: np.array(value) for key, value in history.items()}
+
+        cls.__init__ = __init__
+        cls.evaluate = evaluate
+        cls.history_dim = property(history_dim)
+        cls.initial_history = initial_history
+
+        assert cls.__abstractmethods__ == frozenset(
+            {"evaluate", "history_dim", "initial_history"}
+        )
+        cls.__abstractmethods__ = frozenset()
+        return cls
+
+    return decorator
+
+
+@finite_strain_wrapper(PyHenckyElasticity3D)
+class HenckyElasticity3D(LargeStrainModel):
+    r"""
+    Hencky hyperelasticity $\boldsymbol\tau = \kappa\ln J\,\mathbf I + 2\mu\,\mathrm{dev}\ln\mathbf V$.
+
+    Args:
+        parameters (dict[str, np.ndarray]): A dictionary containing:
+            - "mu": Shear modulus
+            - "kappa": Bulk modulus
+    """
+
+
+_YIELD_STRESS_DOC = """
+        yield_stress (str): The stress at which yield function, flow direction and hardening
+            function are evaluated: "kirchhoff" (default) for the Kirchhoff stress tau, "cauchy"
+            for the Cauchy stress sigma = tau / det F. The elastic law is tau = C : eps_e in both
+            cases. The results differ for volume changes, e.g. for pressure-dependent models
+            with dilatancy."""
+
+
+@finite_strain_wrapper(PyHenckyMises3D, PyHenckyMisesCauchyYield3D)
+class HenckyMises3D(LargeStrainModel):
+    __doc__ = (
+        """
+    Large-strain version of `IsotropicMises3D` (Hencky elasticity, multiplicative split,
+    exponential-map return mapping).
+
+    Args:
+        parameters (dict[str, np.ndarray]): Same parameters as `IsotropicMises3D`."""
+        + _YIELD_STRESS_DOC
+    )
+
+
+@finite_strain_wrapper(PyHenckyDruckerPrager3D, PyHenckyDruckerPragerCauchyYield3D)
+class HenckyDruckerPrager3D(LargeStrainModel):
+    __doc__ = (
+        """
+    Large-strain version of `DruckerPrager3D` (Hencky elasticity, multiplicative split,
+    exponential-map return mapping).
+
+    Args:
+        parameters (dict[str, np.ndarray]): Same parameters as `DruckerPrager3D`."""
+        + _YIELD_STRESS_DOC
+    )
+
+
+@finite_strain_wrapper(
+    PyHenckyDruckerPragerHyperbolic3D, PyHenckyDruckerPragerHyperbolicCauchyYield3D
+)
+class HenckyDruckerPragerHyperbolic3D(LargeStrainModel):
+    __doc__ = (
+        """
+    Large-strain version of `DruckerPragerHyperbolic3D` (Hencky elasticity, multiplicative
+    split, exponential-map return mapping).
+
+    Args:
+        parameters (dict[str, np.ndarray]): Same parameters as `DruckerPragerHyperbolic3D`."""
+        + _YIELD_STRESS_DOC
+    )
