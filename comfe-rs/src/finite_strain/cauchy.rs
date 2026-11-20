@@ -13,7 +13,7 @@ use crate::plasticity::{Plasticity, PlasticityState};
 /// $\tilde f(\boldsymbol\tau,\alpha) = f(\boldsymbol\tau/J,\alpha)$,
 /// $\tilde{\mathbf g} = \mathbf g(\boldsymbol\tau/J,\alpha)$ and
 /// $\tilde k = k(\boldsymbol\tau/J,\alpha)$. Only the derivatives with respect to the stress
-/// change, by the factor $1/J$. The flow direction is not scaled, so $\Delta\lambda\,\mathbf g$
+/// change, by the factor $1/J$. The flow direction is not scaled, so $\Delta\lambda\thinspace \mathbf g$
 /// is still the increment of the logarithmic plastic strain and $\alpha$ keeps its meaning
 /// (e.g. the equivalent plastic strain for von Mises). The elastic law stays
 /// $\boldsymbol\tau = \mathbb C:\boldsymbol\varepsilon_e$.

@@ -6,8 +6,8 @@ use crate::plasticity::{Plasticity, PlasticityState};
 /// unknowns $x = (\Delta\varepsilon_p, \Delta\lambda, \kappa)$ with $\sigma = \sigma_{tr} - C\Delta\varepsilon_p$.
 ///
 /// The residual is
-/// $r_\varepsilon = \Delta\varepsilon_p - \Delta\lambda\, g$, $r_f = f / \sigma_c$,
-/// $r_\kappa = \kappa - \kappa_0 - \Delta\lambda\, k$,
+/// $r_\varepsilon = \Delta\varepsilon_p - \Delta\lambda\thinspace g$, $r_f = f / \sigma_c$,
+/// $r_\kappa = \kappa - \kappa_0 - \Delta\lambda\thinspace k$,
 /// where $\sigma_c$ is the characteristic stress of the model. All residuals are therefore
 /// dimensionless and are measured with one norm, both for the convergence check
 /// $\lVert r\rVert \le atol + rtol \lVert r_0\rVert$ and for the line search.
@@ -100,8 +100,8 @@ impl ConvergenceHistory {
 }
 
 /// Fills `dres` with the Jacobian of the stress-based residual
-/// $r_\sigma = \sigma - \sigma_{tr} + \Delta\lambda\, C g$, $r_f = f$,
-/// $r_\kappa = \kappa - \kappa_0 - \Delta\lambda\, k$ with respect to
+/// $r_\sigma = \sigma - \sigma_{tr} + \Delta\lambda\thinspace C g$, $r_f = f$,
+/// $r_\kappa = \kappa - \kappa_0 - \Delta\lambda\thinspace k$ with respect to
 /// $(\sigma, \Delta\lambda, \kappa)$, evaluated at `state`. Its inverse yields the
 /// consistent tangent after the return mapping has converged.
 pub fn stress_based_jacobian<

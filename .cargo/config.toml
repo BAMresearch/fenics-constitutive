@@ -1,0 +1,8 @@
+[alias]
+# Rust documentation of comfe-rs with KaTeX for the formulas: `cargo docs` (add `--open` to view).
+# The header is passed only for this crate: as a global `build.rustdocflags` it would also be
+# applied to the dependencies, which rustdoc documents from their own directories.
+docs = [
+    "doc", "-p", "comfe-rs", "--no-deps",
+    "--config", 'build.rustdocflags = ["--html-in-header", "comfe-rs/katex-header.html"]',
+]
