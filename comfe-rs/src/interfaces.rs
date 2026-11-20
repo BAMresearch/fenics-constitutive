@@ -491,3 +491,127 @@ pub fn evaluate_model<
         );
     }
 }
+
+/// Interface of a large-strain model with a total-Lagrangian kinematic description: maps the
+/// deformation gradient $\mathbf F$ to the Kirchhoff stress $\boldsymbol\tau = J\boldsymbol\sigma$.
+///
+/// `f` is stored row-major, `f[3 * i + J]` $= F_{iJ}$, the stress in Mandel notation. The tangent
+/// is $\mathbb a = \partial\boldsymbol\tau/\partial\mathbf d$ in Mandel notation, stored
+/// row-major (`tangent[i][j]` $= \partial\tau_i/\partial d_j$), where $\mathbf d$ is the symmetric
+/// part of $\mathbf l = \delta\mathbf F\mathbf F^{-1}$. The skew part $\mathbf w$ of
+/// $\mathbf l$ is not part of the tangent: for every objective model it changes the stress by
+/// $\mathbf w\boldsymbol\tau - \boldsymbol\tau\mathbf w$, which the solver adds itself.
+pub trait FiniteStrainConstitutiveModelFn<
+    const N_HISTORY: usize,
+    const HISTORY: usize,
+    const N_PARAMETERS: usize,
+    const PARAMETERS: usize,
+> where
+    Self: Sized,
+{
+    type History: ArrayEquivalent<HISTORY> + StaticMap<N_HISTORY, QDim>;
+    type Parameters: ArrayEquivalent<PARAMETERS> + StaticMap<N_PARAMETERS, QDim>;
+
+    const N_HISTORY: usize = N_HISTORY;
+    const HISTORY: usize = HISTORY;
+    const N_PARAMETERS: usize = N_PARAMETERS;
+    const PARAMETERS: usize = PARAMETERS;
+
+    /// `history` holds the state at $t_n$ on input and the state at $t_{n+1}$ on output.
+    /// Returns an error instead of panicking if the point cannot be evaluated.
+    fn evaluate(
+        time: f64,
+        del_time: f64,
+        f: &[f64; 9],
+        tau: &mut [f64; 6],
+        tangent: Option<&mut [[f64; 6]; 6]>,
+        history: &mut [f64; HISTORY],
+        parameters: &[f64; PARAMETERS],
+    ) -> Result<(), String>;
+
+    /// History of the undeformed, stress-free state. This is in general not zero.
+    fn initial_history() -> [f64; HISTORY];
+}
+
+/// Evaluates a large-strain model for all quadrature points in flat slices, the counterpart of
+/// [`evaluate_model`]. Returns the first error, prefixed with the index of the point.
+pub fn evaluate_finite_strain_model<
+    const N_HISTORY: usize,
+    const HISTORY: usize,
+    const N_PARAMETERS: usize,
+    const PARAMETERS: usize,
+    MODEL: FiniteStrainConstitutiveModelFn<N_HISTORY, HISTORY, N_PARAMETERS, PARAMETERS>,
+>(
+    time: f64,
+    del_time: f64,
+    f: &[f64],
+    tau: &mut [f64],
+    tangent: Option<&mut [f64]>,
+    history: &mut [f64],
+    parameters: &[f64],
+) -> Result<(), String> {
+    let parameters: &[f64; PARAMETERS] = parameters.try_into().map_err(|_| {
+        format!(
+            "Length of parameters slice does not match the expected length. Expected: {}, got: {}.",
+            PARAMETERS,
+            parameters.len()
+        )
+    })?;
+    let (f_, f_rest) = f.as_chunks::<9>();
+    let tau_len = tau.len();
+    let (tau_, tau_rest) = tau.as_chunks_mut::<6>();
+    let n_points = f_.len();
+    if !f_rest.is_empty() || !tau_rest.is_empty() || tau_.len() != n_points {
+        return Err(format!(
+            "Inconsistent input lengths: F has length {}, tau has length {}.",
+            f.len(),
+            tau_len
+        ));
+    }
+    let mut tangent_ = match tangent {
+        Some(t) => {
+            let t_len = t.len();
+            let (rows, rest) = t.as_chunks_mut::<6>();
+            let (matrices, rest_2) = rows.as_chunks_mut::<6>();
+            if !rest.is_empty() || !rest_2.is_empty() || matrices.len() != n_points {
+                return Err(format!(
+                    "Inconsistent tangent length {}, expected {}.",
+                    t_len,
+                    36 * n_points
+                ));
+            }
+            Some(matrices)
+        }
+        None => None,
+    };
+    let mut zero_history: Vec<[f64; HISTORY]> = vec![];
+    let history_ = if HISTORY == 0 {
+        zero_history.resize(n_points, [0.0; HISTORY]);
+        zero_history.as_mut_slice()
+    } else {
+        let history_len = history.len();
+        let (chunks, rest) = history.as_chunks_mut::<HISTORY>();
+        if !rest.is_empty() || chunks.len() != n_points {
+            return Err(format!(
+                "Inconsistent history length {}, expected {}.",
+                history_len,
+                HISTORY * n_points
+            ));
+        }
+        chunks
+    };
+    for i in 0..n_points {
+        let tangent_chunk = tangent_.as_mut().map(|t| &mut t[i]);
+        MODEL::evaluate(
+            time,
+            del_time,
+            &f_[i],
+            &mut tau_[i],
+            tangent_chunk,
+            &mut history_[i],
+            parameters,
+        )
+        .map_err(|err| format!("Quadrature point {}: {}", i, err))?;
+    }
+    Ok(())
+}

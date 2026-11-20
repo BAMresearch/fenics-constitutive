@@ -5,7 +5,9 @@ import pytest
 from dolfinx.nls.petsc import NewtonSolver
 from fenics_constitutive.solver import CorotationalIncrSmallStrainProblem
 from fenics_constitutive.models import LinearElasticityModel, StressStrainConstraint
+from fenics_constitutive.models.utils import mandel_to_tensor
 from mpi4py import MPI
+from scipy.spatial.transform import Rotation
 
 @pytest.mark.parametrize("experiment", ['Stretch_then_Rotate', 'Stretch_and_Rotate'])
 def test_uniaxial_strain_3d(experiment):
@@ -316,3 +318,47 @@ def test_uniaxial_strain_3d(experiment):
 
 
 
+
+
+@pytest.mark.parametrize("axis", [0, 1, 2], ids=["rotate_about_x", "rotate_about_y", "rotate_about_z"])
+def test_rigid_rotation_rotates_stress(axis):
+    """
+    A stretched cube is rotated rigidly by 90 degrees about each coordinate axis. The stress
+    must rotate with the body, sigma = R sigma_0 R^T. Rotations about x and y involve the
+    shear components sigma_13 and sigma_23 (Mandel indices 4 and 5).
+    """
+    mesh = df.mesh.create_unit_cube(MPI.COMM_WORLD, 1, 1, 1, df.mesh.CellType.hexahedron)
+    V = df.fem.functionspace(mesh, ("Lagrange", 1, (3,)))
+    u = df.fem.Function(V)
+    u_bc = df.fem.Function(V)
+    # reference coordinates, the corotational solver moves the mesh
+    X = V.tabulate_dof_coordinates().copy()
+    mesh.topology.create_connectivity(2, 3)
+    boundary = df.mesh.exterior_facet_indices(mesh.topology)
+    bc = df.fem.dirichletbc(u_bc, df.fem.locate_dofs_topological(V, 2, boundary))
+
+    law = LinearElasticityModel(
+        parameters={"E": 42.0, "nu": 0.3}, constraint=StressStrainConstraint.FULL
+    )
+    problem = CorotationalIncrSmallStrainProblem(law, u, [bc], q_degree=1)
+    solver = NewtonSolver(MPI.COMM_WORLD, problem)
+    solver.atol = 1e-12
+    solver.rtol = 1e-12
+
+    def apply(F):
+        u_bc.x.array[:] = (X @ (F - np.eye(3)).T).flatten()
+        assert solver.solve(u)[1]
+        problem.update()
+        return mandel_to_tensor(problem.stress_0.x.array[:6])
+
+    # a general stretch, so that the rotated stress has nonzero shear components
+    stretch = np.array([[1.02, 0.004, 0.003], [0.004, 0.99, 0.002], [0.003, 0.002, 1.01]])
+    for factor in np.linspace(0.0, 1.0, 5)[1:]:
+        sigma_0 = apply(np.eye(3) + factor * (stretch - np.eye(3)))
+
+    for angle in np.linspace(0.0, np.pi / 2, 91)[1:]:
+        R = Rotation.from_rotvec(angle * np.eye(3)[axis]).as_matrix()
+        sigma = apply(R @ stretch)
+
+    expected = R @ sigma_0 @ R.T
+    assert np.allclose(sigma, expected, atol=1e-4 * np.abs(sigma_0).max(), rtol=0.0)

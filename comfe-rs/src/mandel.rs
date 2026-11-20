@@ -2,7 +2,7 @@ use core::f64;
 
 use crate::consts::*;
 use nalgebra::{
-    SMatrix, SVector, SVectorView, SVectorViewMut,
+    Matrix3, SMatrix, SVector, SVectorView, SVectorViewMut,
 };
 
 pub trait Mandel<const DIM: usize> {
@@ -170,6 +170,22 @@ pub fn nonsymmetric_tensor_to_mandel<const GDIM: usize, const SDIM: usize>(
     output
 }
 
+/// Converts a symmetric 3x3 matrix to Mandel notation
+/// $[a_{11}, a_{22}, a_{33}, \sqrt2 a_{12}, \sqrt2 a_{13}, \sqrt2 a_{23}]$.
+/// The off-diagonal entries are symmetrized, as in [`nonsymmetric_tensor_to_mandel`].
+pub fn sym_matrix_to_mandel(a: &Matrix3<f64>) -> SVector<f64, 6> {
+    // nalgebra stores columns, so `data.0` holds the rows of the transpose; the symmetric
+    // part, and hence the Mandel vector, is the same.
+    SVector::<f64, 6>::from(nonsymmetric_tensor_to_mandel::<3, 6>(a.data.0))
+}
+
+/// Inverse of [`sym_matrix_to_mandel`].
+pub fn mandel_to_sym_matrix(v: &SVector<f64, 6>) -> Matrix3<f64> {
+    let factor = f64::consts::FRAC_1_SQRT_2;
+    let (a12, a13, a23) = (factor * v[3], factor * v[4], factor * v[5]);
+    Matrix3::new(v[0], a12, a13, a12, v[1], a23, a13, a23, v[2])
+}
+
 #[cfg(test)]
 mod tests_mandel {
     use core::f64;
@@ -232,6 +248,18 @@ mod tests_mandel {
         let strain_vec = SVector::<f64, 4>::from_column_slice(&strain);
         let strain_solution = SVector::<f64, 4>::from_column_slice(&STRAIN_2D);
         assert!((strain_vec - strain_solution).norm() < 1e-14);
+    }
+    #[test]
+    fn test_sym_matrix_mandel_round_trip() {
+        let a = Matrix3::new(1., 2., 3., 2., 5., 6., 3., 6., 9.);
+        let v = sym_matrix_to_mandel(&a);
+        let sq2 = f64::consts::SQRT_2;
+        let expected = SVector::<f64, 6>::from_column_slice(&[1., 5., 9., 2. * sq2, 3. * sq2, 6. * sq2]);
+        assert!((v - expected).norm() < 1e-14);
+        assert!((mandel_to_sym_matrix(&v) - a).norm() < 1e-14);
+        // consistent with the conversion of displacement gradients
+        let from_grad: [f64; 6] = nonsymmetric_tensor_to_mandel([[1., 2., 3.], [2., 5., 6.], [3., 6., 9.]]);
+        assert!((v - SVector::<f64, 6>::from_column_slice(&from_grad)).norm() < 1e-14);
     }
     #[test]
     fn test_nonsymmetric_to_mandel_1d() {

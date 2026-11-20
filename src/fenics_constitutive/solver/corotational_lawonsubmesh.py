@@ -6,6 +6,8 @@ import dolfinx as df
 import numpy as np
 from scipy.linalg import expm, logm
 
+from fenics_constitutive.models.utils import mandel_to_tensor, tensor_to_mandel
+
 from ._lawonsubmesh import IncrementalDisplacement, IncrementalStress, LawOnSubMesh
 from ._solver import SimulationTime
 
@@ -53,38 +55,13 @@ class CorotationalLawOnSubMesh(LawOnSubMesh):
         self.map_to_parent(global_stress, global_tangent)
 
     def _stress_rotate(self, Q_half_all: np.ndarray, mandel_stress: np.ndarray) -> None:
-        """Rotate Mandel stress using precomputed half-step rotations Q_half_all."""
-
-        n = Q_half_all.shape[0]
-        mandel_stress = mandel_stress.reshape(-1, 6)
-
-        # build full 3x3 stress tensor from Mandel representation
-        stress = np.zeros((n, 3, 3), dtype=np.float64)
-        stress[:, 0, 0] = mandel_stress[:, 0]
-        stress[:, 1, 1] = mandel_stress[:, 1]
-        stress[:, 2, 2] = mandel_stress[:, 2]
-        stress[:, 0, 1] = 1.0 / np.sqrt(2.0) * mandel_stress[:, 3]
-        stress[:, 1, 2] = 1.0 / np.sqrt(2.0) * mandel_stress[:, 4]
-        stress[:, 0, 2] = 1.0 / np.sqrt(2.0) * mandel_stress[:, 5]
-        stress[:, 1, 0] = stress[:, 0, 1]
-        stress[:, 2, 1] = stress[:, 1, 2]
-        stress[:, 2, 0] = stress[:, 0, 2]
-
-        for i in range(n):
-            Q_half = Q_half_all[i]
-            stress[i, :, :] = Q_half.T @ stress[i, :, :] @ Q_half
-
-        # back to Mandel
-        rotated_stress_mandel = np.zeros((n, 6), dtype=np.float64)
-        rotated_stress_mandel[:, 0] = stress[:, 0, 0]
-        rotated_stress_mandel[:, 1] = stress[:, 1, 1]
-        rotated_stress_mandel[:, 2] = stress[:, 2, 2]
-        rotated_stress_mandel[:, 3] = np.sqrt(2.0) * stress[:, 0, 1]
-        rotated_stress_mandel[:, 4] = np.sqrt(2.0) * stress[:, 1, 2]
-        rotated_stress_mandel[:, 5] = np.sqrt(2.0) * stress[:, 0, 2]
-
-        # write back in-place
-        mandel_stress[:, :] = rotated_stress_mandel
+        """Rotate the Mandel stress in place by the precomputed half-step rotations,
+        sigma -> Q^T sigma Q for every quadrature point."""
+        stress = mandel_stress.reshape(-1, 6)
+        rotated = np.einsum(
+            "nji,njk,nkl->nil", Q_half_all, mandel_to_tensor(stress), Q_half_all
+        )
+        stress[:] = tensor_to_mandel(rotated)
 
     def _compute_half_rotations(self, del_grad_u: np.ndarray) -> np.ndarray:
         """

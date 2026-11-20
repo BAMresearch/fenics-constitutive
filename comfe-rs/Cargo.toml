@@ -7,6 +7,11 @@ edition = "2024"
 nalgebra = "0.32.0"
 konst = "*"
 
+[dev-dependencies]
+# rand 0.8 matches the rand integration of nalgebra 0.32 (random matrices and rotations)
+rand = "0.8.5"
+nalgebra = { version = "0.32.0", features = ["rand"] }
+
 
 [lib]
 name = "comfe"

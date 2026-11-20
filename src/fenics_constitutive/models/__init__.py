@@ -9,12 +9,22 @@ from .interfaces import *
 from .linear_elasticity_model import LinearElasticityModel
 from .mises_plasticity_isotropic_hardening import VonMises3D
 from .peerlings_gradient_damage import PeerlingsGradientPerfectDamage
-from .rust_models import MisesPlasticityLinearHardening3D
+from .rust_models import (
+    HenckyDruckerPrager3D,
+    HenckyDruckerPragerHyperbolic3D,
+    HenckyElasticity3D,
+    HenckyMises3D,
+    MisesPlasticityLinearHardening3D,
+)
 from .spring_kelvin_model import SpringKelvinModel
 from .spring_maxwell_model import SpringMaxwellModel
 from .utils import *
 
 __all__ = [
+    "HenckyDruckerPrager3D",
+    "HenckyDruckerPragerHyperbolic3D",
+    "HenckyElasticity3D",
+    "HenckyMises3D",
     "LinearElasticityModel",
     "MisesPlasticityLinearHardening3D",
     "PeerlingsGradientPerfectDamage",
