@@ -24,8 +24,6 @@ pub struct PlasticityState<
     pub k: SVector<f64, KAPPA>,
     pub dk_dsigma: SMatrix<f64, KAPPA, STRESS_STRAIN>,
     pub dk_dkappa: SMatrix<f64, KAPPA, KAPPA>,
-    //pub elastic_tangent: SMatrix<f64, STRESS_STRAIN, STRESS_STRAIN>,
-    //pub elastic_tangent_inv: SMatrix<f64, STRESS_STRAIN, STRESS_STRAIN>,
 }
 impl<
     const STRESS_STRAIN: usize,
@@ -45,8 +43,6 @@ impl<
             k: SVector::zeros(),
             dk_dsigma: SMatrix::zeros(),
             dk_dkappa: SMatrix::zeros(),
-            //elastic_tangent: SMatrix::zeros(),
-            //elastic_tangent_inv: SMatrix::zeros(),
         }
     }
 }
@@ -68,15 +64,6 @@ pub trait Plasticity<
         state: &mut PlasticityState<STRESS_STRAIN, N_PARAMETERS, PARAMETERS, KAPPA>,
     );
     fn calculate_f_only(&self, sigma: &SVector<f64, STRESS_STRAIN>, kappa: &SVector<f64, KAPPA>) -> f64;
-    // fn f(&self) -> f64;
-    // fn df_dsigma(&self) -> &RowSVector<f64, STRESS_STRAIN>;
-    // fn df_dkappa(&self) -> &RowSVector<f64, KAPPA>;
-    // fn g(&self) -> &SVector<f64, STRESS_STRAIN>;
-    // fn dg_dkappa(&self) -> &SMatrix<f64, STRESS_STRAIN, KAPPA>;
-    // fn dg_dsigma(&self) -> &SMatrix<f64, STRESS_STRAIN, STRESS_STRAIN>;
-    // fn k(&self) -> &SVector<f64, KAPPA>;
-    // fn dk_dsigma(&self) -> &SMatrix<f64, KAPPA, STRESS_STRAIN>;
-    // fn dk_dkappa(&self) -> &SMatrix<f64, KAPPA, KAPPA>;
     fn elastic_tangent(&self) -> &SMatrix<f64, STRESS_STRAIN, STRESS_STRAIN>;
     fn elastic_tangent_inv(&self) -> &SMatrix<f64, STRESS_STRAIN, STRESS_STRAIN>;
     /// Stress used to nondimensionalize the yield function in the return mapping, e.g. the
@@ -143,9 +130,6 @@ impl<
         let sigma_tr = elastic_tangent * del_eps + &sigma_0;
 
         let alpha_0 = SVector::<f64, 1>::from_element(history_.alpha);
-        //let mut alpha_1 = alpha_0.clone();
-        //let mut sigma_1: SVector<f64, 6>;
-        //let state = model.set_model_state(&sigma_tr, &alpha_0);
 
         let f = model.calculate_f_only(&sigma_tr, &alpha_0);
         if f <= 0.0 {
