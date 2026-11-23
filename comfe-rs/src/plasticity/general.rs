@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 
 use crate::QDim;
+use crate::linear_elasticity::IsotropicElasticParameters;
 use crate::plasticity::{NewtonSolverStrain, stress_based_jacobian};
 // Ensure QDim is imported from the correct module
 use crate::{
@@ -64,8 +65,6 @@ pub trait Plasticity<
         state: &mut PlasticityState<STRESS_STRAIN, N_PARAMETERS, PARAMETERS, KAPPA>,
     );
     fn calculate_f_only(&self, sigma: &SVector<f64, STRESS_STRAIN>, kappa: &SVector<f64, KAPPA>) -> f64;
-    fn elastic_tangent(&self) -> &SMatrix<f64, STRESS_STRAIN, STRESS_STRAIN>;
-    fn elastic_tangent_inv(&self) -> &SMatrix<f64, STRESS_STRAIN, STRESS_STRAIN>;
     /// Stress used to nondimensionalize the yield function in the return mapping, e.g. the
     /// initial yield stress. Defaults to the magnitude of the trial stress, which is nonzero
     /// whenever the trial state is plastic.
@@ -105,6 +104,8 @@ impl<
     MODEL: Plasticity<6, N_PARAMETERS, PARAMETERS, 1>,
 > ConstitutiveModelFn<6, 2, 7, N_PARAMETERS, PARAMETERS>
     for IsotropicPlasticityModel3D<N_PARAMETERS, PARAMETERS, MODEL>
+where
+    MODEL::Parameters: IsotropicElasticParameters,
 {
     type History = IsotropicPlasticityHistory3D;
     type Parameters = MODEL::Parameters;
@@ -121,13 +122,12 @@ impl<
     ) {
         let parameters_ = Self::Parameters::from_array(parameters);
         let history_ = IsotropicPlasticityHistory3D::from_array_mut(history);
+        let elastic_tangent = parameters_.elastic_tangent::<6>();
         let model = MODEL::new(parameters_);
-        //let mut state = PlasticityState::zeros();
-        let elastic_tangent = model.elastic_tangent();
 
         let del_eps = SVector::<f64, 6>::from_column_slice(del_strain);
         let sigma_0 = SVector::<f64, 6>::from_column_slice(stress);
-        let sigma_tr = elastic_tangent * del_eps + &sigma_0;
+        let sigma_tr = &elastic_tangent * del_eps + &sigma_0;
 
         let alpha_0 = SVector::<f64, 1>::from_element(history_.alpha);
 
@@ -135,12 +135,12 @@ impl<
         if f <= 0.0 {
             *stress = sigma_tr.data.0[0];
             if let Some(tangent) = tangent {
-                *tangent = model.elastic_tangent().data.0;
+                *tangent = elastic_tangent.data.0;
             }
             return;
         } else {
             let solver = NewtonSolverStrain::<8, 6, N_PARAMETERS, PARAMETERS, 1, MODEL>::new(
-                &model, 1e-12, 1e-12, 50,
+                &model, &elastic_tangent, 1e-12, 1e-12, 50,
             );
             let mut state = PlasticityState::zeros();
 
@@ -159,7 +159,7 @@ impl<
             history_.plastic_strain += result.del_plastic_strain;
             if let Some(tangent) = tangent {
                 let mut plastic_tangent =
-                    isotropic_algorithmic_tangent(&model, &state, result.del_lambda)
+                    isotropic_algorithmic_tangent(&elastic_tangent, &state, result.del_lambda)
                         .expect("Plasticity3D: Failed to calculate tangent");
                 plastic_tangent.transpose_mut(); //TODO: move the transpose to the python bindings
                 *tangent = plastic_tangent.data.0;
@@ -171,19 +171,15 @@ impl<
 /// Algorithmic tangent $\partial\sigma/\partial\sigma_{tr} \cdot C = \partial\sigma/\partial\varepsilon_{tr}$
 /// of a converged return mapping (not transposed, entry $(i,j)$ is
 /// $\partial\sigma_i/\partial\varepsilon_j$). `state` must be the plasticity state at the converged
-/// stress and kappa, as left by [`NewtonSolverStrain::solve`]. Returns `None` if the Newton
-/// matrix is singular.
-pub fn isotropic_algorithmic_tangent<
-    const N_PARAMETERS: usize,
-    const PARAMETERS: usize,
-    MODEL: Plasticity<6, N_PARAMETERS, PARAMETERS, 1>,
->(
-    model: &MODEL,
+/// stress and kappa, as left by [`NewtonSolverStrain::solve`], and `elastic_tangent` the elastic
+/// tangent used in the return mapping. Returns `None` if the Newton matrix is singular.
+pub fn isotropic_algorithmic_tangent<const N_PARAMETERS: usize, const PARAMETERS: usize>(
+    elastic_tangent: &SMatrix<f64, 6, 6>,
     state: &PlasticityState<6, N_PARAMETERS, PARAMETERS, 1>,
     del_lambda: f64,
 ) -> Option<SMatrix<f64, 6, 6>> {
     let mut dres = SMatrix::<f64, 8, 8>::zeros();
-    stress_based_jacobian(model.elastic_tangent(), state, &mut dres, del_lambda);
+    stress_based_jacobian(elastic_tangent, state, &mut dres, del_lambda);
     let inverse = dres.try_inverse()?;
-    Some(inverse.fixed_view::<6, 6>(0, 0) * model.elastic_tangent())
+    Some(inverse.fixed_view::<6, 6>(0, 0) * elastic_tangent)
 }

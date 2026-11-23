@@ -26,6 +26,8 @@ pub struct NewtonSolverStrain<
     /// Maximum number of step halvings in the line search before the solver fails.
     pub max_line_search: usize,
     pub model: &'a T,
+    /// Elastic tangent $C$, assumed constant during the return mapping.
+    pub elastic_tangent: &'a SMatrix<f64, STRESS_STRAIN, STRESS_STRAIN>,
 }
 
 pub struct SolverResult<const STRESS_STRAIN: usize, const KAPPA: usize> {
@@ -219,7 +221,13 @@ where
     // required for the LU decomposition of the static N x N Newton matrix
     Const<N>: DimMin<Const<N>, Output = Const<N>>,
 {
-    pub fn new(model: &'a T, atol: f64, rtol: f64, maxit: usize) -> Self {
+    pub fn new(
+        model: &'a T,
+        elastic_tangent: &'a SMatrix<f64, STRESS_STRAIN, STRESS_STRAIN>,
+        atol: f64,
+        rtol: f64,
+        maxit: usize,
+    ) -> Self {
         assert_eq!(N, STRESS_STRAIN + 1 + KAPPA, "Incompatible const generic argument.");
         Self {
             atol,
@@ -227,6 +235,7 @@ where
             maxit,
             max_line_search: 20,
             model,
+            elastic_tangent,
         }
     }
 
@@ -244,7 +253,7 @@ where
         let del_lambda = sol[STRESS_STRAIN];
         let kappa: SVector<f64, KAPPA> = sol.fixed_rows::<KAPPA>(STRESS_STRAIN + 1).into();
 
-        let sigma = sigma_tr - self.model.elastic_tangent() * &del_eps_pl;
+        let sigma = sigma_tr - self.elastic_tangent * &del_eps_pl;
         self.model.set_model_state(&sigma, &kappa, state);
 
         let mut res = SVector::<f64, N>::zeros();
@@ -264,7 +273,7 @@ where
         kappa_0: &SVector<f64, KAPPA>,
         state: &mut PlasticityState<STRESS_STRAIN, N_PARAMETERS, PARAMETERS, KAPPA>,
     ) -> Result<SolverResult<STRESS_STRAIN, KAPPA>, SolverError> {
-        let elastic_tangent = self.model.elastic_tangent();
+        let elastic_tangent = self.elastic_tangent;
         let f_scale = 1.0 / self.model.characteristic_stress(sigma_tr);
 
         let mut sol = SVector::<f64, N>::zeros();

@@ -2,7 +2,38 @@ use crate::interfaces::*;
 use crate::mandel::*;
 use crate::{create_history_parameter_struct};
 use core::ffi::c_double;
-use nalgebra::{SVectorView, SVectorViewMut};
+use nalgebra::{SMatrix, SVectorView, SVectorViewMut};
+
+/// Parameter structs of models with isotropic linear elasticity, defined by the shear modulus
+/// $\mu$ and the bulk modulus $\kappa$. For parameter structs with fields named `mu` and
+/// `kappa`, use [`impl_isotropic_elastic_parameters!`](crate::impl_isotropic_elastic_parameters).
+pub trait IsotropicElasticParameters {
+    fn mu(&self) -> f64;
+    fn kappa(&self) -> f64;
+
+    /// Elastic tangent in Mandel notation.
+    fn elastic_tangent<const N: usize>(&self) -> SMatrix<f64, N, N> {
+        isotropic_elastic_tangent(self.mu(), self.kappa())
+    }
+}
+
+/// Implements [`IsotropicElasticParameters`] for a parameter struct with the fields `mu` and
+/// `kappa`.
+#[macro_export]
+macro_rules! impl_isotropic_elastic_parameters {
+    ($type:ty) => {
+        impl $crate::linear_elasticity::IsotropicElasticParameters for $type {
+            #[inline]
+            fn mu(&self) -> f64 {
+                self.mu
+            }
+            #[inline]
+            fn kappa(&self) -> f64 {
+                self.kappa
+            }
+        }
+    };
+}
 
 const _: () = assert!(check_constitutive_model_maps::<
     6,
@@ -36,6 +67,7 @@ create_history_parameter_struct!(
     2,
     [(mu, (QDim::Scalar)), (kappa, (QDim::Scalar))]
 );
+crate::impl_isotropic_elastic_parameters!(LinearElasticityParameters);
 
 create_history_parameter_struct!(LinearElasticityHistory, 0, 0, []);
 
@@ -58,10 +90,7 @@ impl ConstitutiveModelFn<6, 0, 0, 2, 2> for LinearElasticity3D {
     ) {
         // Unpack parameters
         let parameters_ = LinearElasticityParameters::from_array(parameters);
-        let mu = parameters_.mu;
-        let kappa = parameters_.kappa;
-
-        let elastic_tangent = isotropic_elastic_tangent(mu, kappa);
+        let elastic_tangent = parameters_.elastic_tangent::<6>();
 
         let del_strain_vec = SVectorView::<f64, 6>::from_array(del_strain);
         let mut stress_vec = SVectorViewMut::<f64, 6>::from_array(stress);

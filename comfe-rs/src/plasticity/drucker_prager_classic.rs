@@ -20,6 +20,7 @@ create_history_parameter_struct!(
         (b_flow, (QDim::Scalar))
     ]
 );
+crate::impl_isotropic_elastic_parameters!(DruckerPragerParameters);
 /// A classic Drucker-Prager plasticity model for 3D stress states.
 ///
 /// This struct represents the Drucker-Prager yield criterion with associated flow rule.
@@ -44,8 +45,6 @@ create_history_parameter_struct!(
 #[derive(Default, Clone, Copy)]
 pub struct DruckerPrager3D {
     parameters: DruckerPragerParameters,
-    elastic_tangent: SMatrix<f64, 6, 6>,
-    elastic_tangent_inv: SMatrix<f64, 6, 6>,
 }
 
 impl Plasticity<6, 5, 5, 1> for DruckerPrager3D {
@@ -54,9 +53,6 @@ impl Plasticity<6, 5, 5, 1> for DruckerPrager3D {
     fn new(parameters: &Self::Parameters) -> Self {
         DruckerPrager3D {
             parameters: parameters.clone(),
-            elastic_tangent: isotropic_elastic_tangent(parameters.mu, parameters.kappa),
-            elastic_tangent_inv: isotropic_elastic_tangent_inv(parameters.mu, parameters.kappa),
-            ..Default::default()
         }
     }
     fn calculate_f_only(&self, sigma: &SVector<f64, 6>, kappa: &SVector<f64, 1>)->f64 {
@@ -109,14 +105,5 @@ impl Plasticity<6, 5, 5, 1> for DruckerPrager3D {
         state.k = SVector::from_element((2_f64/3_f64).sqrt()*g_norm);
         state.dk_dsigma = ((2_f64/3_f64).sqrt()/g_norm)* state.g.transpose() * &state.dg_dsigma;
         state.dk_dkappa = ((2_f64/3_f64).sqrt()/g_norm)* state.g.transpose() * &state.dg_dkappa;
-    }
-
-    fn elastic_tangent(&self) -> &SMatrix<f64, 6, 6> {
-        // Implementation of elastic_tangent
-        &self.elastic_tangent
-    }
-    fn elastic_tangent_inv(&self) -> &SMatrix<f64, 6, 6> {
-        // Implementation of elastic_tangent_inv
-        &self.elastic_tangent_inv
     }
 }
