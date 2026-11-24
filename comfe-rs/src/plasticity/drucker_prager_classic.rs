@@ -1,11 +1,8 @@
 use crate::consts::*;
-//use crate::impl_array_equivalent;
 use crate::interfaces::*;
 use crate::mandel::*;
 use crate::plasticity::*;
 use crate::create_history_parameter_struct;
-//, q_dim_data_type};
-//use crate::impl_from_array;
 use nalgebra::{SMatrix, SVector};
 
 create_history_parameter_struct!(
@@ -47,6 +44,13 @@ pub struct DruckerPrager3D {
     parameters: DruckerPragerParameters,
 }
 
+impl DruckerPrager3D {
+    fn yield_function(&self, i_1: f64, j_2: f64) -> f64 {
+        assert!(i_1 < self.parameters.a/self.parameters.b , "non-differentiable tip of Drucker-Prager surface reached");
+        j_2.sqrt() + self.parameters.b * i_1 - self.parameters.a
+    }
+}
+
 impl Plasticity<6, 5, 5, 1> for DruckerPrager3D {
     type Parameters = DruckerPragerParameters;
 
@@ -55,13 +59,9 @@ impl Plasticity<6, 5, 5, 1> for DruckerPrager3D {
             parameters: parameters.clone(),
         }
     }
-    fn calculate_f_only(&self, sigma: &SVector<f64, 6>, kappa: &SVector<f64, 1>)->f64 {
+    fn calculate_f_only(&self, sigma: &SVector<f64, 6>, _kappa: &SVector<f64, 1>) -> f64 {
         let (i_1, s) = sigma.trace_dev();
-
-        assert!(i_1 < self.parameters.a/self.parameters.b , "non-differentiable tip of Drucker-Prager surface reached");
-
-        let j_2 = 0.5 * s.norm_squared();
-        return j_2.sqrt() + self.parameters.b * i_1 - self.parameters.a;
+        self.yield_function(i_1, 0.5 * s.norm_squared())
     }
     fn is_admissible(&self, sigma: &SVector<f64, 6>, _kappa: &SVector<f64, 1>) -> bool {
         sigma.trace() < self.parameters.a / self.parameters.b
@@ -69,18 +69,14 @@ impl Plasticity<6, 5, 5, 1> for DruckerPrager3D {
     fn set_model_state(
         &self,
         sigma: &SVector<f64, 6>,
-        kappa: &SVector<f64, 1>,
-        state: &mut PlasticityState<6, 5, 5, 1>,
+        _kappa: &SVector<f64, 1>,
+        state: &mut PlasticityState<6, 1>,
     ) {
         const PROJECTION_DEV: SMatrix<f64, 6, 6> = const { projection_dev::<6>() };
         const SYM_ID: SVector<f64, 6> = const { sym_id::<6>() };
-        // Implementation of setting model state
         let (i_1, s) = sigma.trace_dev();
-
-        assert!(i_1 < self.parameters.a/self.parameters.b , "non-differentiable tip of Drucker-Prager surface reached");
-
         let j_2 = 0.5 * s.norm_squared();
-        state.f = j_2.sqrt() + self.parameters.b * i_1 - self.parameters.a;
+        state.f = self.yield_function(i_1, j_2);
         let df_di_1 = self.parameters.b;
         let df_dj_2 = 0.5 / j_2.sqrt();
         let _df_di_1i_1 = 0.0;

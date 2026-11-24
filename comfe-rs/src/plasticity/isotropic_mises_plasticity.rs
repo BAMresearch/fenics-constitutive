@@ -1,11 +1,8 @@
 use crate::consts::*;
-//use crate::impl_array_equivalent;
 use crate::interfaces::*;
 use crate::mandel::*;
 use crate::plasticity::*;
 use crate::create_history_parameter_struct;
-//, q_dim_data_type};
-//use crate::impl_from_array;
 use nalgebra::{SMatrix, SVector};
 
 create_history_parameter_struct!(
@@ -39,6 +36,12 @@ pub struct IsotropicMises3D {
     parameters: IsotropicMisesParameters,
 }
 
+impl IsotropicMises3D {
+    fn yield_function(&self, j_2: f64, kappa: f64) -> f64 {
+        (3.0 * j_2).sqrt() - (self.parameters.y_0 + self.parameters.h * kappa)
+    }
+}
+
 impl Plasticity<6, 4, 4, 1> for IsotropicMises3D {
     type Parameters = IsotropicMisesParameters;
 
@@ -47,27 +50,22 @@ impl Plasticity<6, 4, 4, 1> for IsotropicMises3D {
             parameters: parameters.clone(),
         }
     }
-    fn calculate_f_only(&self, sigma: &SVector<f64, 6>, kappa: &SVector<f64, 1>)->f64 {
+    fn calculate_f_only(&self, sigma: &SVector<f64, 6>, kappa: &SVector<f64, 1>) -> f64 {
         let (_i_1, s) = sigma.trace_dev();
-
-
-        let j_2 = 0.5 * s.norm_squared();
-        return (3.0*j_2).sqrt() - (self.parameters.y_0 + self.parameters.h * kappa.x);
+        self.yield_function(0.5 * s.norm_squared(), kappa.x)
     }
     fn set_model_state(
         &self,
         sigma: &SVector<f64, 6>,
         kappa: &SVector<f64, 1>,
-        state: &mut PlasticityState<6, 4, 4, 1>,
+        state: &mut PlasticityState<6, 1>,
     ) {
         const PROJECTION_DEV: SMatrix<f64, 6, 6> = const { projection_dev::<6>() };
-        //const SYM_ID: SVector<f64, 6> = const { sym_id::<6>() };
-        // Implementation of setting model state
         let (_i_1, s) = sigma.trace_dev();
 
 
         let j_2 = 0.5 * s.norm_squared();
-        state.f = (3.0*j_2).sqrt() - (self.parameters.y_0 + self.parameters.h * kappa.x);
+        state.f = self.yield_function(j_2, kappa.x);
 
         let df_dj_2 = 1.5 / (3.0*j_2).sqrt();
         let df_dj_2j_2 = -(9./4.) / (3.0*j_2).powf(3.0/2.0);
@@ -77,7 +75,6 @@ impl Plasticity<6, 4, 4, 1> for IsotropicMises3D {
         state.df_dkappa.x = -self.parameters.h;
 
         state.g = df_dsigma;
-        // This derivative is the same for both associated and non-associated flow
         state.dg_dsigma = &s * df_dj_2j_2 * &s.transpose() + df_dj_2 * &PROJECTION_DEV;
         // the flow direction does not depend on kappa
         state.dg_dkappa = SMatrix::zeros();

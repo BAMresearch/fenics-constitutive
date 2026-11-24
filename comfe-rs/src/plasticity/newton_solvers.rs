@@ -44,7 +44,6 @@ pub struct SolverResult<const STRESS_STRAIN: usize, const KAPPA: usize> {
     pub del_plastic_strain: SVector<f64, STRESS_STRAIN>,
     pub kappa: SVector<f64, KAPPA>,
     pub del_lambda: f64,
-    pub iterations: usize,
 }
 
 /// Convergence history of a failed return mapping. Residuals are the scaled residuals of
@@ -63,6 +62,34 @@ pub struct SolverError {
     pub condition: f64,
 }
 
+/// Records the convergence history of the Newton iteration, see [`NewtonSolverStrain::solve`].
+trait Recorder {
+    fn push_residual<const N: usize, const STRESS_STRAIN: usize, const KAPPA: usize>(
+        &mut self,
+        res: &SVector<f64, N>,
+    );
+    fn push_increment<const N: usize, const STRESS_STRAIN: usize, const KAPPA: usize>(
+        &mut self,
+        incr: &SVector<f64, N>,
+    );
+}
+
+/// Records nothing.
+impl Recorder for () {
+    #[inline]
+    fn push_residual<const N: usize, const STRESS_STRAIN: usize, const KAPPA: usize>(
+        &mut self,
+        _res: &SVector<f64, N>,
+    ) {
+    }
+    #[inline]
+    fn push_increment<const N: usize, const STRESS_STRAIN: usize, const KAPPA: usize>(
+        &mut self,
+        _incr: &SVector<f64, N>,
+    ) {
+    }
+}
+
 #[derive(Default)]
 struct ConvergenceHistory {
     eps_res: Vec<f64>,
@@ -73,7 +100,7 @@ struct ConvergenceHistory {
     kappa_incr: Vec<f64>,
 }
 
-impl ConvergenceHistory {
+impl Recorder for ConvergenceHistory {
     fn push_residual<const N: usize, const STRESS_STRAIN: usize, const KAPPA: usize>(
         &mut self,
         res: &SVector<f64, N>,
@@ -93,7 +120,9 @@ impl ConvergenceHistory {
         self.kappa_incr
             .push(incr.fixed_rows::<KAPPA>(STRESS_STRAIN + 1).norm());
     }
+}
 
+impl ConvergenceHistory {
     fn into_error<const N: usize>(self, dres: &SMatrix<f64, N, N>) -> SolverError {
         // The SVD does not terminate on a matrix with NaN or infinite entries, which occur
         // when the model state is not defined, e.g. dk/dsigma for a vanishing flow direction.
@@ -127,15 +156,9 @@ impl ConvergenceHistory {
 /// $r_\kappa = \kappa - \kappa_0 - \Delta\lambda\thinspace k$ with respect to
 /// $(\sigma, \Delta\lambda, \kappa)$, evaluated at `state`. Its inverse yields the
 /// consistent tangent after the return mapping has converged.
-pub fn stress_based_jacobian<
-    const N: usize,
-    const STRESS_STRAIN: usize,
-    const N_PARAMETERS: usize,
-    const PARAMETERS: usize,
-    const KAPPA: usize,
->(
+pub fn stress_based_jacobian<const N: usize, const STRESS_STRAIN: usize, const KAPPA: usize>(
     elastic_tangent: &SMatrix<f64, STRESS_STRAIN, STRESS_STRAIN>,
-    state: &PlasticityState<STRESS_STRAIN, N_PARAMETERS, PARAMETERS, KAPPA>,
+    state: &PlasticityState<STRESS_STRAIN, KAPPA>,
     dres: &mut SMatrix<f64, N, N>,
     del_lambda: f64,
 ) {
@@ -178,15 +201,9 @@ pub fn stress_based_jacobian<
 /// Fills `dres` with the Jacobian of the residual of [`NewtonSolverStrain`] with respect to
 /// $(\Delta\varepsilon_p, \Delta\lambda, \kappa)$, evaluated at `state`. `f_scale` is
 /// $1/\sigma_c$, which scales the yield function row.
-pub fn strain_based_jacobian<
-    const N: usize,
-    const STRESS_STRAIN: usize,
-    const N_PARAMETERS: usize,
-    const PARAMETERS: usize,
-    const KAPPA: usize,
->(
+pub fn strain_based_jacobian<const N: usize, const STRESS_STRAIN: usize, const KAPPA: usize>(
     elastic_tangent: &SMatrix<f64, STRESS_STRAIN, STRESS_STRAIN>,
-    state: &PlasticityState<STRESS_STRAIN, N_PARAMETERS, PARAMETERS, KAPPA>,
+    state: &PlasticityState<STRESS_STRAIN, KAPPA>,
     dres: &mut SMatrix<f64, N, N>,
     del_lambda: f64,
     f_scale: f64,
@@ -268,7 +285,7 @@ where
         sigma_tr: &SVector<f64, STRESS_STRAIN>,
         kappa_0: &SVector<f64, KAPPA>,
         f_scale: f64,
-        state: &mut PlasticityState<STRESS_STRAIN, N_PARAMETERS, PARAMETERS, KAPPA>,
+        state: &mut PlasticityState<STRESS_STRAIN, KAPPA>,
     ) -> (SVector<f64, N>, SVector<f64, STRESS_STRAIN>) {
         let del_eps_pl: SVector<f64, STRESS_STRAIN> = sol.fixed_rows::<STRESS_STRAIN>(0).into();
         let del_lambda = sol[STRESS_STRAIN];
@@ -302,7 +319,7 @@ where
         sigma: &SVector<f64, STRESS_STRAIN>,
         del_lambda: f64,
         f_scale: f64,
-        state: &PlasticityState<STRESS_STRAIN, N_PARAMETERS, PARAMETERS, KAPPA>,
+        state: &PlasticityState<STRESS_STRAIN, KAPPA>,
     ) -> bool {
         let del_sigma = ROUNDOFF_SAFETY * f64::EPSILON * (sigma_tr.norm() + sigma.norm());
         let dres_dsigma_norm = ((del_lambda * del_lambda)
@@ -315,12 +332,31 @@ where
 
     /// Solves the return mapping starting from the trial state. On success, `state` holds the
     /// plasticity state at the converged stress and kappa.
+    ///
+    /// The convergence history is only needed to report a failure, but recording it allocates
+    /// at every plastic quadrature point. The iteration therefore runs without recording, and a
+    /// failed solve is repeated with recording; being deterministic, it fails in the same way.
     pub fn solve(
         &self,
         sigma_tr: &SVector<f64, STRESS_STRAIN>,
         kappa_0: &SVector<f64, KAPPA>,
-        state: &mut PlasticityState<STRESS_STRAIN, N_PARAMETERS, PARAMETERS, KAPPA>,
+        state: &mut PlasticityState<STRESS_STRAIN, KAPPA>,
     ) -> Result<SolverResult<STRESS_STRAIN, KAPPA>, SolverError> {
+        self.iterate(sigma_tr, kappa_0, state, &mut ()).or_else(|_| {
+            let mut history = ConvergenceHistory::default();
+            self.iterate(sigma_tr, kappa_0, state, &mut history)
+                .map_err(|dres| history.into_error(&dres))
+        })
+    }
+
+    /// Newton iteration of [`Self::solve`]. On failure, returns the last Newton matrix.
+    fn iterate<R: Recorder>(
+        &self,
+        sigma_tr: &SVector<f64, STRESS_STRAIN>,
+        kappa_0: &SVector<f64, KAPPA>,
+        state: &mut PlasticityState<STRESS_STRAIN, KAPPA>,
+        recorder: &mut R,
+    ) -> Result<SolverResult<STRESS_STRAIN, KAPPA>, SMatrix<f64, N, N>> {
         let elastic_tangent = self.elastic_tangent;
         let f_scale = 1.0 / self.model.characteristic_stress(sigma_tr);
 
@@ -331,8 +367,7 @@ where
         let tolerance = self.atol + self.rtol * res.norm();
 
         let mut dres = SMatrix::<f64, N, N>::zeros();
-        let mut history = ConvergenceHistory::default();
-        history.push_residual::<N, STRESS_STRAIN, KAPPA>(&res);
+        recorder.push_residual::<N, STRESS_STRAIN, KAPPA>(&res);
 
         let mut iterations = 0;
         while res.norm() > tolerance
@@ -341,13 +376,13 @@ where
             )
         {
             if iterations >= self.maxit {
-                return Err(history.into_error(&dres));
+                return Err(dres);
             }
             iterations += 1;
 
             strain_based_jacobian(elastic_tangent, state, &mut dres, sol[STRESS_STRAIN], f_scale);
             let Some(dx) = dres.lu().solve(&res) else {
-                return Err(history.into_error(&dres));
+                return Err(dres);
             };
             // A full Newton step at the level of round-off is accepted without a sufficient
             // decrease of the residual, which cannot decrease reliably any further. Whether the
@@ -378,8 +413,8 @@ where
                     if (roundoff_step && alpha == 1.0)
                         || trial_res.norm() <= (1.0 - 1e-4 * alpha) * res_norm_prev
                     {
-                        history.push_increment::<N, STRESS_STRAIN, KAPPA>(&(trial - sol));
-                        history.push_residual::<N, STRESS_STRAIN, KAPPA>(&trial_res);
+                        recorder.push_increment::<N, STRESS_STRAIN, KAPPA>(&(trial - sol));
+                        recorder.push_residual::<N, STRESS_STRAIN, KAPPA>(&trial_res);
                         sol = trial;
                         res = trial_res;
                         sigma = trial_sigma;
@@ -390,7 +425,7 @@ where
                 alpha *= 0.5;
             }
             if !accepted {
-                return Err(history.into_error(&dres));
+                return Err(dres);
             }
         }
 
@@ -399,7 +434,6 @@ where
             del_plastic_strain: sol.fixed_rows::<STRESS_STRAIN>(0).into(),
             kappa: sol.fixed_rows::<KAPPA>(STRESS_STRAIN + 1).into(),
             del_lambda: sol[STRESS_STRAIN],
-            iterations,
         })
     }
 }

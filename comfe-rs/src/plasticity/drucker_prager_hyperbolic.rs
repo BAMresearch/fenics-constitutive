@@ -3,8 +3,6 @@ use crate::plasticity::*;
 use crate::interfaces::*;
 use crate::mandel::*;
 use crate::{create_history_parameter_struct};
-use nalgebra::Scalar;
-//use crate::impl_from_array;
 use nalgebra::{SMatrix, SVector};
 
 create_history_parameter_struct!(
@@ -65,6 +63,15 @@ pub struct DruckerPragerHyperbolic3D {
     parameters: DruckerPragerHyperbolicParameters,
 }
 
+impl DruckerPragerHyperbolic3D {
+    fn yield_function(&self, i_1: f64, j_2: f64, kappa: f64) -> f64 {
+        let a = (1.0 + self.parameters.h * kappa) * self.parameters.a;
+        let d = (1.0 + self.parameters.h * kappa) * self.parameters.d;
+        let b = self.parameters.b;
+        (j_2 + (d * b).powi(2)).sqrt() + b * i_1 - a
+    }
+}
+
 impl Plasticity<6, 7, 7, 1> for DruckerPragerHyperbolic3D {
     type Parameters = DruckerPragerHyperbolicParameters;
 
@@ -73,36 +80,27 @@ impl Plasticity<6, 7, 7, 1> for DruckerPragerHyperbolic3D {
             parameters: parameters.clone(),
         }
     }
-    fn calculate_f_only(&self, sigma: &SVector<f64, 6>, kappa: &SVector<f64, 1>)->f64 {
+    fn calculate_f_only(&self, sigma: &SVector<f64, 6>, kappa: &SVector<f64, 1>) -> f64 {
         let (i_1, s) = sigma.trace_dev();
-        let j_2 = 0.5 * s.norm_squared();
-
-        let a = (1.0+self.parameters.h * kappa.x)*self.parameters.a;
-        let d = (1.0+self.parameters.h * kappa.x)*self.parameters.d;
-        let b = self.parameters.b;
-
-
-        return (j_2+(d*b).powi(2)).sqrt() + b * i_1 - a;
+        self.yield_function(i_1, 0.5 * s.norm_squared(), kappa.x)
     }
     fn set_model_state(
         &self,
         sigma: &SVector<f64, 6>,
         kappa: &SVector<f64, 1>,
-        state: &mut PlasticityState<6, 7, 7, 1>,
+        state: &mut PlasticityState<6, 1>,
     ) {
         const PROJECTION_DEV: SMatrix<f64, 6, 6> = const { projection_dev::<6>() };
         const SYM_ID: SVector<f64, 6> = const { sym_id::<6>() };
-        // Implementation of setting model state
         let (i_1, s) = sigma.trace_dev();
         let j_2 = 0.5 * s.norm_squared();
 
-        let a = (1.0+self.parameters.h * kappa.x)*self.parameters.a;
         let d = (1.0+self.parameters.h * kappa.x)*self.parameters.d;
         let b = self.parameters.b;
         let da_dkappa= self.parameters.h*self.parameters.a;
         let dd_dkappa= self.parameters.h*self.parameters.d;
 
-        state.f = (j_2+(d*b).powi(2)).sqrt() + b * i_1 - a;
+        state.f = self.yield_function(i_1, j_2, kappa.x);
         let df_di_1 = b;
         let df_dj_2 = (1_f64/2.0)*(j_2 + b.powi(2)*d.powi(2)).sqrt().recip();
         let _df_di_1i_1 = 0.0;

@@ -3,19 +3,13 @@ use std::marker::PhantomData;
 use crate::QDim;
 use crate::linear_elasticity::IsotropicElasticParameters;
 use crate::plasticity::{NewtonSolverStrain, stress_based_jacobian};
-// Ensure QDim is imported from the correct module
 use crate::{
     create_history_parameter_struct,
     interfaces::{ArrayEquivalent, ConstitutiveModelFn, StaticMap},
 };
 use nalgebra::{RowSVector, SMatrix, SVector};
 
-pub struct PlasticityState<
-    const STRESS_STRAIN: usize,
-    const N_PARAMETERS: usize,
-    const PARAMETERS: usize,
-    const KAPPA: usize,
-> {
+pub struct PlasticityState<const STRESS_STRAIN: usize, const KAPPA: usize> {
     pub f: f64,
     pub df_dsigma: RowSVector<f64, STRESS_STRAIN>,
     pub df_dkappa: RowSVector<f64, KAPPA>,
@@ -26,14 +20,8 @@ pub struct PlasticityState<
     pub dk_dsigma: SMatrix<f64, KAPPA, STRESS_STRAIN>,
     pub dk_dkappa: SMatrix<f64, KAPPA, KAPPA>,
 }
-impl<
-    const STRESS_STRAIN: usize,
-    const N_PARAMETERS: usize,
-    const PARAMETERS: usize,
-    const KAPPA: usize,
-> PlasticityState<STRESS_STRAIN, N_PARAMETERS, PARAMETERS, KAPPA>
-{
-    pub fn zeros() -> PlasticityState<STRESS_STRAIN, N_PARAMETERS, PARAMETERS, KAPPA> {
+impl<const STRESS_STRAIN: usize, const KAPPA: usize> PlasticityState<STRESS_STRAIN, KAPPA> {
+    pub fn zeros() -> PlasticityState<STRESS_STRAIN, KAPPA> {
         PlasticityState {
             f: 0.0,
             df_dsigma: RowSVector::zeros(),
@@ -62,7 +50,7 @@ pub trait Plasticity<
         &self,
         sigma: &SVector<f64, STRESS_STRAIN>,
         kappa: &SVector<f64, KAPPA>,
-        state: &mut PlasticityState<STRESS_STRAIN, N_PARAMETERS, PARAMETERS, KAPPA>,
+        state: &mut PlasticityState<STRESS_STRAIN, KAPPA>,
     );
     fn calculate_f_only(&self, sigma: &SVector<f64, STRESS_STRAIN>, kappa: &SVector<f64, KAPPA>) -> f64;
     /// Stress used to nondimensionalize the yield function in the return mapping, e.g. the
@@ -81,8 +69,6 @@ pub trait Plasticity<
     ) -> bool {
         true
     }
-
-    //fn del_plastic_strain(&self) -> &SVector<f64, STRESS_STRAIN>;.
 }
 
 pub struct IsotropicPlasticityModel3D<
@@ -118,7 +104,6 @@ where
     fn evaluate(
         _time: f64,
         _del_time: f64,
-        //_strain: &[f64; 6],
         del_strain: &[f64; 6],
         stress: &mut [f64; 6],
         tangent: Option<&mut [[f64; 6]; 6]>,
@@ -178,9 +163,9 @@ where
 /// $\partial\sigma_i/\partial\varepsilon_j$). `state` must be the plasticity state at the converged
 /// stress and kappa, as left by [`NewtonSolverStrain::solve`], and `elastic_tangent` the elastic
 /// tangent used in the return mapping. Returns `None` if the Newton matrix is singular.
-pub fn isotropic_algorithmic_tangent<const N_PARAMETERS: usize, const PARAMETERS: usize>(
+pub fn isotropic_algorithmic_tangent(
     elastic_tangent: &SMatrix<f64, 6, 6>,
-    state: &PlasticityState<6, N_PARAMETERS, PARAMETERS, 1>,
+    state: &PlasticityState<6, 1>,
     del_lambda: f64,
 ) -> Option<SMatrix<f64, 6, 6>> {
     let mut dres = SMatrix::<f64, 8, 8>::zeros();
