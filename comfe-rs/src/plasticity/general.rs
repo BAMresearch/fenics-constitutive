@@ -71,9 +71,14 @@ pub trait Plasticity<
     fn characteristic_stress(&self, sigma_tr: &SVector<f64, STRESS_STRAIN>) -> f64 {
         sigma_tr.norm().max(f64::MIN_POSITIVE)
     }
-    /// Whether the return mapping may evaluate the model at `kappa`. Trial points of the
-    /// line search that are not admissible are rejected before evaluation.
-    fn is_admissible(&self, _kappa: &SVector<f64, KAPPA>) -> bool {
+    /// Whether the return mapping may evaluate the model at `sigma` and `kappa`, e.g. not past
+    /// a non-differentiable point of the yield surface. Trial points of the line search that are
+    /// not admissible are rejected before evaluation and the step is halved.
+    fn is_admissible(
+        &self,
+        _sigma: &SVector<f64, STRESS_STRAIN>,
+        _kappa: &SVector<f64, KAPPA>,
+    ) -> bool {
         true
     }
 

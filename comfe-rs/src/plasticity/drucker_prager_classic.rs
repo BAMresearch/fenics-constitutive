@@ -63,6 +63,9 @@ impl Plasticity<6, 5, 5, 1> for DruckerPrager3D {
         let j_2 = 0.5 * s.norm_squared();
         return j_2.sqrt() + self.parameters.b * i_1 - self.parameters.a;
     }
+    fn is_admissible(&self, sigma: &SVector<f64, 6>, _kappa: &SVector<f64, 1>) -> bool {
+        sigma.trace() < self.parameters.a / self.parameters.b
+    }
     fn set_model_state(
         &self,
         sigma: &SVector<f64, 6>,

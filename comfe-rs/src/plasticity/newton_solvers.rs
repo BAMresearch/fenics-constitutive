@@ -349,25 +349,33 @@ where
             let Some(dx) = dres.lu().solve(&res) else {
                 return Err(history.into_error(&dres));
             };
-            // A full Newton step at the level of round-off: the residual cannot decrease any
-            // further, so the step is accepted and the iteration stops.
-            let converged_incr = dx.norm() <= self.atol + self.rtol * sol.norm();
+            // A full Newton step at the level of round-off is accepted without a sufficient
+            // decrease of the residual, which cannot decrease reliably any further. Whether the
+            // iteration has converged is still decided by the residual.
+            let roundoff_step = dx.norm() <= self.atol + self.rtol * sol.norm();
 
             // Backtracking line search: plain Newton cycles without converging when the
             // return maps far into the (damage-shrunk) yield surface, e.g. near the hyperbola
-            // apex. Trial points with a negative plastic multiplier or a kappa that the model
-            // rejects are not evaluated.
+            // apex. Trial points with a negative plastic multiplier or a stress or kappa that
+            // the model rejects are not evaluated.
             let res_norm_prev = res.norm();
             let mut alpha = 1.0;
             let mut accepted = false;
             for _ in 0..self.max_line_search {
                 let trial = sol - alpha * &dx;
+                let trial_eps: SVector<f64, STRESS_STRAIN> =
+                    trial.fixed_rows::<STRESS_STRAIN>(0).into();
                 let trial_kappa: SVector<f64, KAPPA> =
                     trial.fixed_rows::<KAPPA>(STRESS_STRAIN + 1).into();
-                if trial[STRESS_STRAIN] >= 0.0 && self.model.is_admissible(&trial_kappa) {
+                if trial[STRESS_STRAIN] >= 0.0
+                    && self.model.is_admissible(
+                        &(sigma_tr - elastic_tangent * &trial_eps),
+                        &trial_kappa,
+                    )
+                {
                     let (trial_res, trial_sigma) =
                         self.residual(&trial, sigma_tr, kappa_0, f_scale, state);
-                    if converged_incr
+                    if (roundoff_step && alpha == 1.0)
                         || trial_res.norm() <= (1.0 - 1e-4 * alpha) * res_norm_prev
                     {
                         history.push_increment::<N, STRESS_STRAIN, KAPPA>(&(trial - sol));
@@ -383,9 +391,6 @@ where
             }
             if !accepted {
                 return Err(history.into_error(&dres));
-            }
-            if converged_incr {
-                break;
             }
         }
 
