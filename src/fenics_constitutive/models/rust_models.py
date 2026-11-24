@@ -128,17 +128,24 @@ class DruckerPragerHyperbolic3D(IncrSmallStrainModel):
     - I_1 is the first invariant of the stress tensor
     - a and b are material parameters that describe the yield surface as in the DruckerPrager3D model.
       d is an additional smoothing parameter for the tip.
-    - b_flow defines the slope of the flow rule which is equal to b for associated flow.
-      For b=0 the return direction is purely deviatoric (radial return algorithm)
+    - h is a hardening parameter that scales a and d by (1 + h·alpha).
+    - b_flow > 0 defines the slope of the flow rule which is equal to b for associated flow.
+
+    The return mapping may fail to converge for tensile trial stresses that return into the
+    smoothed apex region while lying far outside of it. No return failed in a single-step study for
+    Pi = mu·(I_1,tr - I_1,apex) / (9·kappa·b·b_flow·d) <~ 1e4, with I_1,apex = (a/b - d)(1 + h·alpha).
+    With d = delta·a/b, this limits the volumetric strain increment beyond the apex to about
+    3e4·b_flow·delta·a/mu, e.g. 3e-2 for mu=80.77, a=0.15, b_flow=0.05 and delta=1%.
 
     Args:
         parameters (dict[str, np.ndarray]): A dictionary containing:
             - "mu": Shear modulus
             - "kappa": Bulk modulus
-            - "a": slope of the yield surface in I_1,sqrt(J_2) space
-            - "b": Yield strength at zero pressure
+            - "a": Yield strength at zero pressure
+            - "b": slope of the yield surface in I_1,sqrt(J_2) space
             - "d": Smoothing parameter
-            - "b_flow": slope of the flow-potential, use b_flow=b for associated flow
+            - "h": Hardening parameter
+            - "b_flow": slope of the flow-potential (positive), use b_flow=b for associated flow
     """
 
 

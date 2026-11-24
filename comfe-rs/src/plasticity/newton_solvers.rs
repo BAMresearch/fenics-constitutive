@@ -48,7 +48,9 @@ pub struct SolverResult<const STRESS_STRAIN: usize, const KAPPA: usize> {
 }
 
 /// Convergence history of a failed return mapping. Residuals are the scaled residuals of
-/// [`NewtonSolverStrain`]; increments are the accepted (damped) Newton updates.
+/// [`NewtonSolverStrain`]; increments are the accepted (damped) Newton updates. The singular
+/// values and the condition number are those of the last Newton matrix; they are empty and NaN
+/// if that matrix has non-finite entries.
 #[derive(Debug)]
 pub struct SolverError {
     pub eps_error_incr: Vec<f64>,
@@ -93,10 +95,20 @@ impl ConvergenceHistory {
     }
 
     fn into_error<const N: usize>(self, dres: &SMatrix<f64, N, N>) -> SolverError {
-        // only evaluated on failure, so the copy into a dynamic matrix does not matter
-        let mut dres_dyn = DMatrix::<f64>::zeros(N, N);
-        dres_dyn.copy_from(dres);
-        let svd = dres_dyn.svd_unordered(false, false);
+        // The SVD does not terminate on a matrix with NaN or infinite entries, which occur
+        // when the model state is not defined, e.g. dk/dsigma for a vanishing flow direction.
+        let (singular_values, condition) = if dres.iter().all(|x| x.is_finite()) {
+            // only evaluated on failure, so the copy into a dynamic matrix does not matter
+            let mut dres_dyn = DMatrix::<f64>::zeros(N, N);
+            dres_dyn.copy_from(dres);
+            let svd = dres_dyn.svd_unordered(false, false);
+            (
+                svd.singular_values.as_slice().to_vec(),
+                svd.singular_values.max() / svd.singular_values.min(),
+            )
+        } else {
+            (Vec::new(), f64::NAN)
+        };
         SolverError {
             eps_error_incr: self.eps_incr,
             eps_error_res: self.eps_res,
@@ -104,8 +116,8 @@ impl ConvergenceHistory {
             f_error_res: self.f_res,
             kappa_error_incr: self.kappa_incr,
             kappa_error_res: self.kappa_res,
-            singular_values: svd.singular_values.as_slice().to_vec(),
-            condition: svd.singular_values.max() / svd.singular_values.min(),
+            singular_values,
+            condition,
         }
     }
 }
@@ -384,5 +396,19 @@ where
             del_lambda: sol[STRESS_STRAIN],
             iterations,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_into_error_with_non_finite_matrix() {
+        let mut dres = SMatrix::<f64, 8, 8>::identity();
+        dres[(6, 7)] = f64::NAN;
+        let error = ConvergenceHistory::default().into_error(&dres);
+        assert!(error.singular_values.is_empty());
+        assert!(error.condition.is_nan());
     }
 }

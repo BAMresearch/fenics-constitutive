@@ -31,8 +31,21 @@ crate::impl_isotropic_elastic_parameters!(DruckerPragerHyperbolicParameters);
 /// - $I_1$ is the first invariant of the stress tensor
 /// - $a$ and $b$ are material parameters that describe the yield surface as in the [`DruckerPrager3D`] model. $d$ is an additional smoothing parameter for the tip.
 /// - $h$ is a hardening parameter that expands the yield surface by multiplying $(1+h\alpha)$ to the parameters $a,d$. The slope $b$ remains constant.ts
-/// - $b_{flow}$ defines the slope of the flow rule which is equal to $b$ for associated flow. For $b=0$ the return direction is purely deviatoric (radial return algorithm)
+/// - $b_{flow} > 0$ defines the slope of the flow rule which is equal to $b$ for associated flow.
 ///
+/// # Limitations
+/// The return mapping may fail to converge for tensile trial stresses that return into the
+/// smoothed apex region while lying far outside of it: starting from the trial stress, the
+/// Newton iteration returns mainly deviatorically and does not find the narrow region of width
+/// $\sqrt{J_2} \sim bd(1+h\alpha)$ around the apex. In a single-step study (associated and
+/// non-associated flow, with and without hardening) no return failed for
+/// $$\Pi = \frac{\mu\,(I_{1,tr} - I_{1,apex})}{9\kappa\, b\, b_{flow}\, d} \lesssim 10^4,$$
+/// where $I_{1,apex} = (a/b - d)(1+h\alpha)$ and $\kappa$ is the bulk modulus; above, the
+/// failure rate increases with $\Pi$. With $d = \delta\, a/b$, this limits the volumetric strain
+/// increment beyond the apex to about $3\cdot10^4\, b_{flow}\,\delta\, a/\mu$, e.g. $3\cdot10^{-2}$
+/// for $\mu = 80.77$, $a = 0.15$, $b_{flow} = 0.05$ and $\delta = 1\%$. A small smoothing $d$,
+/// a small dilatancy $b_{flow}$ and a large ratio $\mu/a$ therefore require small strain
+/// increments.
 ///
 /// This struct does not implement the stress return algorithm but implements
 /// the required functions like the yield function, flow rule, etc.
@@ -46,7 +59,7 @@ crate::impl_isotropic_elastic_parameters!(DruckerPragerHyperbolicParameters);
 /// - `a`: Yield strength at zero pressure
 /// - `d`: Smoothing parameter
 /// - `h`: Hardening parameter
-/// - `b_flow`: slope of the flow-potential, use `b_flow=b` for associated flow
+/// - `b_flow`: slope of the flow-potential (positive), use `b_flow=b` for associated flow
 #[derive(Default, Clone, Copy)]
 pub struct DruckerPragerHyperbolic3D {
     parameters: DruckerPragerHyperbolicParameters,
