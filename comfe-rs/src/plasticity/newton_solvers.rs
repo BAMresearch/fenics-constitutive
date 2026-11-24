@@ -2,6 +2,13 @@ use nalgebra::{Const, DMatrix, DimMin, SMatrix, SVector};
 
 use crate::plasticity::{Plasticity, PlasticityState};
 
+/// Factor between the first-order estimate of the round-off level of the residual and the
+/// residual that is accepted as converged.
+const ROUNDOFF_SAFETY: f64 = 10.0;
+/// Tolerance of the scaled yield function $f/\sigma_c$ when the residual is accepted at its
+/// round-off level, see [`NewtonSolverStrain::within_roundoff`].
+const YIELD_ROUNDOFF_TOL: f64 = 1.5e-8; // about sqrt(f64::EPSILON)
+
 /// Newton solver with backtracking line search for the return mapping, formulated in the
 /// unknowns $x = (\Delta\varepsilon_p, \Delta\lambda, \kappa)$ with $\sigma = \sigma_{tr} - C\Delta\varepsilon_p$.
 ///
@@ -10,7 +17,9 @@ use crate::plasticity::{Plasticity, PlasticityState};
 /// $r_\kappa = \kappa - \kappa_0 - \Delta\lambda\thinspace k$,
 /// where $\sigma_c$ is the characteristic stress of the model. All residuals are therefore
 /// dimensionless and are measured with one norm, both for the convergence check
-/// $\lVert r\rVert \le atol + rtol \lVert r_0\rVert$ and for the line search.
+/// $\lVert r\rVert \le atol + rtol \lVert r_0\rVert$ and for the line search. The iteration
+/// also stops when the residual is below its estimated round-off level, see
+/// [`Self::within_roundoff`].
 pub struct NewtonSolverStrain<
     'a,
     const N: usize, //TODO:fix when const generics allow arithmetics
@@ -265,6 +274,33 @@ where
         (res, sigma)
     }
 
+    /// Whether the residual is converged up to its round-off level. The stress
+    /// $\sigma = \sigma_{tr} - C\Delta\varepsilon_p$ carries an error of about
+    /// $\epsilon(\lVert\sigma_{tr}\rVert + \lVert\sigma\rVert)$ due to cancellation, which the
+    /// residual amplifies by $\lVert\partial r/\partial\sigma\rVert$. Near a sharply curved part
+    /// of the yield surface (e.g. the apex of the hyperbolic Drucker-Prager model), this
+    /// round-off level of $r_\varepsilon$ can be orders of magnitude above `atol`. The yield
+    /// function is not amplified this way, so $r_f$ must additionally be below
+    /// [`YIELD_ROUNDOFF_TOL`]; otherwise a large round-off level of $r_\varepsilon$ could hide a
+    /// stress that is not on the yield surface. `state` must be the plasticity state at `sigma`.
+    fn within_roundoff(
+        res: &SVector<f64, N>,
+        tolerance: f64,
+        sigma_tr: &SVector<f64, STRESS_STRAIN>,
+        sigma: &SVector<f64, STRESS_STRAIN>,
+        del_lambda: f64,
+        f_scale: f64,
+        state: &PlasticityState<STRESS_STRAIN, N_PARAMETERS, PARAMETERS, KAPPA>,
+    ) -> bool {
+        let del_sigma = ROUNDOFF_SAFETY * f64::EPSILON * (sigma_tr.norm() + sigma.norm());
+        let dres_dsigma_norm = ((del_lambda * del_lambda)
+            * (state.dg_dsigma.norm_squared() + state.dk_dsigma.norm_squared())
+            + (f_scale * f_scale) * state.df_dsigma.norm_squared())
+        .sqrt();
+        res.norm() <= tolerance + del_sigma * dres_dsigma_norm
+            && res[STRESS_STRAIN].abs() <= tolerance + YIELD_ROUNDOFF_TOL
+    }
+
     /// Solves the return mapping starting from the trial state. On success, `state` holds the
     /// plasticity state at the converged stress and kappa.
     pub fn solve(
@@ -287,7 +323,11 @@ where
         history.push_residual::<N, STRESS_STRAIN, KAPPA>(&res);
 
         let mut iterations = 0;
-        while res.norm() > tolerance {
+        while res.norm() > tolerance
+            && !Self::within_roundoff(
+                &res, tolerance, sigma_tr, &sigma, sol[STRESS_STRAIN], f_scale, state,
+            )
+        {
             if iterations >= self.maxit {
                 return Err(history.into_error(&dres));
             }

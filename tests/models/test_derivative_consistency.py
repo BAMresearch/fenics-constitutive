@@ -144,3 +144,42 @@ def test_drucker_prager_hyperbolic_tangent(b_flow):
     assert check_local_tangent(
         DruckerPragerHyperbolic3D(params), [2e-3 * CMIX] * 3, 1e-3 * CMIX
     )
+
+
+TRIAX = np.array([1.0, 0.9, 0.9, 0, 0, 0])
+BIAX = np.array([1.0, 1.0, 0, 0, 0, 0])
+HYDRO = np.array([1.0, 1.0, 1.0, 0, 0, 0])
+
+
+@pytest.mark.parametrize(
+    ("d", "eps6"),
+    [
+        (1e-3, 0.1 * TRIAX),
+        (1e-3, 0.1 * BIAX),
+        (1e-5, 0.01 * BIAX),
+        (1e-5, 0.1 * BIAX),
+        (1e-5, 0.1 * (HYDRO + np.array([0, 0, 1e-3, 0, 0, 0]))),
+        (1e-5, 0.1 * UNI),
+        (1e-7, 0.01 * HYDRO),
+    ],
+)
+def test_drucker_prager_hyperbolic_return_near_apex(d, eps6):
+    """Returns close to the apex of the hyperbola, where the round-off level of the
+    residual of the return mapping is far above its absolute tolerance."""
+    params = {**DPH_PARAMS, "d": np.array([d])}
+    law = DruckerPragerHyperbolic3D(params)
+    stress = np.zeros(6)
+    history = make_history(law)
+    a, b, h = (params[key][0] for key in ("a", "b", "h"))
+    for _ in range(2):
+        law.evaluate(0.0, 0.0, mandel_to_grad(eps6), stress, np.zeros(36), history)
+        alpha = history["history"][0]
+        assert alpha > 0.0
+        i_1 = stress[:3].sum()
+        s = stress - i_1 / 3 * np.array([1.0, 1.0, 1.0, 0, 0, 0])
+        f = (
+            np.sqrt(0.5 * s @ s + (b * d * (1 + h * alpha)) ** 2)
+            + b * i_1
+            - a * (1 + h * alpha)
+        )
+        assert abs(f) < 1e-12 * np.linalg.norm(stress)
