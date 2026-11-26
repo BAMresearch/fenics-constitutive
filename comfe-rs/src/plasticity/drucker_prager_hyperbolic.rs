@@ -43,7 +43,8 @@ crate::impl_isotropic_elastic_parameters!(DruckerPragerHyperbolicParameters);
 /// increment beyond the apex to about $3\cdot10^4\, b_{flow}\,\delta\, a/\mu$, e.g. $3\cdot10^{-2}$
 /// for $\mu = 80.77$, $a = 0.15$, $b_{flow} = 0.05$ and $\delta = 1\%$. A small smoothing $d$,
 /// a small dilatancy $b_{flow}$ and a large ratio $\mu/a$ therefore require small strain
-/// increments.
+/// increments. A formulation of the return mapping that could remove this limitation is
+/// outlined under potential improvements of [`NewtonSolverStrain`].
 ///
 /// This struct does not implement the stress return algorithm but implements
 /// the required functions like the yield function, flow rule, etc.
