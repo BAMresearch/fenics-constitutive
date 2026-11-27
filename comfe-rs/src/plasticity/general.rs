@@ -1,11 +1,41 @@
 use std::marker::PhantomData;
 
-use crate::QDim; // Ensure QDim is imported from the correct module
+use crate::QDim;
+use crate::linear_elasticity::IsotropicElasticParameters;
+use crate::plasticity::{NewtonSolverStrain, stress_based_jacobian};
 use crate::{
     create_history_parameter_struct,
     interfaces::{ArrayEquivalent, ConstitutiveModelFn, StaticMap},
 };
-use nalgebra::{SMatrix, SVector, RowSVector};
+use nalgebra::{RowSVector, SMatrix, SVector};
+
+pub struct PlasticityState<const STRESS_STRAIN: usize, const KAPPA: usize> {
+    pub f: f64,
+    pub df_dsigma: RowSVector<f64, STRESS_STRAIN>,
+    pub df_dkappa: RowSVector<f64, KAPPA>,
+    pub g: SVector<f64, STRESS_STRAIN>,
+    pub dg_dkappa: SMatrix<f64, STRESS_STRAIN, KAPPA>,
+    pub dg_dsigma: SMatrix<f64, STRESS_STRAIN, STRESS_STRAIN>,
+    pub k: SVector<f64, KAPPA>,
+    pub dk_dsigma: SMatrix<f64, KAPPA, STRESS_STRAIN>,
+    pub dk_dkappa: SMatrix<f64, KAPPA, KAPPA>,
+}
+impl<const STRESS_STRAIN: usize, const KAPPA: usize> PlasticityState<STRESS_STRAIN, KAPPA> {
+    pub fn zeros() -> PlasticityState<STRESS_STRAIN, KAPPA> {
+        PlasticityState {
+            f: 0.0,
+            df_dsigma: RowSVector::zeros(),
+            df_dkappa: RowSVector::zeros(),
+            g: SVector::zeros(),
+            dg_dkappa: SMatrix::zeros(),
+            dg_dsigma: SMatrix::zeros(),
+            k: SVector::zeros(),
+            dk_dsigma: SMatrix::zeros(),
+            dk_dkappa: SMatrix::zeros(),
+        }
+    }
+}
+
 pub trait Plasticity<
     const STRESS_STRAIN: usize,
     const N_PARAMETERS: usize,
@@ -17,60 +47,29 @@ pub trait Plasticity<
 
     fn new(parameters: &Self::Parameters) -> Self;
     fn set_model_state(
-        &mut self,
-        sigma_0: &SVector<f64, STRESS_STRAIN>,
-        sigma_1: &SVector<f64, STRESS_STRAIN>,
-        //del_eps: &SVector<f64, STRESS_STRAIN>,
+        &self,
+        sigma: &SVector<f64, STRESS_STRAIN>,
         kappa: &SVector<f64, KAPPA>,
+        state: &mut PlasticityState<STRESS_STRAIN, KAPPA>,
     );
-    fn f(&self) -> f64;
-    fn df_dsigma(&self) -> &RowSVector<f64, STRESS_STRAIN>;
-    fn df_dkappa(&self) -> &RowSVector<f64, KAPPA>;
-    fn g(&self) -> &SVector<f64, STRESS_STRAIN>;
-    fn dg_dkappa(&self) -> &SMatrix<f64, STRESS_STRAIN, KAPPA>;
-    fn dg_dsigma(&self) -> &SMatrix<f64, STRESS_STRAIN, STRESS_STRAIN>;
-    fn k(&self) -> &SVector<f64, KAPPA>;
-    fn dk_dsigma(&self) -> &SMatrix<f64, KAPPA, STRESS_STRAIN>;
-    fn dk_dkappa(&self) -> &SMatrix<f64, KAPPA, KAPPA>;
-    fn elastic_tangent(&self) -> &SMatrix<f64, STRESS_STRAIN, STRESS_STRAIN>;
-    fn elastic_tangent_inv(&self) -> &SMatrix<f64, STRESS_STRAIN, STRESS_STRAIN>;
-    //fn del_plastic_strain(&self) -> &SVector<f64, STRESS_STRAIN>;
-    fn update_newton_matrix<const N: usize>(&self, dres: &mut SMatrix<f64, N, N>, del_lambda: f64) {
-        assert!(N == STRESS_STRAIN + KAPPA + 1);
-        // fill dres_sigma_dsigma
-        dres.fixed_view_mut::<STRESS_STRAIN, STRESS_STRAIN>(0, 0)
-            .copy_from(
-                &(SMatrix::<f64, STRESS_STRAIN, STRESS_STRAIN>::identity()
-                    + self.elastic_tangent() * del_lambda * self.dg_dsigma()),
-            );
-        //let mut dres_sigma_dlambda = dres.fixed_view_mut::<6, 1>(0, 7);
-        dres.fixed_view_mut::<STRESS_STRAIN, 1>(0, STRESS_STRAIN)
-            .copy_from(&(self.elastic_tangent() * self.g()));
-        //let mut dres_sigma_dkappa = dres.fixed_view_mut::<6, 1>(0, 6);
-        dres.fixed_view_mut::<STRESS_STRAIN, KAPPA>(0, STRESS_STRAIN+1)
-            .copy_from(&(self.elastic_tangent() * del_lambda * self.dg_dkappa()));
-
-        //let mut dres_f_dsigma = dres.fixed_view_mut::<1, 6>(7, 0);
-        dres.fixed_view_mut::<1, STRESS_STRAIN>(STRESS_STRAIN, 0)
-            .copy_from(self.df_dsigma());
-        //let mut dres_f_dlambda = dres.fixed_view_mut::<1, 1>(7, 7);
-        dres.fixed_view_mut::<1, 1>(STRESS_STRAIN, STRESS_STRAIN)
-            .copy_from_slice(&[0.0]);
-        //let mut dres_f_dkappa = dres.fixed_view_mut::<1, 1>(7, 6);
-        dres.fixed_view_mut::<1, KAPPA>(STRESS_STRAIN, STRESS_STRAIN+1)
-            .copy_from(self.df_dkappa());
-
-
-        //let mut dres_kappa_dsigma = dres.fixed_view_mut::<1, 6>(6, 0);
-        dres.fixed_view_mut::<KAPPA, STRESS_STRAIN>(STRESS_STRAIN+1, 0)
-            .copy_from(&((-del_lambda)*self.dk_dsigma()));
-        //let mut dres_kappa_dlambda = dres.fixed_view_mut::<1, 1>(6, 7);
-        dres.fixed_view_mut::<KAPPA, 1>(STRESS_STRAIN+1, STRESS_STRAIN)
-            .copy_from(&(-self.k()));
-        //let mut dres_kappa_dkappa = dres.fixed_view_mut::<1, 1>(6, 6);
-        dres.fixed_view_mut::<KAPPA, KAPPA>(STRESS_STRAIN+1, STRESS_STRAIN+1)
-            .copy_from(&(&SMatrix::<f64, KAPPA, KAPPA>::identity() - del_lambda * self.dk_dkappa()));
-
+    fn calculate_f_only(&self, sigma: &SVector<f64, STRESS_STRAIN>, kappa: &SVector<f64, KAPPA>) -> f64;
+    /// Stress scale of the tolerance of the yield function in the return mapping,
+    /// $|f| \le atol\thinspace\sigma_c$, e.g. the initial yield stress. It should not depend on
+    /// the trial stress, so that the accuracy of the return mapping does not depend on the step
+    /// size. Defaults to the magnitude of the trial stress, which is nonzero whenever the trial
+    /// state is plastic.
+    fn characteristic_stress(&self, sigma_tr: &SVector<f64, STRESS_STRAIN>) -> f64 {
+        sigma_tr.norm().max(f64::MIN_POSITIVE)
+    }
+    /// Whether the return mapping may evaluate the model at `sigma` and `kappa`, e.g. not past
+    /// a non-differentiable point of the yield surface. Trial points of the line search that are
+    /// not admissible are rejected before evaluation and the step is halved.
+    fn is_admissible(
+        &self,
+        _sigma: &SVector<f64, STRESS_STRAIN>,
+        _kappa: &SVector<f64, KAPPA>,
+    ) -> bool {
+        true
     }
 }
 
@@ -98,6 +97,8 @@ impl<
     MODEL: Plasticity<6, N_PARAMETERS, PARAMETERS, 1>,
 > ConstitutiveModelFn<6, 2, 7, N_PARAMETERS, PARAMETERS>
     for IsotropicPlasticityModel3D<N_PARAMETERS, PARAMETERS, MODEL>
+where
+    MODEL::Parameters: IsotropicElasticParameters,
 {
     type History = IsotropicPlasticityHistory3D;
     type Parameters = MODEL::Parameters;
@@ -105,7 +106,6 @@ impl<
     fn evaluate(
         _time: f64,
         _del_time: f64,
-        //_strain: &[f64; 6],
         del_strain: &[f64; 6],
         stress: &mut [f64; 6],
         tangent: Option<&mut [[f64; 6]; 6]>,
@@ -114,157 +114,68 @@ impl<
     ) {
         let parameters_ = Self::Parameters::from_array(parameters);
         let history_ = IsotropicPlasticityHistory3D::from_array_mut(history);
-        let mut model = MODEL::new(parameters_);
+        let elastic_tangent = parameters_.elastic_tangent::<6>();
+        let model = MODEL::new(parameters_);
 
         let del_eps = SVector::<f64, 6>::from_column_slice(del_strain);
         let sigma_0 = SVector::<f64, 6>::from_column_slice(stress);
-        let sigma_tr = model.elastic_tangent() * del_eps + sigma_0;
+        let sigma_tr = &elastic_tangent * del_eps + &sigma_0;
 
         let alpha_0 = SVector::<f64, 1>::from_element(history_.alpha);
-        let mut alpha_1 = alpha_0.clone();
-        let mut sigma_1: SVector<f64,6>;
-        model.set_model_state(&sigma_0, &sigma_tr, &alpha_0);
 
-        let f = model.f();
+        let f = model.calculate_f_only(&sigma_tr, &alpha_0);
         if f <= 0.0 {
             *stress = sigma_tr.data.0[0];
             if let Some(tangent) = tangent {
-                *tangent = model.elastic_tangent().data.0;
+                *tangent = elastic_tangent.data.0;
             }
             return;
         } else {
-            let mut del_lambda = 0.0;
-            let mut sol_0: SVector<f64, 8>;
-            let mut sol_1 = SVector::<f64, 8>::from([
-                sigma_tr[0],
-                sigma_tr[1],
-                sigma_tr[2],
-                sigma_tr[3],
-                sigma_tr[4],
-                sigma_tr[5],
-                0.0,
-                alpha_0[0],
-            ]);
-            let mut res_sigma =
-                //sigma_tr - sigma_0 - del_lambda * model.elastic_tangent() * model.g();
-                SVector::<f64,6>::zeros();
-            let mut res_kappa = SVector::<f64,1>::zeros();
-            let mut res_f = model.f();
+            // TODO: maxit = 100 lets slowly converging returns near the apex of the hyperbolic
+            // Drucker-Prager model converge, which may take more than 50 iterations. Warn about
+            // returns that need many iterations (e.g. more than 50), aggregated per call of
+            // `evaluate` and forwarded to Python's logging, see `pyo3-log`.
+            let solver = NewtonSolverStrain::<8, 6, N_PARAMETERS, PARAMETERS, 1, MODEL>::new(
+                &model, &elastic_tangent, 1e-12, 1e-12, 100,
+            );
+            let mut state = PlasticityState::zeros();
 
-            let mut dres = SMatrix::<f64, 8, 8>::zeros();
-
-            let mut res = SVector::<f64, 8>::from([
-                res_sigma[0],
-                res_sigma[1],
-                res_sigma[2],
-                res_sigma[3],
-                res_sigma[4],
-                res_sigma[5],
-                res_f,
-                res_kappa[0],
-            ]);
-            let mut i = 0;
-            let maxit = 25;
-            let atol = 1e-8;
-            let rtol = 1e-8;
-            //println!("residual: {}", res);
-            let mut sigma_prev: SVector<f64, 6>;
-            let mut alpha_prev: SVector<f64, 1>;
-            let mut del_lambda_prev: f64;
-            let mut res_sigma_norm: Vec<f64> = vec![res_sigma.norm()];
-            let mut res_kappa_norm: Vec<f64> = vec![res_kappa.norm()];
-            let mut res_f_norm: Vec<f64> = vec![res_f];
-            loop {
-                sol_0 = sol_1;
-
-                //Fill the newton matrix
-                model.update_newton_matrix(&mut dres, del_lambda);
-                
-                let lu = dres.lu();
-                let result = lu.solve(&res);
-                match result {
-                    Some(sol) => sol_1 = sol_0 - sol,
-                    None => {
-                        panic!(
-                            "Plasticity3D: Newton-Raphson failed to solve system {}",
-                            dres
-                        );
-                    }
-                }
-
-                // extract solution and calcualte new residual
-                sigma_1 = sol_1.fixed_view::<6, 1>(0, 0).into();
-                alpha_1 = sol_1.fixed_view::<1, 1>(7, 0).into();
-                del_lambda = sol_1[6];
-
-                sigma_prev = sol_0.fixed_view::<6, 1>(0, 0).into();
-                alpha_prev = sol_0.fixed_view::<1, 1>(7, 0).into();
-                del_lambda_prev = sol_0[6];
-
-                //Set all states in order to evaluate the new residuals
-                model.set_model_state(&sigma_0, &sigma_1, &alpha_1);
-
-                res_sigma = &sigma_1 - &sigma_tr + del_lambda * model.elastic_tangent() * model.g();
-                res_kappa = &alpha_1 - &alpha_0 - del_lambda * model.k();
-                res_f = model.f();
-
-                res = SVector::<f64, 8>::from([
-                    res_sigma[0],
-                    res_sigma[1],
-                    res_sigma[2],
-                    res_sigma[3],
-                    res_sigma[4],
-                    res_sigma[5],
-                    res_f,
-                    res_kappa[0],
-                ]);
-                res_sigma_norm.push(res_sigma.norm());
-                res_kappa_norm.push(res_kappa.norm());
-                res_f_norm.push(res_f.abs());
-
-                let converged_res: bool =
-                    res_sigma.norm() < atol && res_kappa[0].abs() < atol && res_f.abs() < atol;
-                let converged_incr: bool = (sigma_1 - sigma_prev).norm()
-                    < atol + rtol * sigma_1.norm()
-                    && (alpha_1 - alpha_prev)[0].abs() < atol + rtol * alpha_1[0].abs()
-                    && (del_lambda - del_lambda_prev).abs() < atol + rtol * del_lambda.abs();
-                if converged_res {
-                    break;
-                }
-                if converged_incr {
-                    break;
-                }
-                if i > maxit {
+            let result = solver
+                .solve(&sigma_tr, &alpha_0, &mut state)
+                .unwrap_or_else(|err| {
                     panic!(
-                        "Plasticity3D: Newton-Raphson did not converge. res_sigma: {:?},\n
-                        res_f: {:?}\n
-                        res_kappa: {:?}\n
-                        solution change: {}\n
-                        trial stress: {}, g: {}",
-                        res_sigma_norm,
-                        res_f_norm,
-                        res_kappa_norm,
-                        (sol_1 - sol_0).norm() / sol_1.norm(), sigma_tr, model.g()
-                    );
-                }
-                i += 1;
-            }
+                        "Plasticity failed to converge on sigma_tr {}, sigma_0 {}, alpha_0 {}: {:?}",
+                        sigma_tr, sigma_0, alpha_0, err
+                    )
+                });
+
             // Update the stress and history
-            *stress = sigma_1.data.0[0];
-            history_.alpha = alpha_1[0];
-            history_.plastic_strain += del_lambda * model.g();
+            *stress = result.sigma.data.0[0];
+            history_.alpha = result.kappa[0];
+            history_.plastic_strain += result.del_plastic_strain;
             if let Some(tangent) = tangent {
-                //update the newton matrix in order to evaluate at t_{n+1}
-                model.update_newton_matrix(&mut dres, del_lambda);
-                let inverse = dres
-                    .try_inverse()
-                    .expect("Plasticity3D: Failed to calculate tangent");
-                let mut plastic_tangent: SMatrix<f64, 6, 6> =
-                    inverse.fixed_view::<6, 6>(0, 0) * 
-                    model.elastic_tangent();
+                let mut plastic_tangent =
+                    isotropic_algorithmic_tangent(&elastic_tangent, &state, result.del_lambda)
+                        .expect("Plasticity3D: Failed to calculate tangent");
                 plastic_tangent.transpose_mut(); //TODO: move the transpose to the python bindings
                 *tangent = plastic_tangent.data.0;
             }
         }
     }
+}
+
+/// Algorithmic tangent $\partial\sigma/\partial\sigma_{tr} \cdot C = \partial\sigma/\partial\varepsilon_{tr}$
+/// of a converged return mapping (not transposed, entry $(i,j)$ is
+/// $\partial\sigma_i/\partial\varepsilon_j$). `state` must be the plasticity state at the converged
+/// stress and kappa, as left by [`NewtonSolverStrain::solve`], and `elastic_tangent` the elastic
+/// tangent used in the return mapping. Returns `None` if the Newton matrix is singular.
+pub fn isotropic_algorithmic_tangent(
+    elastic_tangent: &SMatrix<f64, 6, 6>,
+    state: &PlasticityState<6, 1>,
+    del_lambda: f64,
+) -> Option<SMatrix<f64, 6, 6>> {
+    let mut dres = SMatrix::<f64, 8, 8>::zeros();
+    stress_based_jacobian(elastic_tangent, state, &mut dres, del_lambda);
+    let inverse = dres.try_inverse()?;
+    Some(inverse.fixed_view::<6, 6>(0, 0) * elastic_tangent)
 }

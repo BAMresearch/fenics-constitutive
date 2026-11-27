@@ -12,5 +12,6 @@ dependencies:
   - pytest
   - pytest-mpi
   - maturin
+  - rust
   - pip:
     - -e .

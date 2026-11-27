@@ -21,6 +21,8 @@ plugins:
   - mkdocs-jupyter:
       execute: true
       include_source: True
+      # only notebooks; Python files in docs/ (e.g. figure scripts) are not pages
+      include: ["*.ipynb"]
   #- gen-files:
   #    scripts:
   #      - scripts/gen_ref_pages.py
