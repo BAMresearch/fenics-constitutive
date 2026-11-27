@@ -25,8 +25,16 @@ crate::impl_isotropic_elastic_parameters!(DruckerPragerParameters);
 /// - $J_2$ is the second invariant of the deviatoric stress tensor
 /// - $I_1$ is the first invariant of the stress tensor
 /// - $a$ and $b$ are material parameters that describe the yield surface.
-/// - $b_{flow}$ defines the slope of the flow rule which is equal to $b$ for associated flow. For $b=0$ the return direction is purely deviatoric (radial return algorithm)
+/// - $b_{flow}$ defines the slope of the flow rule which is equal to $b$ for associated flow. For $b_{flow}=0$ the return direction is purely deviatoric (radial return algorithm)
 ///
+/// # Yield surface
+/// Meridian section of the yield surface ($I_1$ vs. $\sqrt{J_2}$); the deviatoric section is a
+/// circle. The cone has the slope $-b$ and its tip at $I_1 = a/b$: $a$ shifts the cone, and $b$
+/// rotates it around the point $(0, a)$. $b_{flow}$ only changes the flow direction.
+///
+#[doc = "<div>"]
+#[doc = include_str!("../../../docs/figures/yield_surface_drucker_prager.svg")]
+#[doc = "</div>"]
 ///
 /// This struct does not implement the stress return algorithm but implements
 /// the required functions like the yield function, flow rule, etc.
@@ -36,8 +44,8 @@ crate::impl_isotropic_elastic_parameters!(DruckerPragerParameters);
 /// # Parameters
 /// - `mu`: Shear modulus
 /// - `kappa`: Bulk modulus
-/// - `a`: slope of the yield surface in $I_1,\sqrt{J_2}$ space
-/// - `b`: Yield strength at zero pressure
+/// - `a`: Yield strength at zero pressure
+/// - `b`: slope of the yield surface in $I_1,\sqrt{J_2}$ space
 /// - `b_flow`: slope of the flow-potential, use `b_flow=b` for associated flow
 #[derive(Default, Clone, Copy)]
 pub struct DruckerPrager3D {
@@ -62,6 +70,10 @@ impl Plasticity<6, 5, 5, 1> for DruckerPrager3D {
     fn calculate_f_only(&self, sigma: &SVector<f64, 6>, _kappa: &SVector<f64, 1>) -> f64 {
         let (i_1, s) = sigma.trace_dev();
         self.yield_function(i_1, 0.5 * s.norm_squared())
+    }
+    /// The initial yield stress at $I_1 = 0$, $\sqrt{J_2} = a$.
+    fn characteristic_stress(&self, _sigma_tr: &SVector<f64, 6>) -> f64 {
+        self.parameters.a
     }
     fn is_admissible(&self, sigma: &SVector<f64, 6>, _kappa: &SVector<f64, 1>) -> bool {
         sigma.trace() < self.parameters.a / self.parameters.b

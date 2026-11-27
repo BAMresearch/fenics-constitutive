@@ -26,6 +26,15 @@ crate::impl_isotropic_elastic_parameters!(IsotropicMisesParameters);
 /// - $\sigma_y = y_0 + h \cdot \alpha$ is the current yield stress
 /// - $\alpha$ is the equivalent plastic strain
 ///
+/// # Yield surface
+/// Meridian section of the yield surface ($I_1$ vs. $\sqrt{J_2}$); the deviatoric section is a
+/// circle. The yield surface does not depend on $I_1$, and the yield stress $y_0 + h\alpha$ moves
+/// it parallel to the $I_1$ axis.
+///
+#[doc = "<div>"]
+#[doc = include_str!("../../../docs/figures/yield_surface_mises.svg")]
+#[doc = "</div>"]
+///
 /// # Parameters
 /// - `mu`: Shear modulus
 /// - `kappa`: Bulk modulus
@@ -49,6 +58,10 @@ impl Plasticity<6, 4, 4, 1> for IsotropicMises3D {
         IsotropicMises3D {
             parameters: parameters.clone(),
         }
+    }
+    /// The initial yield stress $y_0$.
+    fn characteristic_stress(&self, _sigma_tr: &SVector<f64, 6>) -> f64 {
+        self.parameters.y_0
     }
     fn calculate_f_only(&self, sigma: &SVector<f64, 6>, kappa: &SVector<f64, 1>) -> f64 {
         let (_i_1, s) = sigma.trace_dev();

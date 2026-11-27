@@ -23,28 +23,34 @@ crate::impl_isotropic_elastic_parameters!(DruckerPragerHyperbolicParameters);
 
 /// A hyperbolically approximated Drucker-Prager plasticity model for 3D stress states.
 ///
-/// This struct represents the Drucker-Prager yield criterion with eihter associated or non-associated flow rule.
+/// This struct represents the Drucker-Prager yield criterion with either associated or non-associated flow rule.
 /// The yield function is defined as: $f = \sqrt{J_2+(bd)^2} + b\cdot I_1 - a$, where:
 /// - $J_2$ is the second invariant of the deviatoric stress tensor
 /// - $I_1$ is the first invariant of the stress tensor
 /// - $a$ and $b$ are material parameters that describe the yield surface as in the [`DruckerPrager3D`] model. $d$ is an additional smoothing parameter for the tip.
-/// - $h$ is a hardening parameter that expands the yield surface by multiplying $(1+h\alpha)$ to the parameters $a,d$. The slope $b$ remains constant.ts
+/// - $h$ is a hardening parameter that expands the yield surface by multiplying $(1+h\alpha)$ to the parameters $a,d$. The slope $b$ remains constant.
 /// - $b_{flow} > 0$ defines the slope of the flow rule which is equal to $b$ for associated flow.
+///
+/// # Yield surface
+/// Meridian section of the yield surface ($I_1$ vs. $\sqrt{J_2}$); the deviatoric section is a
+/// circle. Away from the apex, the hyperbola approaches the cone of the [`DruckerPrager3D`] model;
+/// the smoothing $d$ rounds off the tip and moves the apex from $I_1 = a/b$ to
+/// $I_1 = (a/b - d)(1 + h\alpha)$. The hardening scales $a$ and $d$ by $1 + h\alpha$, which
+/// moves the apex while keeping the slope $b$. $b_{flow}$ only changes the flow direction.
+///
+#[doc = "<div>"]
+#[doc = include_str!("../../../docs/figures/yield_surface_drucker_prager_hyperbolic.svg")]
+#[doc = "</div>"]
 ///
 /// # Limitations
 /// The return mapping may fail to converge for tensile trial stresses that return into the
 /// smoothed apex region while lying far outside of it: starting from the trial stress, the
-/// Newton iteration returns mainly deviatorically and does not find the narrow region of width
-/// $\sqrt{J_2} \sim bd(1+h\alpha)$ around the apex. In a single-step study (associated and
-/// non-associated flow, with and without hardening) no return failed for
-/// $$\Pi = \frac{\mu\,(I_{1,tr} - I_{1,apex})}{9\kappa\, b\, b_{flow}\, d} \lesssim 10^4,$$
-/// where $I_{1,apex} = (a/b - d)(1+h\alpha)$ and $\kappa$ is the bulk modulus; above, the
-/// failure rate increases with $\Pi$. With $d = \delta\, a/b$, this limits the volumetric strain
-/// increment beyond the apex to about $3\cdot10^4\, b_{flow}\,\delta\, a/\mu$, e.g. $3\cdot10^{-2}$
-/// for $\mu = 80.77$, $a = 0.15$, $b_{flow} = 0.05$ and $\delta = 1\%$. A small smoothing $d$,
-/// a small dilatancy $b_{flow}$ and a large ratio $\mu/a$ therefore require small strain
-/// increments. A formulation of the return mapping that could remove this limitation is
-/// outlined under potential improvements of [`NewtonSolverStrain`].
+/// Newton iteration returns mainly deviatorically and does not find the region of width
+/// $\sqrt{J_2} \sim bd(1+h\alpha)$ around the apex. This region becomes narrower as $d \to 0$,
+/// where the yield surface approaches the non-differentiable apex of the cone, so the return
+/// mapping may fail for small $d$, in particular with large strain increments. A formulation of
+/// the return mapping that could remove this limitation is outlined under potential
+/// improvements of [`NewtonSolverStrain`].
 ///
 /// This struct does not implement the stress return algorithm but implements
 /// the required functions like the yield function, flow rule, etc.
@@ -80,6 +86,13 @@ impl Plasticity<6, 7, 7, 1> for DruckerPragerHyperbolic3D {
         DruckerPragerHyperbolic3D {
             parameters: parameters.clone(),
         }
+    }
+    /// The initial yield stress at $I_1 = 0$, $\sqrt{J_2} = \sqrt{a^2 - (bd)^2}$. If $a \le bd$,
+    /// the initial yield surface does not reach $I_1 = 0$, and $a$ is used instead.
+    fn characteristic_stress(&self, _sigma_tr: &SVector<f64, 6>) -> f64 {
+        let DruckerPragerHyperbolicParameters { a, b, d, .. } = self.parameters;
+        let bd = b * d;
+        if a > bd { (a * a - bd * bd).sqrt() } else { a }
     }
     fn calculate_f_only(&self, sigma: &SVector<f64, 6>, kappa: &SVector<f64, 1>) -> f64 {
         let (i_1, s) = sigma.trace_dev();

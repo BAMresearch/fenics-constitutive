@@ -21,6 +21,15 @@ const _: () = assert!(check_constitutive_model_maps::<
 /// - $\sigma_y = y_0 + h \cdot \alpha$ is the current yield stress
 /// - $\alpha$ is the equivalent plastic strain
 ///
+/// # Yield surface
+/// Meridian section of the yield surface ($I_1$ vs. $\sqrt{J_2}$); the deviatoric section is a
+/// circle. The yield surface does not depend on $I_1$, and the yield stress $y_0 + h\alpha$ moves
+/// it parallel to the $I_1$ axis.
+///
+#[doc = "<div>"]
+#[doc = include_str!("../../docs/figures/yield_surface_mises.svg")]
+#[doc = "</div>"]
+///
 /// # Parameters
 /// - `mu`: Shear modulus
 /// - `kappa`: Bulk modulus

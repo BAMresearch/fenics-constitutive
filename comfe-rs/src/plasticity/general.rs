@@ -53,9 +53,11 @@ pub trait Plasticity<
         state: &mut PlasticityState<STRESS_STRAIN, KAPPA>,
     );
     fn calculate_f_only(&self, sigma: &SVector<f64, STRESS_STRAIN>, kappa: &SVector<f64, KAPPA>) -> f64;
-    /// Stress used to nondimensionalize the yield function in the return mapping, e.g. the
-    /// initial yield stress. Defaults to the magnitude of the trial stress, which is nonzero
-    /// whenever the trial state is plastic.
+    /// Stress scale of the tolerance of the yield function in the return mapping,
+    /// $|f| \le atol\thinspace\sigma_c$, e.g. the initial yield stress. It should not depend on
+    /// the trial stress, so that the accuracy of the return mapping does not depend on the step
+    /// size. Defaults to the magnitude of the trial stress, which is nonzero whenever the trial
+    /// state is plastic.
     fn characteristic_stress(&self, sigma_tr: &SVector<f64, STRESS_STRAIN>) -> f64 {
         sigma_tr.norm().max(f64::MIN_POSITIVE)
     }
@@ -129,8 +131,12 @@ where
             }
             return;
         } else {
+            // TODO: maxit = 100 lets slowly converging returns near the apex of the hyperbolic
+            // Drucker-Prager model converge, which may take more than 50 iterations. Warn about
+            // returns that need many iterations (e.g. more than 50), aggregated per call of
+            // `evaluate` and forwarded to Python's logging, see `pyo3-log`.
             let solver = NewtonSolverStrain::<8, 6, N_PARAMETERS, PARAMETERS, 1, MODEL>::new(
-                &model, &elastic_tangent, 1e-12, 1e-12, 50,
+                &model, &elastic_tangent, 1e-12, 1e-12, 100,
             );
             let mut state = PlasticityState::zeros();
 
